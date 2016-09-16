@@ -1,2 +1,2 @@
-SUBDIRS = src forecasters tests tools
+SUBDIRS = src assim forecasters tests tools
 ACLOCAL_AMFLAGS = -I m4

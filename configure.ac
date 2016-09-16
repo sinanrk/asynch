@@ -12,11 +12,15 @@ AC_PROG_RANLIB
 AX_CHECK_ZLIB
 AX_LIB_POSTGRESQL
 AX_LIB_HDF5([serial])
+AX_BLAS
+AX_LAPACK
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile forecasters/Makefile tests/Makefile tools/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile assim/Makefile forecasters/Makefile tests/Makefile tools/Makefile])
 
 # Checks for packages
-PKG_CHECK_MODULES([CHECK], [check >= 0.9.8], [HAVE_LIBCHEK=1], [HAVE_LIBCHEK=0])
+PKG_CHECK_MODULES([CHECK], [check >= 0.9.8], [HAVE_LIBCHECK=1], [HAVE_LIBCHECK=0])
+PKG_CHECK_MODULES([METIS], [check >= 5.0.0], [HAVE_METIS=1], [HAVE_METIS=0])
+PKG_CHECK_MODULES([PETSC], [check >= 3.7.0], [HAVE_PETSC=1], [HAVE_PETSC=0])
 
 AC_OUTPUT
