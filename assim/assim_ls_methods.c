@@ -246,12 +246,11 @@ void Find_Upstream_Links(asynchsolver* asynch,unsigned int problem_dim,short int
 
 		if(my_rank == 0)
 		{
-			//ConnData* conninfo = CreateConnData("dbname=arch_usgs host=s-iihr51.iihr.uiowa.edu port=5432 user=automated_solver password=C5.pfest0");
-			ConnData* conninfo = CreateConnData("dbname=model_assim host=s-iihr51.iihr.uiowa.edu port=5432 user=automated_solver password=C5.pfest0");
+			ConnData* conninfo = CreateConnData("dbname= host= port= user= password=");
 			ConnectPGDB(conninfo);
 
-			sprintf(query,"WITH subbasin AS (SELECT nodeX.link_id FROM env_master_km AS nodeX, env_master_km AS parentX WHERE (nodeX.left BETWEEN parentX.left AND parentX.right) AND parentX.link_id = %u) \
-					SELECT distinct env_master_km.link_id,to_border*1609.34 FROM env_master_km,subbasin WHERE subbasin.link_id = env_master_km.link_id;",outlet);
+			sprintf(query,"WITH subbasin AS (SELECT nodeX.link_id FROM materialized_env_master_km AS nodeX, materialized_env_master_km AS parentX WHERE (nodeX.left BETWEEN parentX.left AND parentX.right) AND parentX.link_id = %u) \
+					SELECT distinct materialized_env_master_km.link_id,to_border*1609.34 FROM materialized_env_master_km, subbasin WHERE subbasin.link_id = materialized_env_master_km.link_id;", outlet);
 			//sprintf(query,"SELECT distinct env_master_km.link_id,to_border*1609.34 FROM env_master_km;");
 			res = PQexec(conninfo->conn,query);
 			if(CheckResError(res,"getting list of distances to outlet"))
@@ -551,6 +550,7 @@ unsigned int GaugeDownstream(asynchsolver* asynch,unsigned int** above_gauges,sh
 		//Trickle down from each external link, until a gauge is reached, marking all links
 		for(i=0;i<N;i++)
 		{
+            // For all source links
 			if(sys[i]->numparents == 0)
 			{
 				current = sys[i];
@@ -710,7 +710,7 @@ AssimData* Init_AssimData(char* assim_filename,asynchsolver* asynch)
 	unsigned int **id_to_loc = asynch->id_to_loc,N = asynch->N,string_size = asynch->GlobalVars->string_size,i,id,n,dropped;
 	int errorcode,valsread;
 	AssimData* Assim;
-	FILE* inputfile;
+	FILE* inputfile = NULL;
 	char end_char;
 	unsigned int buff_size = string_size + 20;
 	char* linebuffer = (char*) malloc(buff_size*sizeof(char));

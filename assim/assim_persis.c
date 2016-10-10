@@ -25,10 +25,10 @@
 #endif
 
 #if !defined(_MSC_VER)
-#define ASYNCH_SLEEP sleep
+#define ASYNCH_SLEEP(seconds) sleep(seconds)
 #else
 #include <windows.h>
-#define ASYNCH_SLEEP Sleep
+#define ASYNCH_SLEEP(seconds) Sleep((seconds) * 1000)
 #endif
 
 #include "assim_ls_methods.h"
@@ -40,11 +40,12 @@
 typedef struct
 {
 	double *d_full,*HM_els,t_b,*x_start,*HM_buffer,*x_b;
-	VEC *RHS,*x,*invupareas,*B,*R;
-	MAT *HM,*HTH,*HMTR;
+	Vec *RHS,*x,*invupareas,*B,*R;
+	Mat *HM,*HTH,*HMTR;
 	asynchsolver* asynch;
 	KSP *ksp;
-	unsigned int problem_dim,allstates,allstates_needed,inc,steps_to_use;
+    double inc;
+	unsigned int problem_dim,allstates,allstates_needed,steps_to_use;
 	unsigned int *data_locs,numdata,*above_gauges,num_above,*cols_allstates_needed,assim_dim,*vareq_shift,*inv_vareq_shift;
 	int *entries_d;
 } AppCtxFull;
@@ -54,7 +55,7 @@ typedef struct CustomParams
 	unsigned int ID,offset,simulation_time_with_data;
 } CustomParams;
 
-void Make_Assimilated_Forecasts(asynchsolver* asynch,unsigned int background_time_unix,double simulation_time_with_data,VEC** backup,AppCtxFull* user,ForecastData* Forecaster,AssimData* Assim,unsigned int assim_dim,unsigned int forecast_idx);
+void Make_Assimilated_Forecasts(asynchsolver* asynch,unsigned int background_time_unix,double simulation_time_with_data,VEC* backup,AppCtxFull* user,ForecastData* Forecaster,AssimData* Assim,unsigned int assim_dim,unsigned int forecast_idx);
 
 void MM_mult(double** A,double** B,double** C,unsigned int m,unsigned int inner,unsigned int n);
 void VECTOR_Copy(double* u,double* v,unsigned int dim);
@@ -107,11 +108,11 @@ int main(int argc,char **argv)
 	PGresult *res;
 	char* query = (char*) malloc(1024*sizeof(char));
 	double holder,longest;
-	time_t start,stop,q_start,q_stop;
-	unsigned int i,j,k,l,m,n,current_offset;
-	RKMethod** AllMethods;
+	time_t start,stop/*,q_start,q_stop*/;
+	unsigned int i,j,k,/*l,m,n,*/current_offset;
+	//RKMethod** AllMethods;
 	Link* current;
-	char additional[16];	//For output filename
+	//char additional[16];	//For output filename
 	//srand(time(NULL));	//!!!! Is this needed? !!!!
 
 	//Init asynch object and the river network
@@ -224,7 +225,7 @@ int main(int argc,char **argv)
 	CreateHaltFile(Forecaster->halt_filename);
 
 	//Pull data from asynch
-	char dump_filename[asynch->GlobalVars->string_size],filename[asynch->GlobalVars->string_size];
+	char dump_filename[ASYNCH_MAX_PATH_LENGTH],filename[ASYNCH_MAX_PATH_LENGTH];
 	unsigned int my_N = asynch->my_N,N = asynch->N,*my_sys = asynch->my_sys,**id_to_loc = asynch->id_to_loc,num_forcings = asynch->GlobalVars->num_forcings;
 	int *assignments = asynch->assignments;
 	Link** sys = asynch->sys;
@@ -244,13 +245,13 @@ int main(int argc,char **argv)
 	}
 
 	//Reserve space for backups
-	VEC** backup = (VEC**) malloc(N*sizeof(VEC*));	//!!!! Same as background x_b? !!!!
+	VEC* backup = (VEC*) malloc(N*sizeof(VEC));	//!!!! Same as background x_b? !!!!
 	for(i=0;i<N;i++)
 	{
 		if(assignments[i] == my_rank || getting[i])
 			backup[i] = v_get(sys[i]->dim);
 		else
-			backup[i] = NULL;
+			backup[i] = v_get(0);
 	}
 
 	//Initialize choices
@@ -259,20 +260,23 @@ int main(int argc,char **argv)
 	double t_f = Asynch_Get_Total_Simulation_Time(asynch);
 	unsigned int dim = assim_dim;
 	unsigned int allstates = dim * N;
-	double x_b[allstates];
+	//double x_b[allstates];
+
+    // Allocate background
+    double  *x_b = malloc(allstates * sizeof(double));
 	for(i=0;i<N;i++)
 	{
 		if(assignments[i] == my_rank)
 		{
 			for(j=0;j<assim_dim;j++)
-				x_b[i*assim_dim + j] = sys[i]->list->tail->y_approx->ve[j];	//!!!! Need to be able to specify which states are used !!!!
+				x_b[i*assim_dim + j] = sys[i]->list->tail->y_approx.ve[j];	//!!!! Need to be able to specify which states are used !!!!
 		}
 		MPI_Bcast(&(x_b[i*assim_dim]),assim_dim,MPI_DOUBLE,assignments[i],MPI_COMM_WORLD);
 	}
 
 	//Other initializations
-	unsigned int numstepstotake;
-	unsigned int iterations = round((t_f - t_b) / inc);
+	//unsigned int numstepstotake;
+	unsigned int iterations = (unsigned int) round((t_f - t_b) / inc);
 	double* d = calloc(Assim->numdata,sizeof(double));
 
 	//unsigned int start_idx = 0;
@@ -328,7 +332,7 @@ printf("allstates_needed: %u allstates: %u\n",allstates_needed,allstates);
 	upstream_data* updata;
 	for(i=0;i<N;i++)
 	{
-		//if(assignments[i] == my_rank)	invupareas[i] = 1.0/(sys[i]->params->ve[GlobalVars->area_idx]*1e3);
+		//if(assignments[i] == my_rank)	invupareas[i] = 1.0/(sys[i]->params.ve[GlobalVars->area_idx]*1e3);
 		if(assignments[i] == my_rank)	invupareas[i] = 1.0;
 		MPI_Bcast(&(invupareas[i]),1,MPI_DOUBLE,assignments[i],MPI_COMM_WORLD);
 	}
@@ -482,18 +486,19 @@ printf("allstates_needed: %u allstates: %u\n",allstates_needed,allstates);
 		printf("Warning: Increment for rain should probably be %u.\n",num_rainsteps + 3);
 	//asynch->forcings[forecast_idx]->increment = num_rainsteps;	//!!!! Not necessary, but makes me feel better. The solvers should really not do the last step where they download nothing. !!!!
 
-	unsigned int nextraintime,nextforcingtime,background_time_unix;
+	unsigned int /*nextraintime,*/nextforcingtime,background_time_unix;
 	short int halt = 0;
 	int isnull,repeat_for_errors;
 	//int message_buffer[1 + asynch->GlobalVars->num_forcings];
 	short int vac = 0;	//0 if no vacuum has occured, 1 if vacuum has occured (during a specific hour)
 	unsigned int change_time = (unsigned int) asynch->forcings[forecast_idx]->file_time * 60 * num_rainsteps;
-	unsigned int forecast_time_unix = asynch->forcings[forecast_idx]->last_file - change_time;	//Subracting change_time to make the value correct in the loop
+	unsigned int forecast_time_unix = asynch->forcings[forecast_idx]->first_file - change_time;	//Subracting change_time to make the value correct in the loop
 	//unsigned int last_file = asynch->forcings[forecast_idx]->last_file;
 	//unsigned int first_file = asynch->forcings[forecast_idx]->first_file;
 	k = 0;
 	for(i=0;i<N;i++)
-		if(backup[i] != NULL)	v_copy(asynch->sys[i]->list->tail->y_approx,backup[i]);
+		if(backup[i].dim > 0)
+            v_copy(asynch->sys[i]->list->tail->y_approx,backup[i]);
 
 	//double simulation_time_with_data = asynch->forcings[forecast_idx]->file_time * Forecaster->num_rainsteps;
 	double simulation_time_with_data = (Assim->steps_to_use - 1) * Assim->inc;
@@ -616,13 +621,13 @@ printf("!!!! Skipping initialization. Skipping maintenance too. !!!!\n");
 		//Make sure all buffer flushing is done
 		MPI_Barrier(MPI_COMM_WORLD);
 
-		//Dump data for debugging and recovery
-		if(k % 96 == 0)
-		{
-			sprintf(filename,"%s%u.rec",dump_filename,forecast_time_unix);
-			Asynch_Set_Snapshot_Output_Name(asynch,filename);
-			Asynch_Take_System_Snapshot(asynch,NULL);
-		}
+		////Dump data for debugging and recovery
+		//if(k % 96 == 0)
+		//{
+		//	sprintf(filename,"%s%u.rec",dump_filename,forecast_time_unix);
+		//	Asynch_Set_Snapshot_Output_Name(asynch,filename);
+		//	Asynch_Take_System_Snapshot(asynch,NULL);
+		//}
 
 		//Find the next time where rainfall occurs
 		do
@@ -798,7 +803,7 @@ printf("!!!! Skipping initialization. Skipping maintenance too. !!!!\n");
 			}
 
 			//Stage archive
-			repeat_for_errors = 1;
+			repeat_for_errors = 0;
 			while(repeat_for_errors)
 			{
 				repeat_for_errors = 0;
@@ -864,11 +869,13 @@ printf("!!!! Skipping initialization. Skipping maintenance too. !!!!\n");
 
 	//Clean up
 	free(query);
-	for(i=0;i<N;i++)	v_free(backup[i]);
+	for(i=0;i<N;i++)
+        v_free(&backup[i]);
 	free(backup);
 	free(d);
 	free(d_full);
-	free(x_start);
+    free(x_start);
+    free(x_start);
 	free(vareq_shift);
 	free(inv_vareq_shift);
 
@@ -906,7 +913,7 @@ printf("!!!! Skipping initialization. Skipping maintenance too. !!!!\n");
 }
 
 
-void Make_Assimilated_Forecasts(asynchsolver* asynch,unsigned int background_time_unix,double simulation_time_with_data,VEC** backup,AppCtxFull* user,ForecastData* Forecaster,AssimData* Assim,unsigned int assim_dim,unsigned int forecast_idx)
+void Make_Assimilated_Forecasts(asynchsolver* asynch,unsigned int background_time_unix,double simulation_time_with_data,VEC* backup,AppCtxFull* user,ForecastData* Forecaster,AssimData* Assim,unsigned int assim_dim,unsigned int forecast_idx)
 {
 	time_t q_start,q_stop;
 	int *assignments = asynch->assignments;
@@ -920,7 +927,8 @@ void Make_Assimilated_Forecasts(asynchsolver* asynch,unsigned int background_tim
 	unsigned int allstates = user->allstates,least_squares_iters = Assim->least_squares_iters;
 	double *analysis = (double*) malloc(allstates*sizeof(double));	//!!!! Should be removed !!!!
 	model* custom_model = asynch->custom_model;
-	double q[steps_to_use*numdata];
+	//double q[steps_to_use*numdata];
+    double *q = (double*)malloc(steps_to_use*numdata * sizeof(double));
 
 	//for(k=0;k<iterations;k++)
 	{
@@ -1103,7 +1111,7 @@ time(&q_start);
 				if(assignments[j] == my_rank)
 				{
 					for(l=0;l<assim_dim;l++)
-						x_b[j*assim_dim+l] = backup[j]->ve[l] = sys[j]->list->tail->y_approx->ve[l];
+						x_b[j*assim_dim+l] = backup[j].ve[l] = sys[j]->list->tail->y_approx.ve[l];
 				}
 				MPI_Bcast(&(x_b[j*assim_dim]),assim_dim,MPI_DOUBLE,assignments[j],MPI_COMM_WORLD);
 			}
@@ -1151,6 +1159,7 @@ if(my_rank == 0)	printf("Time to create output: %.0f\n",difftime(q_stop,q_start)
 	}
 
 	free(analysis);
+    free(q);
 }
 
 //This computes the least squares fit assuming the background and analysis difference is linear in the innovations. 
@@ -1159,9 +1168,9 @@ if(my_rank == 0)	printf("Time to create output: %.0f\n",difftime(q_stop,q_start)
 //HM_buffer is 1 X allstates_needed
 int LinearLeastSquares(AppCtxFull* ptr,double* q)
 {
-	unsigned int i,j,k,m,n,l,counter;
+	unsigned int i,j,/*k,m,*/n/*,l,counter*/;
 	Link* current;
-	double factor;
+	//double factor;
 	time_t start,stop,start2;
 	short int my_link;
 	int owner;
@@ -1180,11 +1189,12 @@ int LinearLeastSquares(AppCtxFull* ptr,double* q)
 	KSP *ksp = user->ksp;
 	double *d_els = user->d_full;
 	unsigned int *data_locs = user->data_locs,assim_dim = user->assim_dim;
-	unsigned int problem_dim = user->problem_dim,allstates = user->allstates,inc = user->inc,steps_to_use = user->steps_to_use,numdata = user->numdata;
+    double inc = user->inc;
+	unsigned int problem_dim = user->problem_dim,allstates = user->allstates,steps_to_use = user->steps_to_use,numdata = user->numdata;
 	int *cols_allstates_needed = user->cols_allstates_needed,*entries_d = user->entries_d;
 	double t_b = user->t_b,*x_els;
 	unsigned int allstates_needed = user->allstates_needed;
-	double *RHS_els,*x_start = user->x_start,*HM_buffer = user->HM_buffer;
+	double /**RHS_els,*/*x_start = user->x_start,*HM_buffer = user->HM_buffer;
 	unsigned int max_or_steps = steps_to_use;
 	//double q[max_or_steps*numdata];
 	model* custom_model = asynch->custom_model;
@@ -1258,13 +1268,13 @@ if(my_rank == 0)
 					HM_buffer[n] = 0.0;
 				for(n=0;n<updata->num_fit_states;n++)
 {
-//printf("ID = %u | Loading %e (from %u) into spot %u\n",current->ID,current->list->tail->y_approx->ve[updata->fit_states[n]],updata->fit_states[n],vareq_shift[updata->fit_to_universal[n]]);
+//printf("ID = %u | Loading %e (from %u) into spot %u\n",current->ID,current->list->tail->y_approx.ve[updata->fit_states[n]],updata->fit_states[n],vareq_shift[updata->fit_to_universal[n]]);
 //ASYNCH_SLEEP(1);
-					HM_buffer[vareq_shift[updata->fit_to_universal[n]]] = current->list->tail->y_approx->ve[updata->fit_states[n]];
+					HM_buffer[vareq_shift[updata->fit_to_universal[n]]] = current->list->tail->y_approx.ve[updata->fit_states[n]];
 }
 
 				//Extract calculationed q's (Just needed for testing. Maybe...)
-				q[i*numdata+j] = current->list->tail->y_approx->ve[0];
+				q[i*numdata+j] = current->list->tail->y_approx.ve[0];
 			}
 
 			MPI_Bcast(HM_buffer,allstates_needed,MPI_DOUBLE,owner,MPI_COMM_WORLD);	//!!!! Only proc 0 needs this !!!!
@@ -1360,47 +1370,47 @@ if(my_rank == 0)
 	//Send solution to everyone
 	MPI_Bcast(x_start,allstates,MPI_DOUBLE,0,MPI_COMM_WORLD);
 
-if(print_out && my_rank == 0)
-{
-unsigned int idxm[numdata*steps_to_use];
-double temp_matptr[(numdata*steps_to_use*allstates_needed > allstates_needed*allstates_needed) ? numdata*steps_to_use*allstates_needed : allstates_needed*allstates_needed];
-for(i=0;i<numdata*steps_to_use;i++)	idxm[i] = i;
-
-printf("x_start\n");
-for(i=0;i<allstates;i++)	printf("%.15e ",x_start[i]);
-printf("\n");
-
-double* temp_ptr;
-printf("difference (x)\n");
-VecGetArray(*x,&temp_ptr);
-for(i=0;i<allstates_needed;i++)	printf("%.15e ",temp_ptr[i]);
-printf("\n");
-VecRestoreArray(*x,&temp_ptr);
-
-printf("d\n");
-VecGetArray(d,&temp_ptr);
-for(i=0;i<numdata*max_or_steps;i++)	printf("%.15e ",temp_ptr[i]);
-printf("\n");
-
-printf("HM\n");
-MatGetValues(*HM,numdata*max_or_steps,idxm,allstates_needed,cols_allstates_needed,temp_matptr);
-for(i=0;i<numdata*max_or_steps;i++)
-{
-	for(j=0;j<allstates_needed;j++)
-		printf("%.15e ",temp_matptr[i*allstates_needed + j]);
-	printf(";\n");
-}
-
-printf("HTH\n");
-MatGetValues(*HTH,allstates_needed,cols_allstates_needed,allstates_needed,cols_allstates_needed,temp_matptr);
-for(i=0;i<allstates_needed;i++)
-{
-	for(j=0;j<allstates_needed;j++)
-		printf("%.15e ",temp_matptr[i*allstates_needed + j]);
-	printf(";\n");
-}
-
-}
+//if(print_out && my_rank == 0)
+//{
+//unsigned int idxm[numdata*steps_to_use];
+//double temp_matptr[(numdata*steps_to_use*allstates_needed > allstates_needed*allstates_needed) ? numdata*steps_to_use*allstates_needed : allstates_needed*allstates_needed];
+//for(i=0;i<numdata*steps_to_use;i++)	idxm[i] = i;
+//
+//printf("x_start\n");
+//for(i=0;i<allstates;i++)	printf("%.15e ",x_start[i]);
+//printf("\n");
+//
+//double* temp_ptr;
+//printf("difference (x)\n");
+//VecGetArray(*x,&temp_ptr);
+//for(i=0;i<allstates_needed;i++)	printf("%.15e ",temp_ptr[i]);
+//printf("\n");
+//VecRestoreArray(*x,&temp_ptr);
+//
+//printf("d\n");
+//VecGetArray(d,&temp_ptr);
+//for(i=0;i<numdata*max_or_steps;i++)	printf("%.15e ",temp_ptr[i]);
+//printf("\n");
+//
+//printf("HM\n");
+//MatGetValues(*HM,numdata*max_or_steps,idxm,allstates_needed,cols_allstates_needed,temp_matptr);
+//for(i=0;i<numdata*max_or_steps;i++)
+//{
+//	for(j=0;j<allstates_needed;j++)
+//		printf("%.15e ",temp_matptr[i*allstates_needed + j]);
+//	printf(";\n");
+//}
+//
+//printf("HTH\n");
+//MatGetValues(*HTH,allstates_needed,cols_allstates_needed,allstates_needed,cols_allstates_needed,temp_matptr);
+//for(i=0;i<allstates_needed;i++)
+//{
+//	for(j=0;j<allstates_needed;j++)
+//		printf("%.15e ",temp_matptr[i*allstates_needed + j]);
+//	printf(";\n");
+//}
+//
+//}
 
 if(print_out)
 {
@@ -1433,7 +1443,7 @@ for(i=0;i<max_or_steps;i++)
 		my_link = (owner == my_rank);
 
 		if(my_link)
-			q[i*numdata+j] = sys[data_locs[j]]->list->tail->y_approx->ve[0];
+			q[i*numdata+j] = sys[data_locs[j]]->list->tail->y_approx.ve[0];
 
 		MPI_Bcast(&(q[i*numdata+j]),1,MPI_DOUBLE,owner,MPI_COMM_WORLD);
 	}
@@ -1466,7 +1476,7 @@ printf("\nDifferences between q and data are %e %e\n\n",first_diff,second_diff);
 
 double compute_diff(double* d,double* q,unsigned int size)
 {
-	int i;
+	unsigned int i;
 	double result = 0.0;
 
 	for(i=0;i<size;i++)
@@ -1526,7 +1536,7 @@ void Print_VECTOR(double* v,unsigned int dim)
 //Read into memory the times and discharges stored in a .dat file.
 double*** DownloadGaugeReadings(unsigned int start_time,unsigned int stop_time,unsigned int** id_to_loc,unsigned int N,unsigned int* numlinks,unsigned int** ids,unsigned int** locs,unsigned int** numsteps)
 {
-	unsigned int i,j,k;
+	unsigned int i,j/*,k*/;
 	double ***data = NULL;
 	char query[1028];
 
@@ -1545,12 +1555,12 @@ double*** DownloadGaugeReadings(unsigned int start_time,unsigned int stop_time,u
 		ConnectPGDB(conninfo);
 
 		//Get link ids of gauges
+        //sprintf(query,"WITH subbasin AS (SELECT nodeX.link_id FROM env_master_km AS nodeX, env_master_km AS parentX WHERE (nodeX.left BETWEEN parentX.left AND parentX.right) AND parentX.link_id = %u) \
+		//  SELECT DISTINCT A.link_id FROM env_pois_adv AS A, subbasin AS B, sensor_data AS C \
+		//  WHERE A.type = 4 AND C.bridge_id = (A.foreign_id1)::integer AND B.link_id = A.link_id AND B.link_id != 311903 ORDER BY A.link_id;",outlet);
 		//sprintf(query,"WITH subbasin AS (SELECT nodeX.link_id FROM env_master_km AS nodeX, env_master_km AS parentX WHERE (nodeX.left BETWEEN parentX.left AND parentX.right) AND parentX.link_id = %u) \
-			SELECT DISTINCT A.link_id FROM env_pois_adv AS A, subbasin AS B, sensor_data AS C \
-			WHERE A.type = 4 AND C.bridge_id = (A.foreign_id1)::integer AND B.link_id = A.link_id AND B.link_id != 311903 ORDER BY A.link_id;",outlet);
-		//sprintf(query,"WITH subbasin AS (SELECT nodeX.link_id FROM env_master_km AS nodeX, env_master_km AS parentX WHERE (nodeX.left BETWEEN parentX.left AND parentX.right) AND parentX.link_id = %u) \
-			SELECT DISTINCT A.link_id FROM env_pois_adv AS A, subbasin AS B, sensor_data AS C \
-			WHERE A.type = 4 AND C.bridge_id = (A.foreign_id1)::integer AND B.link_id = A.link_id AND B.link_id != 311903 AND B.link_id != 301218 AND B.link_id != 305680 ORDER BY A.link_id;",outlet);
+		//	SELECT DISTINCT A.link_id FROM env_pois_adv AS A, subbasin AS B, sensor_data AS C \
+		//	WHERE A.type = 4 AND C.bridge_id = (A.foreign_id1)::integer AND B.link_id = A.link_id AND B.link_id != 311903 AND B.link_id != 301218 AND B.link_id != 305680 ORDER BY A.link_id;",outlet);
 		sprintf(query,"WITH subbasin AS (SELECT nodeX.link_id FROM env_master_km AS nodeX, env_master_km AS parentX WHERE (nodeX.left BETWEEN parentX.left AND parentX.right) AND parentX.link_id = %u) \
 			SELECT DISTINCT A.link_id FROM env_pois_adv AS A, subbasin AS B, master_usgs_gauges AS C \
 			WHERE B.link_id = A.link_id AND A.id = C.ifis_id AND A.link_id != 421097 AND A.link_id != 434582 ORDER BY link_id;",outlet);
@@ -1572,9 +1582,9 @@ double*** DownloadGaugeReadings(unsigned int start_time,unsigned int stop_time,u
 		for(i=0;i<*numlinks;i++)
 		{
 			//sprintf(query,"SELECT (extract('epoch' FROM date_trunc('minute', C.time2)) - %u)/60 AS unix_time, getdischarges((dist_bottom - measured_dist)*0.0328084::real,A.id)*0.0283168 AS q \
-				FROM env_pois_adv AS A, sensor_data AS C \
-				WHERE A.type = 4 AND C.bridge_id = (A.foreign_id1)::integer AND A.link_id = %u AND to_timestamp(%u) <= C.time2 AND C.time2 <= to_timestamp(%u) \
-				ORDER BY unix_time;",start_time,(*ids)[i],start_time,stop_time);
+			//	FROM env_pois_adv AS A, sensor_data AS C \
+			//	WHERE A.type = 4 AND C.bridge_id = (A.foreign_id1)::integer AND A.link_id = %u AND to_timestamp(%u) <= C.time2 AND C.time2 <= to_timestamp(%u) \
+			//	ORDER BY unix_time;",start_time,(*ids)[i],start_time,stop_time);
 			sprintf(query,"SELECT (unix_timestamp-%u)/60 AS t,discharge*0.0283168 AS q FROM env_pois_adv AS A, master_usgs_gauges AS B \
 				WHERE A.id = B.ifis_id AND A.link_id = %u AND %u <= B.unix_timestamp AND B.unix_timestamp <= %u ORDER BY t;",start_time,(*ids)[i],start_time,stop_time);
 			res = PQexec(conninfo->conn,query);

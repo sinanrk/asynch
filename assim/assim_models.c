@@ -1026,10 +1026,10 @@ void Setup_Fitting_Data_Model254_q(asynchsolver* asynch,unsigned int* data_locs,
 	unsigned int num_change_states = 1;	//For q
 	//unsigned int num_change_states = 2;	//For q and s_p
 
-	//Find links upstream from gauges
-	short int* bool_above_gauges;
-	unsigned int* above_gauges;
-	unsigned int num_above = GaugeDownstream(asynch,&above_gauges,&bool_above_gauges,data_locs,numdata);
+	////Find links upstream from gauges
+	//short int* bool_above_gauges;
+	//unsigned int* above_gauges;
+	//unsigned int num_above = GaugeDownstream(asynch,&above_gauges,&bool_above_gauges,data_locs,numdata);
 
 	//Calculate the number of states needed for the fitting
 	//unsigned int allstates_needed = num_above * 2;	//For q and s_p
@@ -1068,8 +1068,8 @@ void Setup_Fitting_Data_Model254_q(asynchsolver* asynch,unsigned int* data_locs,
 		}
 	}
 
-	free(bool_above_gauges);
-	free(above_gauges);
+	//free(bool_above_gauges);
+	//free(above_gauges);
 	//return allstates_needed;
 }
 
