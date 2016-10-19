@@ -65,8 +65,8 @@ void Print_VECTOR(double* v,unsigned int dim);
 double*** DownloadGaugeReadings(unsigned int start_time,unsigned int stop_time,unsigned int** id_to_loc,unsigned int N,unsigned int* numlinks,unsigned int** ids,unsigned int** locs,unsigned int** numsteps);
 double compute_diff(double* d,double* q,unsigned int size);
 
-int Output_Linkid(double t,VEC* y_i,VEC* global_params,VEC* params,int state,void* user);
-int Output_Timestamp(double t,VEC* y_i,VEC* global_params,VEC* params,int state,void* user);
+int Output_Linkid(double t,VEC y_i,VEC global_params,VEC params,int state,void* user);
+int Output_Timestamp(double t,VEC y_i,VEC global_params,VEC params,int state,void* user);
 
 void Init_Output_User_forecastparams(asynchsolver* asynch);
 void Free_Output_User_forecastparams(asynchsolver* asynch);
@@ -213,8 +213,8 @@ int main(int argc,char **argv)
 		MPI_Abort(MPI_COMM_WORLD,1);
 	}
 	Init_Output_User_forecastparams(asynch);
-	Asynch_Set_Output(asynch,"LinkID",ASYNCH_INT,(void (*)(double,VEC*,VEC*,VEC*,int,void*)) &Output_Linkid,NULL,0);
-	Asynch_Set_Output(asynch,"Timestamp",ASYNCH_INT,(void (*)(double,VEC*,VEC*,VEC*,int,void*)) &Output_Timestamp,NULL,0);
+	Asynch_Set_Output(asynch,"LinkID",ASYNCH_INT,(void (*)(double,VEC,VEC,VEC,int,void*)) &Output_Linkid,NULL,0);
+	Asynch_Set_Output(asynch,"Timestamp",ASYNCH_INT,(void (*)(double,VEC,VEC,VEC,int,void*)) &Output_Timestamp,NULL,0);
 	Set_Output_User_forecastparams(asynch,0,0);
 
 	//Prepare output files
@@ -1654,13 +1654,13 @@ double*** DownloadGaugeReadings(unsigned int start_time,unsigned int stop_time,u
 
 
 //Output functions ****************************************************************************
-int Output_Linkid(double t,VEC* y_i,VEC* global_params,VEC* params,int state,void* user)
+int Output_Linkid(double t,VEC y_i,VEC global_params,VEC params,int state,void* user)
 {
 	CustomParams* forecastparams = (CustomParams*) user;
 	return forecastparams->ID;
 }
 
-int Output_Timestamp(double t,VEC* y_i,VEC* global_params,VEC* params,int state,void* user)
+int Output_Timestamp(double t,VEC y_i,VEC global_params,VEC params,int state,void* user)
 {
 	CustomParams* forecastparams = (CustomParams*) user;
 	return (int)(round(t * 60.0 + forecastparams->offset - forecastparams->simulation_time_with_data) + 0.1);
