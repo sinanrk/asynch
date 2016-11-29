@@ -3,12 +3,12 @@ noinst_LIBRARIES = libforecaster.a libassim.a
 libforecaster_a_SOURCES = forecaster_methods.c
 libassim_a_SOURCES = assim_ls_methods.c assim_models.c
 
-bin_PROGRAMS = assim_persis #assimpersis_end assim_least_square_linear
+bin_PROGRAMS = assim assim_persis #assimpersis_end assim_least_square_linear
 
 include_HEADERS = forecaster_methods.h assim_models.h assim_ls_methods.h
 
-#assim_least_square_linear_SOURCES = assim_least_squares_linear.c
-#assim_least_square_linear_LDADD = libforecaster.a libassim.a $(top_builddir)/src/libasynch.a -lm $(POSTGRESQL_LIBS) $(HDF5_LIBS) $(SSH2_LIBS) $(METIS_LIBS) $(PETSC_LIBS)
+assim_SOURCES = assim.c
+assim_LDADD = libassim.a $(top_builddir)/src/libasynch.a -lm $(POSTGRESQL_LIBS) $(HDF5_LIBS) $(SSH2_LIBS) $(METIS_LIBS) $(PETSC_LIBS)
 
 assim_persis_SOURCES = assim_persis.c
 assim_persis_LDADD = libforecaster.a libassim.a $(top_builddir)/src/libasynch.a -lm $(POSTGRESQL_LIBS) $(HDF5_LIBS) $(SSH2_LIBS) $(METIS_LIBS) $(PETSC_LIBS)

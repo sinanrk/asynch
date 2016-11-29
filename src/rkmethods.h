@@ -17,20 +17,20 @@
 extern int my_rank;
 extern int np;
 
-double InitialStepSize(double t,Link* link_i,UnivVars* GlobalVars,TempStorage* workspace);
+double InitialStepSize(double t,Link* link_i,GlobalVars* GlobalVars,TempStorage* workspace);
 //void BackupParent(Link* currentp,double time,VEC* backup,UnivVars* GlobalVars);
 
 //RKSolver methods
 //int ExplicitRKSolverLinear(Link* link_i,UnivVars* GlobalVars,int* assignments,FILE* outputfile,TempStorage* workspace);
-int ExplicitRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
-int ExplicitRKIndex1SolverDam(Link* link_i,UnivVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
-int ExplicitRKIndex1Solver(Link* link_i,UnivVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
-int ExplicitRKSolverDiscont(Link* link_i,UnivVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
-int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
-int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
+int ExplicitRKSolver(Link* link_i,GlobalVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
+int ExplicitRKIndex1SolverDam(Link* link_i,GlobalVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
+int ExplicitRKIndex1Solver(Link* link_i,GlobalVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
+int ExplicitRKSolverDiscont(Link* link_i,GlobalVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
+int RadauRKSolver(Link* link_i,GlobalVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
+int ExplicitRKSolver_DataAssim(Link* link_i,GlobalVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
 
 //Forced solution methods
-int ForcedSolutionSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
+int ForcedSolutionSolver(Link* link_i,GlobalVars* GlobalVars,int* assignments,short int print_flag,FILE* outputfile,ConnData* conninfo,Forcing** forcings,TempStorage* workspace);
 
 //RK methods data
 RKMethod* RKDense3_2();

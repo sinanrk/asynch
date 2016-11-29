@@ -127,13 +127,13 @@ unsigned int PassesRecurring(Forcing* forcing,double maxtime,ConnData* conninfo)
 //Forcings (0 = none, 1 = .str, 2 = binary, 3 = database, 4 = .ustr, 5 = forcasting, 6 = .gz binary, 7 = recurring)
 
 //For flag = 0,1,4
-double NextForcingOther(Link** sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,UnivVars* GlobalVars,Forcing* forcing,ConnData** db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
+double NextForcingOther(Link* sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,GlobalVars* GlobalVars,Forcing* forcing,ConnData* db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
 {
 	return GlobalVars->maxtime;
 }
 
 //For flag = 2
-double NextForcingBinaryFiles(Link** sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,UnivVars* GlobalVars,Forcing* forcing,ConnData** db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
+double NextForcingBinaryFiles(Link* sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,GlobalVars* GlobalVars,Forcing* forcing,ConnData* db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
 {
 	unsigned int passes = forcing->passes, iteration = forcing->iteration;
 	double maxtime;
@@ -148,7 +148,7 @@ double NextForcingBinaryFiles(Link** sys,unsigned int N,unsigned int* my_sys,uns
 }
 
 //For flag = 6
-double NextForcingGZBinaryFiles(Link** sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,UnivVars* GlobalVars,Forcing* forcing,ConnData** db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
+double NextForcingGZBinaryFiles(Link* sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,GlobalVars* GlobalVars,Forcing* forcing,ConnData* db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
 {
 	unsigned int passes = forcing->passes, iteration = forcing->iteration;
 	double maxtime;
@@ -163,7 +163,7 @@ double NextForcingGZBinaryFiles(Link** sys,unsigned int N,unsigned int* my_sys,u
 }
 
 //For flag = 8
-double NextForcingGridCell(Link** sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,UnivVars* GlobalVars,Forcing* forcing,ConnData** db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
+double NextForcingGridCell(Link* sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,GlobalVars* GlobalVars,Forcing* forcing,ConnData* db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
 {
 	unsigned int passes = forcing->passes, iteration = forcing->iteration;
 	double maxtime;
@@ -178,15 +178,15 @@ double NextForcingGridCell(Link** sys,unsigned int N,unsigned int* my_sys,unsign
 }
 
 //For flag = 3
-double NextForcingDatabase(Link** sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,UnivVars* GlobalVars,Forcing* forcing,ConnData** db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
+double NextForcingDatabase(Link* sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,GlobalVars* GlobalVars,Forcing* forcing,ConnData* db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
 {
 	unsigned int passes = forcing->passes, iteration = forcing->iteration,first_timestamp = 0;
 	double maxtime;
 
-//printf("!!!! In here: %i %i\n",(int)(sys[my_sys[0]]->last_t*60 + .001) + forcing->raindb_start_time,(int)(forcing->first_file+iteration*forcing->file_time*60.0*forcing->increment+0.01));
+//printf("!!!! In here: %i %i\n",(int)(sys[my_sys[0]].last_t*60 + .001) + forcing->raindb_start_time,(int)(forcing->first_file+iteration*forcing->file_time*60.0*forcing->increment+0.01));
 //printf("!!!! increment = %u iteration = %u, first_file = %u\n",forcing->increment,iteration,forcing->first_file);
 
-	if( (int)(sys[my_sys[0]]->last_t*60 + .001) + forcing->raindb_start_time == (int)(forcing->first_file+iteration*forcing->file_time*60.0*forcing->increment+0.01) )
+	if( (int)(sys[my_sys[0]].last_t*60 + .001) + forcing->raindb_start_time == (int)(forcing->first_file+iteration*forcing->file_time*60.0*forcing->increment+0.01) )
 	{
 		if(iteration == passes-1)	maxtime = GlobalVars->maxtime;	//!!!! Is this really needed? !!!!
 		else				maxtime = min(GlobalVars->maxtime,(iteration+1)*forcing->file_time*forcing->increment);
@@ -198,7 +198,7 @@ double NextForcingDatabase(Link** sys,unsigned int N,unsigned int* my_sys,unsign
 		if( (int)(first_timestamp - forcing->good_timestamp) % (int)(forcing->file_time*60+0.01) )
 			first_timestamp -= (unsigned int)(forcing->file_time*60.0 + 0.01);
 
-		Create_Rain_Database(sys,N,my_N,GlobalVars,my_sys,assignments,db_connections[ASYNCH_DB_LOC_FORCING_START + forcing_idx],first_timestamp,maxfileindex,forcing,id_to_loc,GlobalVars->maxtime,forcing_idx);
+		Create_Rain_Database(sys,N,my_N,GlobalVars,my_sys,assignments,&db_connections[ASYNCH_DB_LOC_FORCING_START + forcing_idx],first_timestamp,maxfileindex,forcing,id_to_loc,GlobalVars->maxtime,forcing_idx);
 		(forcing->iteration)++;
 	}
 	else
@@ -209,22 +209,22 @@ double NextForcingDatabase(Link** sys,unsigned int N,unsigned int* my_sys,unsign
 
 
 //For flag = 9
-double NextForcingDatabase_Irregular(Link** sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,UnivVars* GlobalVars,Forcing* forcing,ConnData** db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
+double NextForcingDatabase_Irregular(Link* sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,GlobalVars* GlobalVars,Forcing* forcing,ConnData* db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
 {
 	unsigned int passes = forcing->passes, iteration = forcing->iteration,first_timestamp = 0;
 	double maxtime;
 /*
 printf("**************\n");
-printf("!!!! In here: %u %u\n",(int)(sys[my_sys[0]]->last_t*60 + .001) + forcing->raindb_start_time,(int)(forcing->next_timestamp));
-printf("First is %f %u\n",sys[my_sys[0]]->last_t*60 + .001,forcing->raindb_start_time);
+printf("!!!! In here: %u %u\n",(int)(sys[my_sys[0]].last_t*60 + .001) + forcing->raindb_start_time,(int)(forcing->next_timestamp));
+printf("First is %f %u\n",sys[my_sys[0]].last_t*60 + .001,forcing->raindb_start_time);
 printf("Second is %u %u\n",forcing->first_file,forcing->next_timestamp);
 printf("**************\n");
 */
 
-	//if( (int)(sys[my_sys[0]]->last_t*60 + .001) + forcing->raindb_start_time == (int)(forcing->first_file+iteration*forcing->file_time*60.0*forcing->increment+0.01) )
-	if( (int)(sys[my_sys[0]]->last_t*60 + .001) + forcing->raindb_start_time == (int)(forcing->next_timestamp) || forcing->iteration == 0)
+	//if( (int)(sys[my_sys[0]].last_t*60 + .001) + forcing->raindb_start_time == (int)(forcing->first_file+iteration*forcing->file_time*60.0*forcing->increment+0.01) )
+	if( (int)(sys[my_sys[0]].last_t*60 + .001) + forcing->raindb_start_time == (int)(forcing->next_timestamp) || forcing->iteration == 0)
 	{
-		forcing->next_timestamp = Create_Rain_Database_Irregular(sys,N,my_N,GlobalVars,my_sys,assignments,db_connections[ASYNCH_DB_LOC_FORCING_START + forcing_idx],forcing->next_timestamp,0,forcing,id_to_loc,GlobalVars->maxtime,forcing_idx);
+		forcing->next_timestamp = Create_Rain_Database_Irregular(sys,N,my_N,GlobalVars,my_sys,assignments,&db_connections[ASYNCH_DB_LOC_FORCING_START + forcing_idx],forcing->next_timestamp,0,forcing,id_to_loc,GlobalVars->maxtime,forcing_idx);
 		(forcing->iteration)++;
 
 /*
@@ -270,7 +270,7 @@ printf("******************\n");
 
 
 //For flag = 7
-double NextForcingRecurring(Link** sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,UnivVars* GlobalVars,Forcing* forcing,ConnData** db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
+double NextForcingRecurring(Link* sys,unsigned int N,unsigned int* my_sys,unsigned int my_N,int* assignments,GlobalVars* GlobalVars,Forcing* forcing,ConnData* db_connections,unsigned int** id_to_loc,unsigned int forcing_idx)
 {
 	double maxtime;
 	struct tm next_time,*first_time;
@@ -295,7 +295,7 @@ double NextForcingRecurring(Link** sys,unsigned int N,unsigned int* my_sys,unsig
 		copy_tm(first_time,&next_time);	//Yeah, this is lazy. But it's only done once...
 	}
 
-	maxtime = CreateForcing_Monthly(sys,my_N,my_sys,GlobalVars,forcing->GlobalForcing,forcing_idx,&next_time,forcing->first_file,forcing->last_file,sys[my_sys[0]]->last_t);
+	maxtime = CreateForcing_Monthly(sys,my_N,my_sys,GlobalVars,forcing->GlobalForcing,forcing_idx,&next_time,forcing->first_file,forcing->last_file,sys[my_sys[0]].last_t);
 	(forcing->iteration)++;
 	return maxtime;
 }

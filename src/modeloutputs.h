@@ -15,9 +15,9 @@ void SetOutputFunctions(char* outputname,char* specifier,unsigned int* states_us
 void SetPeakflowOutputFunctions(char* outputname,void (**peak_output)(unsigned int,double,VEC,VEC,VEC,double,unsigned int,void*,char*));
 short int GetByteSize(short int type);
 void GetSpecifier(char* specifier,short int type);
-unsigned int CalcTotalOutputSize(UnivVars* GlobalVars);
-int OutputsSet(UnivVars* GlobalVars);
-int PeakflowOutputsSet(UnivVars* GlobalVars);
+unsigned int CalcTotalOutputSize(GlobalVars* GlobalVars);
+int OutputsSet(GlobalVars* GlobalVars);
+int PeakflowOutputsSet(GlobalVars* GlobalVars);
 
 //Output functions *****************************************************************************
 double Output_Time(double t,VEC y_i,VEC global_params,VEC params,int state,void* user);

@@ -1,5 +1,9 @@
-#ifndef ASSIMLSMETHODS_H
-#define ASSIMLSMETHODS_H
+#ifndef ASSIM_LS_METHODS_H
+#define ASSIM_LS_METHODS_H
+
+#if _MSC_VER > 1000
+#pragma once
+#endif // _MSC_VER > 1000
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,45 +14,49 @@ extern int my_rank;
 
 typedef struct
 {
-	unsigned int* fit_states;
-	unsigned int* fit_to_universal;
-	unsigned int* num_upstream;
-	unsigned int** upstream;
-	unsigned int dim;
-	unsigned int num_fit_states;
-} upstream_data;
+    unsigned int* fit_states;       //Holds the index in each state vector of the ith sensitivity at this link.
+    unsigned int* fit_to_universal; //Holds universal index of the ith sensitivity at this link.
+    unsigned int num_fit_states;    //Number of sensitivity at this link
+    unsigned int num_upstreams;     //Number of the upstream links
+    Link** upstreams;               //List of the upstream links
+    unsigned int num_parents;       //Number of the parents links
+    Link** parents;                 //List of the upstream links
+
+    unsigned int dim;
+
+} UpstreamData;
 
 typedef struct
 {
-	char* db_filename;
-	ConnData* conninfo;	//Wants query to get link ids with gauges, query to download gauge readings
-	unsigned int numdata,steps_to_use,least_squares_iters;
-	unsigned int* data_locs;
-	unsigned int** id_to_assim;
-	double inc;
+    char db_filename[ASYNCH_MAX_PATH_LENGTH];
+    ConnData conninfo;	        // Query to get link ids with gauges, query to download gauge readings
+    unsigned int num_obs;       // Number of observation
+    unsigned int* obs_locs;     // Link index in the sys[] vector of the observation
+    unsigned int num_steps;     // Number of time step to use for the optimization
+    double obs_time_step;       // Observation time step
+    unsigned int least_squares_iters;   // Maximum number of LS iterations
+    unsigned int** id_to_assim;
 } AssimData;
 
-void ResetSysLS(Link** sys,unsigned int N,UnivVars* GlobalVars,double t_0,double* backup,unsigned int problem_dim,unsigned int num_forcings,TransData* my_data);
-double*** ReadSolution(char filename[],unsigned int** id_to_loc,unsigned int N,unsigned int* numlinks,unsigned int** ids,unsigned int** locs,unsigned int** numsteps);
-//double*** ReadSolution(char filename[],unsigned int* numlinks,unsigned int** ids,unsigned int** numsteps);
-void FindAllDischarges(double*** data,double t,unsigned int numlinks,unsigned int* numsteps,double* d);
-unsigned int GaugeDownstream(asynchsolver* asynch,unsigned int** above_gauges,short int** bool_above_gauges,unsigned int* gauges,unsigned int numdata);
-int AdjustDischarges_Scale(asynchsolver* asynch,unsigned int* data_locs,double* d,unsigned int numdata,double* x,unsigned int allstates,unsigned int problem_dim);
+void ResetSysLS(Link* sys, unsigned int N, GlobalVars* GlobalVars, double t_0, double* backup, unsigned int problem_dim, unsigned int num_forcings, TransData* my_data);
+void FindAllDischarges(double*** data, double t, unsigned int numlinks, unsigned int* numsteps, double* d);
+unsigned int GaugeDownstream(const AsynchSolver* asynch, const unsigned int* obs_locs, unsigned int num_obs, unsigned int** above_gauges, bool **is_above_gauges);
+int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, const double * obs, unsigned int num_obs, unsigned int problem_dim, double* x);
 
-void Find_Upstream_Links(asynchsolver* asynch,unsigned int problem_dim,short int trim,double inc,unsigned int steps_to_use,unsigned int* data_locs,unsigned int numdata);
-void Clean_Upstream_Links(asynchsolver* asynch);
-void Free_Upstream_Links(asynchsolver* asynch);
+void FindUpstreamLinks(const AsynchSolver* const asynch, AssimData* const assim, unsigned int problem_dim, bool trim, double obs_time_step, unsigned int num_steps, unsigned int* obs_locs, unsigned int num_obs);
+void CleanUpstreamLinks(const AsynchSolver* asynch);
+void FreeUpstreamLinks(const AsynchSolver* asynch);
 
-AssimData* Init_AssimData(char* assim_filename,asynchsolver* asynch);
-void Free_AssimData(AssimData** assim);
-int Download_Gauge_IDs(asynchsolver* asynch,AssimData* Assim);
-int GetObservationsDB(AssimData* Assim,unsigned int **id_loc_loc,unsigned int N,unsigned int background_time_unix,double* d);
+bool InitAssimData(AssimData* assim, const char* assim_filename, AsynchSolver* asynch);
+void FreeAssimData(AssimData* assim);
 
-int ReduceBadDischargeValues(Link** sys,int* assignments,unsigned int N,double* d_full,double* q,unsigned int steps_to_use,unsigned int* data_locs,unsigned int numdata,double* x_start,unsigned int assim_dim,double limit);
+int GetObservationsIds(const AsynchSolver* asynch, AssimData* assim);
+int GetObservationsData(const AssimData* Assim, const unsigned int **id_loc_loc, unsigned int N, unsigned int background_time_unix, double* d);
 
-int SnapShot_ModelStates(asynchsolver* asynch,unsigned int problem_dim);
+bool ReduceBadDischargeValues(Link* sys, int* assignments, unsigned int N, double* d_full, double* q, unsigned int num_steps, unsigned int* data_locs, unsigned int numdata, double* x_start, unsigned int assim_dim, double limit);
 
-int GaugeDataAvailable(AssimData* Assim,unsigned int start_time,unsigned int end_time);
+int SnapShot_ModelStates(AsynchSolver* asynch, unsigned int problem_dim);
 
-#endif
+//int GaugeDataAvailable(AssimData* Assim, unsigned int start_time, unsigned int end_time);
 
+#endif //ASSIM_LS_METHODS_H

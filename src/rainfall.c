@@ -35,7 +35,7 @@
 //int** id_to_loc (set by this method): Will be an array with N rows and 2 columns, sorted by first col. First col is a link id and second is
 //				the location of the id in sys.
 //unsigned int max_files: The maximum number of files to be read.
-int Create_Rain_Data_Par(Link** sys,unsigned int N,unsigned int my_N,UnivVars* GlobalVars,unsigned int* my_sys,int* assignments,char strfilename[],unsigned int first,unsigned int last,double t_0,double increment,Forcing* forcing,unsigned int** id_to_loc,unsigned int max_files,unsigned int forcing_idx)
+int Create_Rain_Data_Par(Link* sys,unsigned int N,unsigned int my_N,GlobalVars* GlobalVars,unsigned int* my_sys,int* assignments,char strfilename[],unsigned int first,unsigned int last,double t_0,double increment,Forcing* forcing,unsigned int** id_to_loc,unsigned int max_files,unsigned int forcing_idx)
 {
 	unsigned int i,j,curr_idx;
 	unsigned int k;
@@ -48,18 +48,18 @@ int Create_Rain_Data_Par(Link** sys,unsigned int N,unsigned int my_N,UnivVars* G
 
 	//This is a time larger than any time in which the integrator is expected to get
 	double ceil_time = 1e300;
-	if(sys[my_sys[0]]->last_t > ceil_time*0.1)
-		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[0]]->last_t);
+	if(sys[my_sys[0]].last_t > ceil_time*0.1)
+		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[0]].last_t);
 
 	//Check that space for rain data has been allocated.
-	if(sys[my_sys[0]]->forcing_buff[forcing_idx] == NULL)
+	if(sys[my_sys[0]].forcing_buff[forcing_idx] == NULL)
 	{
 		for(i=0;i<my_N;i++)
 		{
-			sys[my_sys[i]]->forcing_buff[forcing_idx] = (ForcingData*) malloc(sizeof(ForcingData));
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall = (double**) malloc((max_files + 1)*sizeof(double*));
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = numfiles + 1;
-			for(j=0;j<max_files+1;j++)	sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[j] = (double*) malloc(2*sizeof(double));
+			sys[my_sys[i]].forcing_buff[forcing_idx] = (ForcingData*) malloc(sizeof(ForcingData));
+			sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall = (double**) malloc((max_files + 1)*sizeof(double*));
+			sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = numfiles + 1;
+			for(j=0;j<max_files+1;j++)	sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[j] = (double*) malloc(2*sizeof(double));
 		}
 	}
 
@@ -91,8 +91,8 @@ int Create_Rain_Data_Par(Link** sys,unsigned int N,unsigned int my_N,UnivVars* G
 				forcing_buffer = *(float*) &holder;
 
 				//Store the data
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = t_0 + k*increment;
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = forcing_buffer;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = t_0 + k*increment;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = forcing_buffer;
 			}
 			else		//This link data is not needed on this process.
 				fread(&forcing_buffer,sizeof(float),1,stormdata);
@@ -107,27 +107,27 @@ int Create_Rain_Data_Par(Link** sys,unsigned int N,unsigned int my_N,UnivVars* G
 	//Add in terms for no rainfall if max_files > numfiles
 	for(i=0;i<my_N;i++)
 	{
-		curr_idx = sys[my_sys[i]]->location;
+		curr_idx = sys[my_sys[i]].location;
 		for(j=numfiles;j<max_files;j++)
 		{
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][0] = sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j-1][0] + .0001;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][1] = 0.0;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][0] = sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j-1][0] + .0001;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][1] = 0.0;
 		}
 	}
 
 	//Add a ceiling term
 	for(i=0;i<my_N;i++)
 	{
-		curr_idx = sys[my_sys[i]]->location;
-		//sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[max_files][0] = GlobalVars->maxtime + 1.0;
-		sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[max_files][0] = ceil_time;
-		sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[max_files][1] = -1.0;
+		curr_idx = sys[my_sys[i]].location;
+		//sys[curr_idx].forcing_buff[forcing_idx]->rainfall[max_files][0] = GlobalVars->maxtime + 1.0;
+		sys[curr_idx].forcing_buff[forcing_idx]->rainfall[max_files][0] = ceil_time;
+		sys[curr_idx].forcing_buff[forcing_idx]->rainfall[max_files][1] = -1.0;
 	}
 
 	//Calculate the first rain change time and set rain_value
 	for(i=0;i<my_N;i++)
 	{
-		current = sys[my_sys[i]];
+		current = &sys[my_sys[i]];
 		forcing_buffer = current->forcing_buff[forcing_idx]->rainfall[0][1];
 		current->forcing_values[forcing_idx] = forcing_buffer;
 		current->forcing_indices[forcing_idx] = 0;
@@ -167,7 +167,7 @@ int Create_Rain_Data_Par(Link** sys,unsigned int N,unsigned int my_N,UnivVars* G
 //int** id_to_loc (set by this method): Will be an array with N rows and 2 columns, sorted by first col. First col is a link id and second is
 //				the location of the id in sys.
 //unsigned int max_files: The maximum number of files to be read.
-int Create_Rain_Data_GZ(Link** sys,unsigned int N,unsigned int my_N,UnivVars* GlobalVars,unsigned int* my_sys,int* assignments,char strfilename[],unsigned int first,unsigned int last,double t_0,double increment,Forcing* forcing,unsigned int** id_to_loc,unsigned int max_files,unsigned int forcing_idx)
+int Create_Rain_Data_GZ(Link* sys,unsigned int N,unsigned int my_N,GlobalVars* GlobalVars,unsigned int* my_sys,int* assignments,char strfilename[],unsigned int first,unsigned int last,double t_0,double increment,Forcing* forcing,unsigned int** id_to_loc,unsigned int max_files,unsigned int forcing_idx)
 {
 	unsigned int i,j,curr_idx;
 	unsigned int k;
@@ -182,18 +182,18 @@ int Create_Rain_Data_GZ(Link** sys,unsigned int N,unsigned int my_N,UnivVars* Gl
 
 	//This is a time larger than any time in which the integrator is expected to get
 	double ceil_time = 1e300;
-	if(sys[my_sys[0]]->last_t > ceil_time*0.1)
-		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[0]]->last_t);
+	if(sys[my_sys[0]].last_t > ceil_time*0.1)
+		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[0]].last_t);
 
 	//Check that space for rain data has been allocated.
-	if(sys[my_sys[0]]->forcing_buff[forcing_idx] == NULL)
+	if(sys[my_sys[0]].forcing_buff[forcing_idx] == NULL)
 	{
 		for(i=0;i<my_N;i++)
 		{
-			sys[my_sys[i]]->forcing_buff[forcing_idx] = (ForcingData*) malloc(sizeof(ForcingData));
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall = (double**) malloc((max_files + 1)*sizeof(double*));
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = numfiles + 1;
-			for(j=0;j<max_files+1;j++)	sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[j] = (double*) malloc(2*sizeof(double));
+			sys[my_sys[i]].forcing_buff[forcing_idx] = (ForcingData*) malloc(sizeof(ForcingData));
+			sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall = (double**) malloc((max_files + 1)*sizeof(double*));
+			sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = numfiles + 1;
+			for(j=0;j<max_files+1;j++)	sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[j] = (double*) malloc(2*sizeof(double));
 		}
 	}
 
@@ -240,8 +240,8 @@ int Create_Rain_Data_GZ(Link** sys,unsigned int N,unsigned int my_N,UnivVars* Gl
 					rainfall_buffer = *(float*) &holder;
 
 					//Store the data
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = t_0 + k*increment;
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = rainfall_buffer;					
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = t_0 + k*increment;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = rainfall_buffer;					
 				}
 				else	//Send it to the correct proc
 				{
@@ -272,8 +272,8 @@ int Create_Rain_Data_GZ(Link** sys,unsigned int N,unsigned int my_N,UnivVars* Gl
 				rainfall_buffer = *(float*) &holder;
 
 				//Store the data
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = t_0 + k*increment;
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = rainfall_buffer;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = t_0 + k*increment;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = rainfall_buffer;
 			}
 		}
 	}
@@ -284,27 +284,27 @@ int Create_Rain_Data_GZ(Link** sys,unsigned int N,unsigned int my_N,UnivVars* Gl
 	//Add in terms for no rainfall if max_files > numfiles
 	for(i=0;i<my_N;i++)
 	{
-		curr_idx = sys[my_sys[i]]->location;
+		curr_idx = sys[my_sys[i]].location;
 		for(j=numfiles;j<max_files;j++)
 		{
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][0] = sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j-1][0] + .0001;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][1] = 0.0;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][0] = sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j-1][0] + .0001;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][1] = 0.0;
 		}
 	}
 
 	//Add a ceiling term
 	for(i=0;i<my_N;i++)
 	{
-		curr_idx = sys[my_sys[i]]->location;
-		//sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[max_files][0] = GlobalVars->maxtime + 1.0;
-		sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[max_files][0] = ceil_time;
-		sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[max_files][1] = -1.0;
+		curr_idx = sys[my_sys[i]].location;
+		//sys[curr_idx].forcing_buff[forcing_idx]->rainfall[max_files][0] = GlobalVars->maxtime + 1.0;
+		sys[curr_idx].forcing_buff[forcing_idx]->rainfall[max_files][0] = ceil_time;
+		sys[curr_idx].forcing_buff[forcing_idx]->rainfall[max_files][1] = -1.0;
 	}
 
 	//Calculate the first rain change time and set rain_value
 	for(i=0;i<my_N;i++)
 	{
-		current = sys[my_sys[i]];
+		current = &sys[my_sys[i]];
 		rainfall_buffer = current->forcing_buff[forcing_idx]->rainfall[0][1];
 		current->forcing_values[forcing_idx] = rainfall_buffer;
 		current->forcing_indices[forcing_idx] = 0;
@@ -341,7 +341,7 @@ int Create_Rain_Data_GZ(Link** sys,unsigned int N,unsigned int my_N,UnivVars* Gl
 //int** id_to_loc (set by this method): Will be an array with N rows and 2 columns, sorted by first col. First col is a link id and second is
 //				the location of the id in sys.
 //unsigned int max_files: The maximum number of files to be read.
-int Create_Rain_Data_Grid(Link** sys,unsigned int N,unsigned int my_N,UnivVars* GlobalVars,unsigned int* my_sys,int* assignments,char strfilename[],unsigned int first,unsigned int last,double t_0,double increment,Forcing* forcing,unsigned int** id_to_loc,unsigned int max_files,unsigned int forcing_idx)
+int Create_Rain_Data_Grid(Link* sys,unsigned int N,unsigned int my_N,GlobalVars* GlobalVars,unsigned int* my_sys,int* assignments,char strfilename[],unsigned int first,unsigned int last,double t_0,double increment,Forcing* forcing,unsigned int** id_to_loc,unsigned int max_files,unsigned int forcing_idx)
 {
 	unsigned int i,j,curr_idx,k,holder,endianness,cell;
 	short unsigned int intensity;
@@ -354,18 +354,18 @@ int Create_Rain_Data_Grid(Link** sys,unsigned int N,unsigned int my_N,UnivVars* 
 
 	//This is a time larger than any time in which the integrator is expected to get
 	double ceil_time = 1e300;
-	if(sys[my_sys[0]]->last_t > ceil_time*0.1)
-		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[0]]->last_t);
+	if(sys[my_sys[0]].last_t > ceil_time*0.1)
+		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[0]].last_t);
 
 	//Check that space for rain data has been allocated.
-	if(sys[my_sys[0]]->forcing_buff[forcing_idx] == NULL)
+	if(sys[my_sys[0]].forcing_buff[forcing_idx] == NULL)
 	{
 		for(i=0;i<my_N;i++)
 		{
-			sys[my_sys[i]]->forcing_buff[forcing_idx] = (ForcingData*) malloc(sizeof(ForcingData));
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall = (double**) malloc((max_files + 1)*sizeof(double*));
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = numfiles + 1;
-			for(j=0;j<max_files+1;j++)	sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[j] = (double*) malloc(2*sizeof(double));
+			sys[my_sys[i]].forcing_buff[forcing_idx] = (ForcingData*) malloc(sizeof(ForcingData));
+			sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall = (double**) malloc((max_files + 1)*sizeof(double*));
+			sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = numfiles + 1;
+			for(j=0;j<max_files+1;j++)	sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[j] = (double*) malloc(2*sizeof(double));
 		}
 	}
 
@@ -457,8 +457,8 @@ int Create_Rain_Data_Grid(Link** sys,unsigned int N,unsigned int my_N,UnivVars* 
 			for(i=0;i<forcing->num_links_in_grid[cell];i++)	//!!!! Assuming only links on this proc !!!!
 			{
 				curr_idx = forcing->grid_to_linkid[cell][i];
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = t_0 + k*increment;
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = forcing->intensities[cell];
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = t_0 + k*increment;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = forcing->intensities[cell];
 			}
 		}
 	}
@@ -466,27 +466,27 @@ int Create_Rain_Data_Grid(Link** sys,unsigned int N,unsigned int my_N,UnivVars* 
 	//Add in terms for no rainfall if max_files > numfiles
 	for(i=0;i<my_N;i++)
 	{
-		curr_idx = sys[my_sys[i]]->location;
+		curr_idx = sys[my_sys[i]].location;
 		for(j=numfiles;j<max_files;j++)
 		{
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][0] = sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j-1][0] + .0001;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][1] = 0.0;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][0] = sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j-1][0] + .0001;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][1] = 0.0;
 		}
 	}
 
 	//Add a ceiling term
 	for(i=0;i<my_N;i++)
 	{
-		curr_idx = sys[my_sys[i]]->location;
-		//sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[max_files][0] = GlobalVars->maxtime + 1.0;
-		sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[max_files][0] = ceil_time;
-		sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[max_files][1] = -1.0;
+		curr_idx = sys[my_sys[i]].location;
+		//sys[curr_idx].forcing_buff[forcing_idx]->rainfall[max_files][0] = GlobalVars->maxtime + 1.0;
+		sys[curr_idx].forcing_buff[forcing_idx]->rainfall[max_files][0] = ceil_time;
+		sys[curr_idx].forcing_buff[forcing_idx]->rainfall[max_files][1] = -1.0;
 	}
 
 	//Calculate the first rain change time and set rain_value
 	for(i=0;i<my_N;i++)
 	{
-		current = sys[my_sys[i]];
+		current = &sys[my_sys[i]];
 		forcing_buffer = current->forcing_buff[forcing_idx]->rainfall[0][1];
 		current->forcing_values[forcing_idx] = forcing_buffer;
 		current->forcing_indices[forcing_idx] = 0;
@@ -523,7 +523,7 @@ int Create_Rain_Data_Grid(Link** sys,unsigned int N,unsigned int my_N,UnivVars* 
 //int** id_to_loc (set by this method): Will be an array with N rows and 2 columns, sorted by first col. First col is a link id and second is
 //				the location of the id in sys.
 //unsigned int max_files: The maximum number of files to be read.
-int Create_Rain_Database(Link** sys,unsigned int N,unsigned int my_N,UnivVars* GlobalVars,unsigned int* my_sys,int* assignments,ConnData *conninfo,unsigned int first,unsigned int last,Forcing* forcing,unsigned int** id_to_loc,double maxtime,unsigned int forcing_idx)
+int Create_Rain_Database(Link* sys,unsigned int N,unsigned int my_N,GlobalVars* GlobalVars,unsigned int* my_sys,int* assignments,ConnData *conninfo,unsigned int first,unsigned int last,Forcing* forcing,unsigned int** id_to_loc,double maxtime,unsigned int forcing_idx)
 {
 	unsigned int i,j,k,curr_idx,tuple_count;
 	Link* current;
@@ -537,26 +537,26 @@ int Create_Rain_Database(Link** sys,unsigned int N,unsigned int my_N,UnivVars* G
 	unsigned int *total_times = (unsigned int*) calloc(my_N,sizeof(unsigned int));
 	for(i=0;i<my_N;i++)
 	{
-		if(sys[my_sys[i]]->forcing_buff[forcing_idx])
+		if(sys[my_sys[i]].forcing_buff[forcing_idx])
 		{
-			total_times[i] = sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times;
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = 1;
+			total_times[i] = sys[my_sys[i]].forcing_buff[forcing_idx]->n_times;
+			sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = 1;
 		}
 	}
 
 	//This is a time larger than any time in which the integrator is expected to get
 	double ceil_time = 1e300;
 	static short int gave_warning = 0;
-	if(sys[my_sys[0]]->last_t > ceil_time*0.1 && !gave_warning)
+	if(sys[my_sys[0]].last_t > ceil_time*0.1 && !gave_warning)
 	{
 		gave_warning = 1;
-		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[i]]->last_t);
+		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[i]].last_t);
 	}
 
 /*
 	//!!!! Fix this (or don't?) !!!!
-	total_times = sys[my_sys[0]]->forcing_buff[forcing_idx]->n_times;
-	for(i=0;i<my_N;i++)	sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = 1;
+	total_times = sys[my_sys[0]].forcing_buff[forcing_idx]->n_times;
+	for(i=0;i<my_N;i++)	sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = 1;
 */
 
 //GlobalVars->outletlink = 318213;
@@ -572,7 +572,7 @@ int Create_Rain_Database(Link** sys,unsigned int N,unsigned int my_N,UnivVars* G
 		else
 			sprintf(query,conninfo->queries[1],GlobalVars->outletlink,first,last);
 //printf("*************************\n");
-//printf("First = %u Last = %u t = %e increment = %u\n",first,last,sys[my_sys[0]]->last_t,forcing->increment);
+//printf("First = %u Last = %u t = %e increment = %u\n",first,last,sys[my_sys[0]].last_t,forcing->increment);
 //printf("*************************\n");
 //printf("Gmax = %e maxtime = %e\n",GlobalVars->maxtime,maxtime);
 //printf("query: %s\n",query);
@@ -628,8 +628,8 @@ printf("Received %u intensities.\n",tuple_count);
 	//Setup initial time in rainfall data with 0 rain
 	for(i=0;i<my_N;i++)
 	{
-		sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[0][0] = (int)(first - forcing->raindb_start_time)/60.0;
-		sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[0][1] = 0.0;
+		sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[0][0] = (int)(first - forcing->raindb_start_time)/60.0;
+		sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[0][1] = 0.0;
 	}
 //printf("Started with first = %u, raindb_start = %u, %f\n",first,forcing->raindb_start_time,(int)(first - forcing->raindb_start_time)/60.0);
 	//Setup the data received
@@ -642,10 +642,10 @@ printf("Received %u intensities.\n",tuple_count);
 		{
 			curr_idx = id_to_loc[db_link_id[i]-2][1];
 			//curr_idx = id_to_loc[atoi(PQgetvalue(res,i,2))-2][1];
-			if(sys[curr_idx]->ID != db_link_id[i])
-				printf("Indices do not match %u %u\n",sys[curr_idx]->ID,db_link_id[i]);
-			//if(sys[curr_idx]->ID != atoi(PQgetvalue(res,i,2)))
-				//printf("Indices do not match %u %u\n",sys[curr_idx]->ID,atoi(PQgetvalue(res,i,2)));
+			if(sys[curr_idx].ID != db_link_id[i])
+				printf("Indices do not match %u %u\n",sys[curr_idx].ID,db_link_id[i]);
+			//if(sys[curr_idx].ID != atoi(PQgetvalue(res,i,2)))
+				//printf("Indices do not match %u %u\n",sys[curr_idx].ID,atoi(PQgetvalue(res,i,2)));
 		}
 		else
 */
@@ -654,37 +654,37 @@ printf("Received %u intensities.\n",tuple_count);
 
 		if(curr_idx < N && assignments[curr_idx] == my_rank)
 		{
-			k = sys[curr_idx]->forcing_buff[forcing_idx]->n_times;
+			k = sys[curr_idx].forcing_buff[forcing_idx]->n_times;
 			received_time = db_unix_time[i] - forcing->raindb_start_time;	//In seconds
-//printf("Got k = %i received_time = %i in secs = %i in mins = %f\n",k,received_time,(int)(sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01),sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0]);
-			if(received_time > (int) (sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))
+//printf("Got k = %i received_time = %i in secs = %i in mins = %f\n",k,received_time,(int)(sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01),sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0]);
+			if(received_time > (int) (sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))
 			{
-				if( received_time <= (int) (sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0]*60.0) + (unsigned int) (forcing->file_time*60.0) || sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][1] == 0.0)
+				if( received_time <= (int) (sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0]*60.0) + (unsigned int) (forcing->file_time*60.0) || sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][1] == 0.0)
 				{
-//printf("stored ID = %u i = %i k = %i received = %i unix_time = %i raindb_start = %i\n",sys[curr_idx]->ID,i,k,received_time,db_unix_time[i],forcing->raindb_start_time);
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = received_time / 60.0;
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = db_rain_intens[i];
-					(sys[curr_idx]->forcing_buff[forcing_idx]->n_times)++;
-//printf("k = %i (%f %f)  Also: received = %i next = %u\n",k,sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0],sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1],received_time,(int) (sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0]*60.0) + (unsigned int) (forcing->file_time*60.0));
+//printf("stored ID = %u i = %i k = %i received = %i unix_time = %i raindb_start = %i\n",sys[curr_idx].ID,i,k,received_time,db_unix_time[i],forcing->raindb_start_time);
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = received_time / 60.0;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = db_rain_intens[i];
+					(sys[curr_idx].forcing_buff[forcing_idx]->n_times)++;
+//printf("k = %i (%f %f)  Also: received = %i next = %u\n",k,sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0],sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1],received_time,(int) (sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0]*60.0) + (unsigned int) (forcing->file_time*60.0));
 				}
 				else	//Add a 0 rainfall data
 				{
 //printf("stored 0 i = %i k = %i received = %i unix_time = %i raindb_start = %i\n",i,k,received_time,db_unix_time[i],forcing->raindb_start_time);
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] + forcing->file_time;
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = 0.0;
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][0] = received_time / 60.0;
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][1] = db_rain_intens[i];
-					sys[curr_idx]->forcing_buff[forcing_idx]->n_times += 2;
-//printf("(%f %f)\n",sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0],sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1]);
-//printf("(%f %f)\n",sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][0],sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][1]);
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] + forcing->file_time;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = 0.0;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][0] = received_time / 60.0;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][1] = db_rain_intens[i];
+					sys[curr_idx].forcing_buff[forcing_idx]->n_times += 2;
+//printf("(%f %f)\n",sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0],sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1]);
+//printf("(%f %f)\n",sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][0],sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][1]);
 				}
 			}
-			else if(received_time <= (int) (sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))	//If the initial rate needs to be reset
+			else if(received_time <= (int) (sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))	//If the initial rate needs to be reset
 {
 //printf("stored init i = %i k = %i received = %i unix_time = %i raindb_start = %i\n",i,k,received_time,db_unix_time[i],forcing->raindb_start_time);
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] = received_time / 60.0;
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][1] = db_rain_intens[i];
-//printf("k = %i Init (%f %f)\n",k,sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0],sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][1]);
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] = received_time / 60.0;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][1] = db_rain_intens[i];
+//printf("k = %i Init (%f %f)\n",k,sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0],sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][1]);
 }
 else
 {
@@ -697,32 +697,32 @@ printf("!!!! i = %i k = %i received = %i unix_time = %i raindb_start = %i\n",i,k
 	//Add ceiling terms
 	for(i=0;i<my_N;i++)
 	{
-		curr_idx = sys[my_sys[i]]->location;
-		k = sys[curr_idx]->forcing_buff[forcing_idx]->n_times;
-		if(sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][1] == 0.0)	//No rain, add just a ceiling
+		curr_idx = sys[my_sys[i]].location;
+		k = sys[curr_idx].forcing_buff[forcing_idx]->n_times;
+		if(sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][1] == 0.0)	//No rain, add just a ceiling
 		{
-			//sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = maxtime * (1.1) + 1.0;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = ceil_time;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = -1.0;
+			//sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = maxtime * (1.1) + 1.0;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = ceil_time;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = -1.0;
 		}
 		else	//Add a 0.0, and a ceiling
 		{
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] + forcing->file_time;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = 0.0;
-			//sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][0] = maxtime * (1.1) + 1.0;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][0] = ceil_time;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][1] = -1.0;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] + forcing->file_time;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = 0.0;
+			//sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][0] = maxtime * (1.1) + 1.0;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][0] = ceil_time;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][1] = -1.0;
 		}
 	}
 
 	//Reset n_times  !!!! Fix (well, this might be ok to do) !!!!
-	//for(i=0;i<my_N;i++)	sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = total_times;
-	for(i=0;i<my_N;i++)	sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = total_times[i];
+	//for(i=0;i<my_N;i++)	sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = total_times;
+	for(i=0;i<my_N;i++)	sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = total_times[i];
 
 	//Calculate the first rain change time and set rain_value
 	for(i=0;i<my_N;i++)
 	{
-		current = sys[my_sys[i]];
+		current = &sys[my_sys[i]];
 
 		//Get to the time block that corresponds to the current time, set forcing value
 		for(j=1;j<current->forcing_buff[forcing_idx]->n_times;j++)
@@ -772,7 +772,7 @@ printf("!!!! i = %i k = %i received = %i unix_time = %i raindb_start = %i\n",i,k
 //int** id_to_loc (set by this method): Will be an array with N rows and 2 columns, sorted by first col. First col is a link id and second is
 //				the location of the id in sys.
 //unsigned int max_files: The maximum number of files to be read.
-int Create_Rain_Database_Irregular(Link** sys,unsigned int N,unsigned int my_N,UnivVars* GlobalVars,unsigned int* my_sys,int* assignments,ConnData *conninfo,unsigned int first,unsigned int last,Forcing* forcing,unsigned int** id_to_loc,double maxtime,unsigned int forcing_idx)
+int Create_Rain_Database_Irregular(Link* sys,unsigned int N,unsigned int my_N,GlobalVars* GlobalVars,unsigned int* my_sys,int* assignments,ConnData *conninfo,unsigned int first,unsigned int last,Forcing* forcing,unsigned int** id_to_loc,double maxtime,unsigned int forcing_idx)
 {
 	unsigned int i,j,k,curr_idx,tuple_count,current_timestamp;
 	Link* current;
@@ -788,10 +788,10 @@ int Create_Rain_Database_Irregular(Link** sys,unsigned int N,unsigned int my_N,U
 	unsigned int *total_times = (unsigned int*) calloc(my_N,sizeof(unsigned int));
 	for(i=0;i<my_N;i++)
 	{
-		if(sys[my_sys[i]]->forcing_buff[forcing_idx])
+		if(sys[my_sys[i]].forcing_buff[forcing_idx])
 		{
-			total_times[i] = sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times;
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = 1;
+			total_times[i] = sys[my_sys[i]].forcing_buff[forcing_idx]->n_times;
+			sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = 1;
 		}
 	}
 */
@@ -799,10 +799,10 @@ int Create_Rain_Database_Irregular(Link** sys,unsigned int N,unsigned int my_N,U
 	//This is a time larger than any time in which the integrator is expected to get
 	double ceil_time = 1e300;
 	static short int gave_warning = 0;
-	if(sys[my_sys[0]]->last_t > ceil_time*0.1 && !gave_warning)
+	if(sys[my_sys[0]].last_t > ceil_time*0.1 && !gave_warning)
 	{
 		gave_warning = 1;
-		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[0]]->last_t);
+		printf("[%i]: Warning: integrator time is extremely large (about %e). Loss of precision may occur.\n",my_rank,sys[my_sys[0]].last_t);
 	}
 
 	//Query the database
@@ -832,7 +832,7 @@ int Create_Rain_Database_Irregular(Link** sys,unsigned int N,unsigned int my_N,U
 		else
 			sprintf(query,conninfo->queries[1],GlobalVars->outletlink,first,last);
 //printf("*************************\n");
-//printf("First = %u Last = %u t = %e increment = %u\n",first,last,sys[my_sys[0]]->last_t,forcing->increment);
+//printf("First = %u Last = %u t = %e increment = %u\n",first,last,sys[my_sys[0]].last_t,forcing->increment);
 //printf("*************************\n");
 //printf("Gmax = %e maxtime = %e\n",GlobalVars->maxtime,maxtime);
 //printf("query: %s\n",query);
@@ -904,8 +904,8 @@ printf("+++++++++\n");
 	{
 		for(j=0;j<num_actual_timestamps;j++)
 		{
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[j][0] = (double)(actual_timestamps[j] - forcing->raindb_start_time)/60.0;
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[j][1] = 0.0;
+			sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[j][0] = (double)(actual_timestamps[j] - forcing->raindb_start_time)/60.0;
+			sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[j][1] = 0.0;
 		}
 	}
 
@@ -920,10 +920,10 @@ printf("+++++++++\n");
 			curr_idx = find_link_by_idtoloc(db_link_id[i],id_to_loc,N);
 			if(curr_idx < N && assignments[curr_idx] == my_rank)
 			{
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][0] = received_time / 60.0;
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][1] = db_rain_intens[i];
-//if(sys[curr_idx]->ID == 456117)
-//printf("j = %u received_time = %u intensity = %f\n",j,received_time,sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][1]);
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][0] = received_time / 60.0;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][1] = db_rain_intens[i];
+//if(sys[curr_idx].ID == 456117)
+//printf("j = %u received_time = %u intensity = %f\n",j,received_time,sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][1]);
 			}
 //else
 //printf("!!!! Huh, wtf? !!!!\n");
@@ -935,15 +935,15 @@ printf("+++++++++\n");
 	for(i=0;i < tuple_count && current_timestamp <= db_unix_time[i];i++)
 	{
 		received_time = db_unix_time[i] - forcing->raindb_start_time;	//In seconds
-		//if(received_time > (int) (sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))	break;
+		//if(received_time > (int) (sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))	break;
 		curr_idx = find_link_by_idtoloc(db_link_id[i],id_to_loc,N);
 		if(curr_idx < N && assignments[curr_idx] == my_rank)
 		{
-			//k = sys[curr_idx]->forcing_buff[forcing_idx]->n_times;
-			//if(received_time <= (int) (sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))	//If the initial rate needs to be reset
+			//k = sys[curr_idx].forcing_buff[forcing_idx]->n_times;
+			//if(received_time <= (int) (sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))	//If the initial rate needs to be reset
 			{
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[0][0] = received_time / 60.0;
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[0][1] = db_rain_intens[i];
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[0][0] = received_time / 60.0;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[0][1] = db_rain_intens[i];
 			}
 		}
 	}
@@ -959,8 +959,8 @@ printf("+++++++++\n");
 
 			if(curr_idx < N && assignments[curr_idx] == my_rank)
 			{
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][0] = received_time / 60.0;
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[j][1] = db_rain_intens[i];
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][0] = received_time / 60.0;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[j][1] = db_rain_intens[i];
 			}
 		}
 	}
@@ -975,30 +975,30 @@ printf("+++++++++\n");
 
 		if(curr_idx < N && assignments[curr_idx] == my_rank)
 		{
-			k = sys[curr_idx]->forcing_buff[forcing_idx]->n_times;
+			k = sys[curr_idx].forcing_buff[forcing_idx]->n_times;
 			received_time = db_unix_time[i] - forcing->raindb_start_time;	//In seconds
 
-			if(received_time > (int) (sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))
+			if(received_time > (int) (sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))
 			{
-				if( received_time <= (int) (sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0]*60.0) + (unsigned int) (forcing->file_time*60.0) || sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][1] == 0.0)
+				if( received_time <= (int) (sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0]*60.0) + (unsigned int) (forcing->file_time*60.0) || sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][1] == 0.0)
 				{
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = received_time / 60.0;
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = db_rain_intens[i];
-					(sys[curr_idx]->forcing_buff[forcing_idx]->n_times)++;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = received_time / 60.0;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = db_rain_intens[i];
+					(sys[curr_idx].forcing_buff[forcing_idx]->n_times)++;
 				}
 				else	//Add a 0 rainfall data before adding this data
 				{
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] + forcing->file_time;
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = 0.0;
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][0] = received_time / 60.0;
-					sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][1] = db_rain_intens[i];
-					sys[curr_idx]->forcing_buff[forcing_idx]->n_times += 2;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] + forcing->file_time;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = 0.0;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][0] = received_time / 60.0;
+					sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][1] = db_rain_intens[i];
+					sys[curr_idx].forcing_buff[forcing_idx]->n_times += 2;
 				}
 			}
-			else //if(received_time <= (int) (sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))	//If the initial rate needs to be reset
+			else //if(received_time <= (int) (sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] * 60.0 + 0.01))	//If the initial rate needs to be reset
 			{
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] = received_time / 60.0;
-				sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][1] = db_rain_intens[i];
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] = received_time / 60.0;
+				sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][1] = db_rain_intens[i];
 			}
 		}
 	}
@@ -1006,33 +1006,33 @@ printf("+++++++++\n");
 	//Add ceiling terms
 	for(i=0;i<my_N;i++)
 	{
-		curr_idx = sys[my_sys[i]]->location;
-		//k = sys[curr_idx]->forcing_buff[forcing_idx]->n_times;
+		curr_idx = sys[my_sys[i]].location;
+		//k = sys[curr_idx].forcing_buff[forcing_idx]->n_times;
 		k = num_actual_timestamps;
-		//if(sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][1] == 0.0)	//No rain, add just a ceiling
+		//if(sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][1] == 0.0)	//No rain, add just a ceiling
 		{
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = ceil_time;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = -1.0;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = ceil_time;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = -1.0;
 		}
 /*
 		else	//Add a 0.0, and a ceiling
 		{
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][0] = sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k-1][0] + forcing->file_time;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k][1] = 0.0;
-			//sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][0] = maxtime * (1.1) + 1.0;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][0] = ceil_time;
-			sys[curr_idx]->forcing_buff[forcing_idx]->rainfall[k+1][1] = -1.0;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][0] = sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k-1][0] + forcing->file_time;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k][1] = 0.0;
+			//sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][0] = maxtime * (1.1) + 1.0;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][0] = ceil_time;
+			sys[curr_idx].forcing_buff[forcing_idx]->rainfall[k+1][1] = -1.0;
 		}
 */
 	}
 
 	//Reset n_times  !!!! Fix (well, this might be ok to do) !!!!
-	//for(i=0;i<my_N;i++)	sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = total_times[i];
+	//for(i=0;i<my_N;i++)	sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = total_times[i];
 
 	//Calculate the first rain change time and set rain_value
 	for(i=0;i<my_N;i++)
 	{
-		current = sys[my_sys[i]];
+		current = &sys[my_sys[i]];
 
 		//Get to the time block that corresponds to the current time, set forcing value
 		for(j=1;j<current->forcing_buff[forcing_idx]->n_times;j++)
@@ -1069,37 +1069,37 @@ printf("+++++++++\n");
 
 
 //Sets the rain data of link current to 0 for all times.
-void SetRain0(Link** sys,unsigned int my_N,double maxtime,unsigned int* my_sys,UnivVars* GlobalVars,Forcing* forcing,unsigned int forcing_idx)
+void SetRain0(Link* sys,unsigned int my_N,double maxtime,unsigned int* my_sys,GlobalVars* GlobalVars,Forcing* forcing,unsigned int forcing_idx)
 {
 	unsigned int i,j,k;
 	Link* current;
 
 	//Check that space for rain data has been allocated.
-	if(sys[my_sys[0]]->forcing_buff[forcing_idx] == NULL)
+	if(sys[my_sys[0]].forcing_buff[forcing_idx] == NULL)
 	{
 		//k = 2;
 		k = forcing->increment + 3;
 		for(i=0;i<my_N;i++)
 		{
-			sys[my_sys[i]]->forcing_buff[forcing_idx] = (ForcingData*) malloc(sizeof(ForcingData));
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall = (double**) malloc(k*sizeof(double*));
-			sys[my_sys[i]]->forcing_buff[forcing_idx]->n_times = k;
-			for(j=0;j<k;j++)	sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[j] = (double*) malloc(2*sizeof(double));
+			sys[my_sys[i]].forcing_buff[forcing_idx] = (ForcingData*) malloc(sizeof(ForcingData));
+			sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall = (double**) malloc(k*sizeof(double*));
+			sys[my_sys[i]].forcing_buff[forcing_idx]->n_times = k;
+			for(j=0;j<k;j++)	sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[j] = (double*) malloc(2*sizeof(double));
 		}
 	}	
 
 	for(i=0;i<my_N;i++)
 	{
-		sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[0][0] = 0.0;
-		sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[0][1] = 0.0;
-		sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[1][0] = maxtime * (1.1) + 1.0;
-		sys[my_sys[i]]->forcing_buff[forcing_idx]->rainfall[1][1] = -1.0;
+		sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[0][0] = 0.0;
+		sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[0][1] = 0.0;
+		sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[1][0] = maxtime * (1.1) + 1.0;
+		sys[my_sys[i]].forcing_buff[forcing_idx]->rainfall[1][1] = -1.0;
 	}
 
 	//Calculate the first rain change time and set rain_value
 	for(i=0;i<my_N;i++)
 	{
-		current = sys[my_sys[i]];
+		current = &sys[my_sys[i]];
 		current->forcing_values[forcing_idx] = 0.0;
 		current->forcing_indices[forcing_idx] = 0;
 		current->forcing_change_times[forcing_idx] = current->forcing_buff[forcing_idx]->rainfall[1][0];
@@ -1109,7 +1109,7 @@ void SetRain0(Link** sys,unsigned int my_N,double maxtime,unsigned int* my_sys,U
 
 //Sets a forcing based on monthly data.
 //Assumes the rates are already set.
-double CreateForcing_Monthly(Link** sys,unsigned int my_N,unsigned int* my_sys,UnivVars* GlobalVars,ForcingData* GlobalForcing,unsigned int forcing_idx,struct tm *current_time,time_t first_time,time_t last_time,double t_0)
+double CreateForcing_Monthly(Link* sys,unsigned int my_N,unsigned int* my_sys,GlobalVars* GlobalVars,ForcingData* GlobalForcing,unsigned int forcing_idx,struct tm *current_time,time_t first_time,time_t last_time,double t_0)
 {
 	unsigned int num_months = 12;
 	int i;
@@ -1172,9 +1172,9 @@ double CreateForcing_Monthly(Link** sys,unsigned int my_N,unsigned int* my_sys,U
 	//Set the current forcing value at each link
 	for(i=0;i<my_N;i++)
 	{
-		sys[my_sys[i]]->forcing_values[forcing_idx] = GlobalForcing->rainfall[month_0][1];
-		sys[my_sys[i]]->forcing_indices[forcing_idx] = month_0;
-		sys[my_sys[i]]->forcing_change_times[forcing_idx] = GlobalForcing->rainfall[month_0+1][0];
+		sys[my_sys[i]].forcing_values[forcing_idx] = GlobalForcing->rainfall[month_0][1];
+		sys[my_sys[i]].forcing_indices[forcing_idx] = month_0;
+		sys[my_sys[i]].forcing_change_times[forcing_idx] = GlobalForcing->rainfall[month_0+1][0];
 	}
 
 	return t;

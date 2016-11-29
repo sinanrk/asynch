@@ -123,7 +123,7 @@ void GetSpecifier(char* specifier,short int type)
 	memcpy(specifier,data_specifiers[type],strlen(data_specifiers[type])+1);
 }
 
-unsigned int CalcTotalOutputSize(UnivVars* GlobalVars)
+unsigned int CalcTotalOutputSize(GlobalVars* GlobalVars)
 {
 	unsigned int i,total = 0;
 
@@ -134,7 +134,7 @@ unsigned int CalcTotalOutputSize(UnivVars* GlobalVars)
 }
 
 //Returns 0 if an output is not set, 1 if all outputs are good to go.
-int OutputsSet(UnivVars* GlobalVars)
+int OutputsSet(GlobalVars* GlobalVars)
 {
 	unsigned int i;
 
@@ -160,7 +160,7 @@ int OutputsSet(UnivVars* GlobalVars)
 }
 
 //Returns 0 if peakflow output is not set, 1 if it is.
-int PeakflowOutputsSet(UnivVars* GlobalVars)
+int PeakflowOutputsSet(GlobalVars* GlobalVars)
 {
 	if(GlobalVars->peakflow_function_name && !GlobalVars->peakflow_output)	return 0;
 	return 1;

@@ -5,13 +5,14 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+
+#include <stdbool.h>
+
 #include "structs.h"
 #include "comm.h"
 #include "modeloutputs.h"
 #include "processdata.h"
 
-#define ASYNCH_MAX_QUERY_SIZE 1024
-#define ASYNCH_MAX_DB_CONNECTIONS 16
 #define ASYNCH_DB_LOC_TOPO 0
 #define ASYNCH_DB_LOC_PARAMS 1
 #define ASYNCH_DB_LOC_INIT 2
@@ -27,11 +28,11 @@
 extern int np;
 extern int my_rank;
 
-io* BuildIO(UnivVars* GlobalVars);
+InputOutput* BuildIO(GlobalVars* GlobalVars);
 
-ConnData* ReadDBC(char* filename,unsigned int string_size);
+void ReadDBC(char* filename, ConnData* const conninfo);
 void WriteValue(FILE* outputfile,char* specifier,char* data_storage,short int data_type,char* delim);
-unsigned int WriteStep(double t,VEC y,UnivVars* GlobalVars,VEC params,unsigned int state,FILE* outputfile,void* user,long int* pos_offset);
+unsigned int WriteStep(double t,VEC y,GlobalVars* GlobalVars,VEC params,unsigned int state,FILE* outputfile,void* user,long int* pos_offset);
 unsigned int CatBinaryToString(char* submission,char* specifier,char* data_storage,short int data_type,char* delim);
 
 #endif
