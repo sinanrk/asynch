@@ -17,11 +17,15 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <math.h>
 
 #include "assim_ls_methods.h"
 
+#include "comm.h"
+#include "riversys.h"
+
 //!!!! Use interface instead !!!!
-void ResetSysLS(Link* sys, unsigned int N, GlobalVars* GlobalVars, double t_0, double* x_start, unsigned int problem_dim, unsigned int num_forcings, TransData* my_data)
+void ResetSysLS(Link* sys, unsigned int N, GlobalVars* globals, double t_0, double* x_start, unsigned int problem_dim, unsigned int num_forcings, TransData* my_data)
 {
     unsigned i, j, k, l;
     Link* current;
@@ -64,37 +68,37 @@ void ResetSysLS(Link* sys, unsigned int N, GlobalVars* GlobalVars, double t_0, d
 
             //Reset current state
             if (current->state_check != NULL)
-                current->state = current->state_check(current->list->head->y_approx, GlobalVars->global_params, current->params, current->qvs, current->dam);
+                current->state = current->state_check(current->list->head->y_approx, globals->global_params, current->params, current->qvs, current->dam);
             current->list->head->state = current->state;
 
-            //Set rainfall
+            //Set forcings
             if (current->forcing_buff)
             {
                 for (k = 0; k < num_forcings; k++)
                 {
                     if (current->forcing_buff[k])
                     {
-                        //Find the right index in rainfall
-                        for (l = 0; l < current->forcing_buff[k]->n_times - 1; l++)
-                            if (current->forcing_buff[k]->rainfall[l][0] <= t_0 && t_0 < current->forcing_buff[k]->rainfall[l + 1][0])	break;
-                        double rainfall_buffer = current->forcing_buff[k]->rainfall[l][1];
+                        //Find the right index in forcings
+                        for (l = 0; l < current->forcing_buff[k]->nrows - 1; l++)
+                            if (current->forcing_buff[k]->data[l][0] <= t_0 && t_0 < current->forcing_buff[k]->data[l + 1][0])	break;
+                        double rainfall_buffer = current->forcing_buff[k]->data[l][1];
                         current->forcing_values[k] = rainfall_buffer;
                         current->forcing_indices[k] = l;
 
-                        //Find and set the new change in rainfall
-                        for (j = l + 1; j < current->forcing_buff[k]->n_times; j++)
+                        //Find and set the new change in data
+                        for (j = l + 1; j < current->forcing_buff[k]->nrows; j++)
                         {
-                            if (fabs(current->forcing_buff[k]->rainfall[j][1] - rainfall_buffer) > 1e-12)
+                            if (fabs(current->forcing_buff[k]->data[j][1] - rainfall_buffer) > 1e-12)
                             {
-                                current->forcing_change_times[k] = current->forcing_buff[k]->rainfall[j][0];
+                                current->forcing_change_times[k] = current->forcing_buff[k]->data[j][0];
                                 break;
                             }
                         }
-                        if (j == current->forcing_buff[k]->n_times)
-                            current->forcing_change_times[k] = current->forcing_buff[k]->rainfall[j - 1][0];
+                        if (j == current->forcing_buff[k]->nrows)
+                            current->forcing_change_times[k] = current->forcing_buff[k]->data[j - 1][0];
 
                         //Select new step size
-                        //current->h = InitialStepSize(current->last_t,current,GlobalVars,workspace);
+                        //current->h = InitialStepSize(current->last_t,current,globals,workspace);
                     }
                 }
             }
@@ -108,7 +112,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
     Link *sys = asynch->sys, *current;
     unsigned int N = asynch->N, parentsval, leaves_size = 0, i, j, **id_to_loc = asynch->id_to_loc;
     int *assignments = asynch->assignments;
-    GlobalVars *GlobalVars = asynch->GlobalVars;
+    GlobalVars *globals = asynch->globals;
     Link **leaves = (Link**)malloc(N * sizeof(Link*));
     Link **stack = (Link**)malloc(N * sizeof(Link*));
     short int* getting = asynch->getting;
@@ -190,7 +194,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
 
     while (stack_size > 0)
     {
-        unsigned int l, m;
+        unsigned int l;
 
         current = stack[stack_size - 1];
         updata = (UpstreamData*)current->user;
@@ -295,7 +299,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
         double speed = 3.0 * 60.0;	//In m/min
 
         //!!!! Hard coding right now. Blah... !!!!
-        unsigned int outlet = asynch->GlobalVars->outletlink;
+        unsigned int outlet = asynch->globals->outletlink;
         unsigned int n = 0;
         //unsigned int outlet = 434478;  //Turkey River above French Hollow
         //unsigned int outlet = 434514;	//Turkey River at Garber
@@ -450,7 +454,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
 void CleanUpstreamLinks(const AsynchSolver* asynch)
 {
     Link* sys = asynch->sys;
-    unsigned int N = asynch->N, i, j;
+    unsigned int N = asynch->N, i;
     int* assignments = asynch->assignments;
     short int* getting = asynch->getting;
 
@@ -481,7 +485,7 @@ void CleanUpstreamLinks(const AsynchSolver* asynch)
 void FreeUpstreamLinks(const AsynchSolver* asynch)
 {
     Link* sys = asynch->sys;
-    unsigned int N = asynch->N, i, j;
+    unsigned int N = asynch->N, i;
 
     for (i = 0; i < N; i++)
     {
@@ -692,13 +696,13 @@ unsigned int GaugeDownstream(const AsynchSolver* asynch, const unsigned int* obs
 int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, const double * obs, unsigned int num_obs, unsigned int problem_dim, double* x)
 {
     //Unpack
-    GlobalVars* GlobalVars = asynch->GlobalVars;
+    GlobalVars* globals = asynch->globals;
     unsigned int N = asynch->N, **id_to_loc = asynch->id_to_loc;
     int *assignments = asynch->assignments;
     Link *sys = asynch->sys;
-    unsigned int area_idx = GlobalVars->area_idx;
+    unsigned int area_idx = globals->area_idx;
 
-    unsigned int i, j, loc, num_upstreams, prev_loc, curr_loc;
+    unsigned int i, j, num_upstreams;
     unsigned int *upstreams = (unsigned int*)malloc(N * sizeof(unsigned int));
     short int *locs_set = (short int*)calloc(N, sizeof(short int));	//1 if the discharge is to be changed, 0 if not
     double *locs_newq = (double*)malloc(N * sizeof(double));	//The new value for the discharge at location i
@@ -710,7 +714,7 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
     for (i = 0; i < N; i++)
     {
         if (assignments[i] == my_rank)
-            upareas[i] = sys[i].params.ve[GlobalVars->area_idx];
+            upareas[i] = sys[i].params.ve[globals->area_idx];
     }
 
     MPI_Allreduce(MPI_IN_PLACE, upareas, N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -812,7 +816,7 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
 //Reads a .das file
 bool InitAssimData(AssimData* assim, const char* assim_filename, AsynchSolver* asynch)
 {
-    unsigned int **id_to_loc = asynch->id_to_loc, N = asynch->N, string_size = asynch->GlobalVars->string_size, i, id, n, dropped;
+    unsigned int **id_to_loc = asynch->id_to_loc, N = asynch->N, string_size = asynch->globals->string_size;
     int errorcode, valsread;
     FILE* inputfile = NULL;
     char end_char;
@@ -976,7 +980,7 @@ int GetObservationsIds(const AsynchSolver* asynch, AssimData* assim)
 //Returns 0 if everything went as planned. Returns 1 if some data was not available. Returns -1 if an error occurred.
 int GetObservationsData(const AssimData* assim, const unsigned int **id_loc_loc, unsigned int N, unsigned int background_time_unix, double* d)
 {
-    unsigned int i, j, n, end_time_unix, *obs_locs = assim->obs_locs, idx, inc_secs = (unsigned int)(assim->obs_time_step*60.0 + 1e-3), unix_t, id, num_obs = assim->num_obs;
+    unsigned int i, n, end_time_unix, *obs_locs = assim->obs_locs, idx, inc_secs = (unsigned int)(assim->obs_time_step*60.0 + 1e-3), unix_t, id, num_obs = assim->num_obs;
     unsigned int num_steps = assim->num_steps, current_time;
     int errorcode = 0;
     PGresult *res;
@@ -988,7 +992,8 @@ int GetObservationsData(const AssimData* assim, const unsigned int **id_loc_loc,
     //Download the data
     if (my_rank == 0)
     {
-        if (ConnectPGDB(&assim->conninfo))	errorcode = -1;
+        if (ConnectPGDB(&assim->conninfo))
+            errorcode = -1;
         else
         {
             end_time_unix = background_time_unix + num_steps * 60 * (int)(assim->obs_time_step + 1e-3);
@@ -1201,7 +1206,7 @@ bool ReduceBadDischargeValues(Link* sys, int* assignments, unsigned int N, doubl
 int SnapShot_ModelStates(AsynchSolver* asynch, unsigned int problem_dim)
 {
     Link *sys = asynch->sys;
-    GlobalVars *GlobalVars = asynch->GlobalVars;
+    GlobalVars *globals = asynch->globals;
     int *assignments = asynch->assignments;
     unsigned int i, j, N = asynch->N;
     FILE* output;
@@ -1209,17 +1214,17 @@ int SnapShot_ModelStates(AsynchSolver* asynch, unsigned int problem_dim)
 
     if (my_rank == 0)	//Creating the file
     {
-        output = fopen(GlobalVars->dump_loc_filename, "w");
+        output = fopen(globals->dump_loc_filename, "w");
         if (output == NULL)
         {
-            printf("[%i]: Error opening file %s.\n", my_rank, GlobalVars->dump_loc_filename);
+            printf("[%i]: Error opening file %s.\n", my_rank, globals->dump_loc_filename);
             i = 1;
         }
         else	i = 0;
         MPI_Bcast(&i, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
         if (i)	return 1;
 
-        fprintf(output, "%hu\n%u\n0.0\n\n", GlobalVars->type, N);
+        fprintf(output, "%hu\n%u\n0.0\n\n", globals->type, N);
 
         for (i = 0; i < N; i++)
         {

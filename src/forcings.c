@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <memory.h>
 
 #if defined(HAVE_POSTGRESQL)
 #include <libpq-fe.h>
@@ -14,41 +15,30 @@
 #include "forcings.h"
 
 
-Forcing* InitializeForcings()
+void Forcing_Init(Forcing* forcing)
 {
-	Forcing* forcing = (Forcing*) malloc(sizeof(Forcing));
-	forcing->filename = NULL;
-	forcing->GlobalForcing = NULL;
-	forcing->lookup_filename = NULL;
-	forcing->grid_to_linkid = NULL;
-	forcing->num_links_in_grid = NULL;
-	forcing->received = NULL;
-	forcing->intensities = NULL;
-	forcing->fileident = NULL;
-	return forcing;
+    memset(forcing, 0, sizeof(Forcing));
 }
 
 
-void FreeForcing(Forcing** forcings)
+void Forcing_Free(Forcing* forcing)
 {
 	unsigned int i;
-	if(forcings && *forcings)
+	if(forcing)
 	{
-		if((*forcings)->filename)	free((*forcings)->filename);
-		if((*forcings)->lookup_filename)	free((*forcings)->lookup_filename);
-		if((*forcings)->grid_to_linkid)
+		if(forcing->filename)	free(forcing->filename);
+		if(forcing->lookup_filename)	free(forcing->lookup_filename);
+		if(forcing->grid_to_linkid)
 		{
-			for(i=0;i<(*forcings)->num_cells;i++)
-				free((*forcings)->grid_to_linkid[i]);
-			free((*forcings)->grid_to_linkid);
+			for(i=0;i<forcing->num_cells;i++)
+				free(forcing->grid_to_linkid[i]);
+			free(forcing->grid_to_linkid);
 		}
-		if((*forcings)->num_links_in_grid)	free((*forcings)->num_links_in_grid);
-		if((*forcings)->received)	free((*forcings)->received);
-		if((*forcings)->intensities)	free((*forcings)->intensities);
-		if((*forcings)->fileident)	free((*forcings)->fileident);
-		Destroy_ForcingData(&((*forcings)->GlobalForcing));
-		free(*forcings);
-		*forcings = NULL;
+		if(forcing->num_links_in_grid)	free(forcing->num_links_in_grid);
+		if(forcing->received)	free(forcing->received);
+		if(forcing->intensities)	free(forcing->intensities);
+		if(forcing->fileident)	free(forcing->fileident);
+		ForcingData_Free(&forcing->GlobalForcing);
 	}
 }
 
@@ -71,6 +61,9 @@ unsigned int PassesBinaryFiles(Forcing* forcing,double maxtime,ConnData* conninf
 	if((forcing->last_file - forcing->first_file + 1)%forcing->increment != 0)	passes++;
 	return passes;
 }
+
+
+#if defined(HAVE_POSTGRESQL)
 
 //For flag = 3
 unsigned int PassesDatabase(Forcing* forcing,double maxtime,ConnData* conninfo)
@@ -116,6 +109,8 @@ unsigned int PassesDatabase_Irregular(Forcing* forcing,double maxtime,ConnData* 
 
 	return forcing->number_timesteps / forcing->increment + 1;
 }
+
+#endif //HAVE_POSTGRESQL
 
 //For flag = 7
 unsigned int PassesRecurring(Forcing* forcing,double maxtime,ConnData* conninfo)
@@ -299,5 +294,3 @@ double NextForcingRecurring(Link* sys,unsigned int N,unsigned int* my_sys,unsign
 	(forcing->iteration)++;
 	return maxtime;
 }
-
-

@@ -8,7 +8,7 @@
 
 #include "solvers.h"
 
-void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N, GlobalVars* GlobalVars, int* assignments, short int* getting, unsigned int* res_list, unsigned int res_size, unsigned int** id_to_loc, TempStorage* workspace, Forcing** forcings, ConnData* db_connections, TransData* my_data, short int print_flag, FILE* outputfile)
+void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N, GlobalVars* GlobalVars, int* assignments, short int* getting, unsigned int* res_list, unsigned int res_size, unsigned int** id_to_loc, TempStorage* workspace, Forcing* forcings, ConnData* db_connections, TransData* my_data, bool print_flag, FILE* outputfile)
 {
     unsigned int i, k;
 
@@ -27,11 +27,11 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
     double maxtime;
     for (i = 0; i < GlobalVars->num_forcings; i++)
     {
-        if (forcings[i]->active)
+        if (forcings[i].active)
         {
-            forcings[i]->passes = forcings[i]->GetPasses(forcings[i], GlobalVars->maxtime, &db_connections[ASYNCH_DB_LOC_FORCING_START + i]);
-            passes = max(passes, forcings[i]->passes);
-            //printf("Before: %u, %u, %u\n",i,forcings[i]->passes,passes);
+            forcings[i].passes = forcings[i].GetPasses(&forcings[i], GlobalVars->maxtime, &db_connections[ASYNCH_DB_LOC_FORCING_START + i]);
+            passes = max(passes, forcings[i].passes);
+            //printf("Before: %u, %u, %u\n",i,forcings[i].passes,passes);
         }
     }
 
@@ -49,16 +49,16 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
         maxtime = GlobalVars->maxtime;
         for (i = 0; i < GlobalVars->num_forcings; i++)
         {
-            if (forcings[i]->active)
+            if (forcings[i].active)
             {
-                //printf("Forcing %u is active  %e %e\n",i,sys[my_sys[0]]->last_t,forcings[i]->maxtime);
-                if (fabs(sys[my_sys[0]].last_t - forcings[i]->maxtime) < 1e-14)
+                //printf("Forcing %u is active  %e %e\n",i,sys[my_sys[0]]->last_t,forcings[i].maxtime);
+                if (fabs(sys[my_sys[0]].last_t - forcings[i].maxtime) < 1e-14)
                 {
-                    forcings[i]->maxtime = forcings[i]->GetNextForcing(sys, N, my_sys, my_N, assignments, GlobalVars, forcings[i], db_connections, id_to_loc, i);
-                    //(forcings[i]->iteration)++;	if flag is 3 (dbc), this happens in GetNextForcing
-//printf("setting forcing maxtime to %e, iteration = %u\n",forcings[i]->maxtime,forcings[i]->iteration);
+                    forcings[i].maxtime = forcings[i].GetNextForcing(sys, N, my_sys, my_N, assignments, GlobalVars, &forcings[i], db_connections, id_to_loc, i);
+                    //(forcings[i].iteration)++;	if flag is 3 (dbc), this happens in GetNextForcing
+//printf("setting forcing maxtime to %e, iteration = %u\n",forcings[i].maxtime,forcings[i].iteration);
                 }
-                maxtime = min(maxtime, forcings[i]->maxtime);
+                maxtime = min(maxtime, forcings[i].maxtime);
             }
         }
 
@@ -123,14 +123,14 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                             while (current->last_t + current->h < maxtime && current->current_iterations < GlobalVars->iter_limit)
                             {
                                 for (i = 0; i < GlobalVars->num_forcings; i++)		//!!!! Put this in RKSolver !!!!
-                                    if (forcings[i]->active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                    if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
                                 current->rejected = current->RKSolver(current, GlobalVars, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
                             }
 
                             if (current->last_t + current->h >= maxtime  && current->current_iterations < GlobalVars->iter_limit && current->last_t < maxtime)	//If less than a full step is needed, just finish up
                             {
                                 for (i = 0; i < GlobalVars->num_forcings; i++)
-                                    if (forcings[i]->active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                    if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
                                 current->h = min(current->h, maxtime - current->last_t);
                                 assert(current->h > 0);
                                 current->rejected = current->RKSolver(current, GlobalVars, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
@@ -138,7 +138,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                                 while (current->rejected == 0)
                                 {
                                     for (i = 0; i < GlobalVars->num_forcings; i++)
-                                        if (forcings[i]->active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                        if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
                                     current->h = min(current->h, maxtime - current->last_t);
                                     assert(current->h > 0);
                                     current->rejected = current->RKSolver(current, GlobalVars, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
@@ -154,7 +154,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                             while (parentsval == current->num_parents && current->current_iterations < GlobalVars->iter_limit)
                             {
                                 for (i = 0; i < GlobalVars->num_forcings; i++)
-                                    if (forcings[i]->active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                    if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
 
                                 if (current->discont_count > 0 && current->h > current->discont[current->discont_start] - current->last_t)
                                 {
@@ -178,7 +178,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                                 current->h = min(current->h, maxtime - current->last_t);
                                 assert(current->h > 0);
                                 for (i = 0; i < GlobalVars->num_forcings; i++)
-                                    if (forcings[i]->active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                    if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
                                 if (current->discont_count > 0 && current->h > current->discont[current->discont_start] - current->last_t)
                                 {
                                     current->h_old = current->h;
@@ -192,7 +192,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                                 while (current->last_t < maxtime && current->current_iterations < GlobalVars->iter_limit)
                                 {
                                     for (i = 0; i < GlobalVars->num_forcings; i++)
-                                        if (forcings[i]->active && current->last_t < current->forcing_change_times[i])
+                                        if (forcings[i].active && current->last_t < current->forcing_change_times[i])
                                             current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
 
                                     if (current->discont_count > 0 && current->h > current->discont[current->discont_start] - current->last_t)

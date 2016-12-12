@@ -65,8 +65,8 @@ void Print_VECTOR(double* v, unsigned int dim);
 double*** DownloadGaugeReadings(unsigned int start_time, unsigned int stop_time, unsigned int** id_to_loc, unsigned int N, unsigned int* numlinks, unsigned int** ids, unsigned int** locs, unsigned int** numsteps);
 double compute_diff(double* d, double* q, unsigned int size);
 
-int Output_Linkid(double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
-int Output_Timestamp(double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
+int Output_Linkid(unsigned int link_id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
+int Output_Timestamp(unsigned int link_id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
 
 void Init_Output_User_forecastparams(AsynchSolver* asynch);
 void Free_Output_User_forecastparams(AsynchSolver* asynch);
@@ -115,15 +115,14 @@ int main(int argc, char **argv)
     //char additional[16];	//For output filename
     //srand(time(NULL));	//!!!! Is this needed? !!!!
 
-    AsynchSolver asynch;
-    Asynch_Init(&asynch, MPI_COMM_WORLD);
+    AsynchSolver *asynch = Asynch_Init(MPI_COMM_WORLD);
 
     //Model 15
     //Asynch_Custom_Model(asynch,&SetParamSizes_Assim,&ConvertParams_Assim,&InitRoutines_Assim,&Precalculations_Assim,&ReadInitData_Assim);
     //Model 254
     //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
     //Model 254, q
-    Asynch_Custom_Model(&asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);
+    Asynch_Custom_Model(asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);
     //Model 254, q and s_p
     //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qsp,&Precalculations_Assim_254,&ReadInitData_Assim_254_qsp);
     //Model 254, q and s_t
@@ -147,78 +146,78 @@ int main(int argc, char **argv)
 
     //Read global file
     if (my_rank == 0)	printf("Reading global file...\n");
-    Asynch_Parse_GBL(&asynch, argv[1]);
+    Asynch_Parse_GBL(asynch, argv[1]);
     if (my_rank == 0)	printf("Loading network...\n");
-    Asynch_Load_Network(&asynch);
+    Asynch_Load_Network(asynch);
 
     //Read forecast file
-    ForecastData* forecaster = Init_ForecastData(argv[2], asynch.GlobalVars->string_size);
+    ForecastData* forecaster = Init_ForecastData(argv[2], asynch->globals->string_size);
     if (!forecaster)	MPI_Abort(MPI_COMM_WORLD, 1);
     double forecast_window = forecaster->forecast_window;
 
     //Read data assimilation file
     AssimData assim;
-    InitAssimData(&assim, argv[3], &asynch);
+    InitAssimData(&assim, argv[3], asynch);
 
     //Make sure the total time is large enough
-    holder = Asynch_Get_Total_Simulation_Time(&asynch);
+    holder = Asynch_Get_Total_Simulation_Duration(asynch);
     longest = (holder < forecast_window) ? forecast_window : holder;
-    Asynch_Set_Total_Simulation_Time(&asynch, longest);
+    Asynch_Set_Total_Simulation_Duration(asynch, longest);
 
     //unsigned int obs_locs[] = {2};	//Locations of links with data	!!!! Make sure these are locations and not IDs !!!!
     //unsigned int obs_locs[] = {1,3,4};	//!!!! This should come from ReadSolution. Or should be calculated at least. !!!!
     //obs_locs = (unsigned int*) malloc(3*sizeof(unsigned int));
     //obs_locs[0] = 1; obs_locs[1] = 3; obs_locs[2] = 4;
-    //double*** truesolution = ReadSolution("TempData/assim/yobservations.dat",asynch.id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);
-    //double*** truesolution = ReadSolution("TempData/assim/testobservations.dat",asynch.id_to_loc,asynch.N,&num_obs,&ids,&obs_locs,&numsteps);
-    //double*** truesolution = ReadSolution("TempData/assim/254testobservations.dat",asynch.id_to_loc,asynch.N,&num_obs,&ids,&obs_locs,&numsteps);
-    //double*** truesolution = DownloadGaugeReadings(1402790400,1405382400,asynch.id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);	//June 15 2014 to July 15 2014
-    //double*** truesolution = DownloadGaugeReadings(1403654400,1405382400,asynch.id_to_loc,asynch.N,&num_obs,&ids,&obs_locs,&numsteps);	//June 25 2014 to July 15 2014
+    //double*** truesolution = ReadSolution("TempData/assim/yobservations.dat",asynch->id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);
+    //double*** truesolution = ReadSolution("TempData/assim/testobservations.dat",asynch->id_to_loc,asynch->N,&num_obs,&ids,&obs_locs,&numsteps);
+    //double*** truesolution = ReadSolution("TempData/assim/254testobservations.dat",asynch->id_to_loc,asynch->N,&num_obs,&ids,&obs_locs,&numsteps);
+    //double*** truesolution = DownloadGaugeReadings(1402790400,1405382400,asynch->id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);	//June 15 2014 to July 15 2014
+    //double*** truesolution = DownloadGaugeReadings(1403654400,1405382400,asynch->id_to_loc,asynch->N,&num_obs,&ids,&obs_locs,&numsteps);	//June 25 2014 to July 15 2014
 
     //Find the gauged locations
-    if (GetObservationsIds(&asynch, &assim))
+    if (GetObservationsIds(asynch, &assim))
         MPI_Abort(MPI_COMM_WORLD, 1);
 
     //Finds the link ids upstreams from every gauged locations
-    FindUpstreamLinks(&asynch, &assim, problem_dim, 1, assim.obs_time_step, assim.num_steps, assim.obs_locs, assim.num_obs);
+    FindUpstreamLinks(asynch, &assim, problem_dim, 1, assim.obs_time_step, assim.num_steps, assim.obs_locs, assim.num_obs);
 
     if (my_rank == 0)	printf("Partitioning network...\n");
-    Asynch_Partition_Network(&asynch);
-    CleanUpstreamLinks(&asynch);
+    Asynch_Partition_Network(asynch);
+    CleanUpstreamLinks(asynch);
     if (my_rank == 0)	printf("Loading parameters...\n");
-    Asynch_Load_Network_Parameters(&asynch, 0);
+    Asynch_Load_Network_Parameters(asynch, 0);
     if (my_rank == 0)	printf("Reading dam and reservoir data...\n");
-    Asynch_Load_Dams(&asynch);
+    Asynch_Load_Dams(asynch);
     if (my_rank == 0)	printf("Setting up numerical error data...\n");
-    Asynch_Load_Numerical_Error_Data(&asynch);
+    Asynch_Load_Numerical_Error_Data(asynch);
     if (my_rank == 0)	printf("Initializing model...\n");
-    Asynch_Initialize_Model(&asynch);
-    Setup_Errors(&asynch, problem_dim);
+    Asynch_Initialize_Model(asynch);
+    Setup_Errors(asynch, problem_dim);
     if (my_rank == 0)	printf("Loading initial conditions...\n");
-    Asynch_Load_Initial_Conditions(&asynch);
+    Asynch_Load_Initial_Conditions(asynch);
     if (my_rank == 0)	printf("Loading forcings...\n");
-    Asynch_Load_Forcings(&asynch);
+    Asynch_Load_Forcings(asynch);
     if (my_rank == 0)	printf("Loading output data information...\n");
-    Asynch_Load_Save_Lists(&asynch);
+    Asynch_Load_Save_Lists(asynch);
     if (my_rank == 0)	printf("Finalizing network...\n");
-    Asynch_Finalize_Network(&asynch);
+    Asynch_Finalize_Network(asynch);
     if (my_rank == 0)	printf("Calculating initial step sizes...\n");
-    Asynch_Calculate_Step_Sizes(&asynch);
+    Asynch_Calculate_Step_Sizes(asynch);
 
-    Asynch_Set_Total_Simulation_Time(&asynch, holder);
+    Asynch_Set_Total_Simulation_Duration(asynch, holder);
 
     //Setup output for link id, if needed
-    int setup_id = Asynch_Check_Output(&asynch, "LinkID");
-    int setup_timestamp = Asynch_Check_Output(&asynch, "Timestamp");
+    int setup_id = Asynch_Check_Output(asynch, "LinkID");
+    int setup_timestamp = Asynch_Check_Output(asynch, "Timestamp");
     if (setup_id || setup_timestamp)
     {
         if (my_rank == 0)	printf("Error: forecaster needs LinkID (%i), Timestamp (%i).\n", setup_id, setup_timestamp);
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    Init_Output_User_forecastparams(&asynch);
-    Asynch_Set_Output(&asynch, "LinkID", ASYNCH_INT, (void(*)(double, VEC, VEC, VEC, int, void*)) &Output_Linkid, NULL, 0);
-    Asynch_Set_Output(&asynch, "Timestamp", ASYNCH_INT, (void(*)(double, VEC, VEC, VEC, int, void*)) &Output_Timestamp, NULL, 0);
-    Set_Output_User_forecastparams(&asynch, 0, 0);
+    Init_Output_User_forecastparams(asynch);
+    //Asynch_Set_Output(asynch, "LinkID", ASYNCH_INT, (void(*)(double, VEC, VEC, VEC, int, void*)) &Output_Linkid, NULL, 0);
+    Asynch_Set_Output_Int(asynch, "Timestamp", &Output_Timestamp, NULL, 0);
+    Set_Output_User_forecastparams(asynch, 0, 0);
 
     //Prepare output files
     //Asynch_Prepare_Temp_Files(asynch);
@@ -229,19 +228,19 @@ int main(int argc, char **argv)
 
     //Pull data from asynch
     char dump_filename[ASYNCH_MAX_PATH_LENGTH], filename[ASYNCH_MAX_PATH_LENGTH];
-    unsigned int my_N = asynch.my_N, N = asynch.N, *my_sys = asynch.my_sys, **id_to_loc = asynch.id_to_loc, num_forcings = asynch.GlobalVars->num_forcings;
-    int *assignments = asynch.assignments;
-    Link* sys = asynch.sys;
-    short int *getting = asynch.getting;
-    GlobalVars *GlobalVars = asynch.GlobalVars;
-    Model* custom_model = asynch.custom_model;
+    unsigned int my_N = asynch->my_N, N = asynch->N, *my_sys = asynch->my_sys, **id_to_loc = asynch->id_to_loc, num_forcings = asynch->globals->num_forcings;
+    int *assignments = asynch->assignments;
+    Link* sys = asynch->sys;
+    short int *getting = asynch->getting;
+    GlobalVars *globals = asynch->globals;
+    Model* custom_model = asynch->custom_model;
 
     //Set print_time to t_0
     //Asynch_Reset_Temp_Files(asynch,sys[my_sys[0]]->last_t);
 
     //Find the index of the forcing to use for forecasting
     unsigned int forecast_idx = forecaster->forecasting_forcing;
-    if (forecast_idx >= asynch.GlobalVars->num_forcings)
+    if (forecast_idx >= asynch->globals->num_forcings)
     {
         if (my_rank == 0)	printf("Error: No forecasting forcing set.\n");
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -260,7 +259,7 @@ int main(int argc, char **argv)
     //Initialize choices
     unsigned int num_obs = assim.num_obs, *obs_locs = assim.obs_locs, num_steps = assim.num_steps;
     double t_b = 0.0, obs_time_step = assim.obs_time_step;
-    double t_f = Asynch_Get_Total_Simulation_Time(&asynch);
+    double t_f = Asynch_Get_Total_Simulation_Duration(asynch);
     unsigned int dim = assim_dim;
     unsigned int allstates = dim * N;
     //double x_b[allstates];
@@ -293,12 +292,12 @@ int main(int argc, char **argv)
     //For Model 254
     //unsigned int allstates_needed = Setup_Fitting_Data_Model254(asynch,obs_locs,num_obs);
     //For Model 254 trim, q
-    Setup_Fitting_Data_Model254_q(&asynch, obs_locs, num_obs);
+    Setup_Fitting_Data_Model254_q(asynch, obs_locs, num_obs);
     //For Model 254 trim, q and s_p
     //Setup_Fitting_Data_Model254_qsp(asynch,obs_locs,num_obs);
     //For Model 254 trim, q and s_t
     //Setup_Fitting_Data_Model254_qst(asynch,obs_locs,num_obs);
-    unsigned int allstates_needed = BuildStateShift(&asynch, allstates, obs_locs, num_obs, &vareq_shift, &inv_vareq_shift);
+    unsigned int allstates_needed = BuildStateShift(asynch, allstates, obs_locs, num_obs, &vareq_shift, &inv_vareq_shift);
 
 
     printf("allstates_needed: %u allstates: %u\n", allstates_needed, allstates);
@@ -337,7 +336,7 @@ int main(int argc, char **argv)
     UpstreamData* updata;
     for (i = 0; i < N; i++)
     {
-        //if(assignments[i] == my_rank)	invupareas[i] = 1.0/(sys[i].params.ve[GlobalVars->area_idx]*1e3);
+        //if(assignments[i] == my_rank)	invupareas[i] = 1.0/(sys[i].params.ve[globals->area_idx]*1e3);
         if (assignments[i] == my_rank)	invupareas[i] = 1.0;
         MPI_Bcast(&(invupareas[i]), 1, MPI_DOUBLE, assignments[i], MPI_COMM_WORLD);
     }
@@ -428,7 +427,7 @@ int main(int argc, char **argv)
     //Scale by area
     printf("Scaling init discharges by area...\n");
     //AdjustDischarges_Scale(asynch,obs_locs,d_full,num_obs,x_b,allstates);
-    AdjustDischarges(&asynch, obs_locs, d_full, num_obs, assim_dim, x_b);
+    AdjustDischarges(asynch, obs_locs, d_full, num_obs, assim_dim, x_b);
 
     //Prep PetSC
     if (my_rank == 0)	printf("\nPrepping PetSc...\n");
@@ -448,7 +447,7 @@ int main(int argc, char **argv)
     user.d_full = d_full;
     user.x_start = x_start;
     user.x = &x;
-    user.asynch = &asynch;
+    user.asynch = asynch;
     user.problem_dim = problem_dim;
     user.assim_dim = assim_dim;
     user.allstates = allstates;
@@ -493,37 +492,37 @@ int main(int argc, char **argv)
     unsigned int num_tables = 10;
     //unsigned int num_rainsteps = 3;	//Number of rainfall intensities to use for the next forecast
     unsigned int num_rainsteps = forecaster->num_rainsteps;	//Number of rainfall intensities to use for the next forecast
-    //if(my_rank == 0 && asynch.GlobalVars->increment < num_rainsteps + 3)
-    if (my_rank == 0 && asynch.forcings[forecast_idx]->increment < num_rainsteps + 3)
+    //if(my_rank == 0 && asynch->globals->increment < num_rainsteps + 3)
+    if (my_rank == 0 && asynch->forcings[forecast_idx].increment < num_rainsteps + 3)
         printf("Warning: Increment for rain should probably be %u.\n", num_rainsteps + 3);
-    //asynch.forcings[forecast_idx]->increment = num_rainsteps;	//!!!! Not necessary, but makes me feel better. The solvers should really not do the last step where they download nothing. !!!!
+    //asynch->forcings[forecast_idx]->increment = num_rainsteps;	//!!!! Not necessary, but makes me feel better. The solvers should really not do the last step where they download nothing. !!!!
 
     unsigned int /*nextraintime,*/nextforcingtime, background_time_unix;
     short int halt = 0;
     int isnull, repeat_for_errors;
-    //int message_buffer[1 + asynch.GlobalVars->num_forcings];
+    //int message_buffer[1 + asynch->globals->num_forcings];
     short int vac = 0;	//0 if no vacuum has occured, 1 if vacuum has occured (during a specific hour)
-    unsigned int change_time = (unsigned int)asynch.forcings[forecast_idx]->file_time * 60 * num_rainsteps;
-    unsigned int forecast_time_unix = asynch.forcings[forecast_idx]->first_file - change_time;	//Subracting change_time to make the value correct in the loop
-    //unsigned int last_file = asynch.forcings[forecast_idx]->last_file;
-    //unsigned int first_file = asynch.forcings[forecast_idx]->first_file;
+    unsigned int change_time = (unsigned int)asynch->forcings[forecast_idx].file_time * 60 * num_rainsteps;
+    unsigned int forecast_time_unix = asynch->forcings[forecast_idx].first_file - change_time;	//Subracting change_time to make the value correct in the loop
+    //unsigned int last_file = asynch->forcings[forecast_idx]->last_file;
+    //unsigned int first_file = asynch->forcings[forecast_idx]->first_file;
     k = 0;
     for (i = 0; i < N; i++)
         if (backup[i].dim > 0)
-            v_copy(asynch.sys[i].list->tail->y_approx, backup[i]);
+            v_copy(asynch->sys[i].list->tail->y_approx, backup[i]);
 
-    //double simulation_time_with_data = asynch.forcings[forecast_idx]->file_time * forecaster->num_rainsteps;
+    //double simulation_time_with_data = asynch->forcings[forecast_idx]->file_time * forecaster->num_rainsteps;
     double simulation_time_with_data = (assim.num_steps - 1) * assim.obs_time_step;
     unsigned int simulation_time_with_data_secs = (int)(simulation_time_with_data + 1e-3) * 60;
 
     //Setup temp files
-    Set_Output_User_forecastparams(&asynch, forecast_time_unix, simulation_time_with_data_secs);	//!!!! Should this be done here at all? !!!!
+    Set_Output_User_forecastparams(asynch, forecast_time_unix, simulation_time_with_data_secs);	//!!!! Should this be done here at all? !!!!
     //Set_Output_PeakflowUser_Offset(asynch,forecast_time_unix);
-    Asynch_Set_Total_Simulation_Time(&asynch, forecast_window + simulation_time_with_data);
-    Asynch_Prepare_Temp_Files(&asynch);
+    Asynch_Set_Total_Simulation_Duration(asynch, forecast_window + simulation_time_with_data);
+    Asynch_Prepare_Temp_Files(asynch);
 
     //Prepare snapshots
-    Asynch_Get_Snapshot_Output_Name(&asynch, dump_filename);
+    Asynch_Get_Snapshot_Output_Name(asynch, dump_filename);
     dump_filename[strlen(dump_filename) - 4] = '\0';	//Removes .rec	!!!! Uh, is this ok? No chance for memory corruption? !!!!
 
     //Make some initializations to the database
@@ -533,55 +532,55 @@ int main(int argc, char **argv)
         start = time(NULL);
 
         //Connect to hydrograph database
-        ConnectPGDB(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+        ConnectPGDB(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
 
         //Make sure the hydrographs table exists
-        sprintf(query, "SELECT 1 FROM pg_class WHERE relname='%s';", asynch.GlobalVars->hydro_table);
-        res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
+        sprintf(query, "SELECT 1 FROM pg_class WHERE relname='%s';", asynch->globals->hydro_table);
+        res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
         if (!PQntuples(res))
         {
             PQclear(res);
-            sprintf(query, "CREATE TABLE %s(link_id int,time int,ratio real,discharge real); ALTER TABLE %s SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);", asynch.GlobalVars->hydro_table, asynch.GlobalVars->hydro_table);
-            res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
+            sprintf(query, "CREATE TABLE %s(link_id int,time int,ratio real,discharge real); ALTER TABLE %s SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);", asynch->globals->hydro_table, asynch->globals->hydro_table);
+            res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
             CheckResError(res, "creating hydrographs table");
         }
         else
         {
             PQclear(res);
-            sprintf(query, "TRUNCATE %s;", asynch.GlobalVars->hydro_table);
-            res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
+            sprintf(query, "TRUNCATE %s;", asynch->globals->hydro_table);
+            res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
             CheckResError(res, "truncating hydrographs table");
         }
         PQclear(res);
-        DisconnectPGDB(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+        DisconnectPGDB(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
 
         //Make sure the hydrograph tables are set correctly
-        CheckPartitionedTable(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], asynch.GlobalVars, forecaster, num_tables, "archive_hydroforecast", "forecast_time", NULL);
+        CheckPartitionedTable(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], asynch->globals, forecaster, num_tables, "archive_hydroforecast", "forecast_time", NULL);
 
         //Clear the future hydrographs in archive
-        DeleteFutureValues(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], num_tables, asynch.GlobalVars, "archive_hydroforecast", forecaster->model_name, forecast_time_unix, 1, NULL);
+        DeleteFutureValues(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], num_tables, asynch->globals, "archive_hydroforecast", forecaster->model_name, forecast_time_unix, 1, NULL);
         /*
                 sprintf(query,"DELETE FROM hydroforecast_assim WHERE forecast_time >= %u;",forecaster->model_name,forecast_time_unix);
-                res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]->conn,query);
+                res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]->conn,query);
                 CheckResError(res,"deleting future hydroforecasts");
                 PQclear(res);
 
                 //Disconnect from hydrograph database, connect to peakflow database
-                DisconnectPGDB(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+                DisconnectPGDB(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
 
-                ConnectPGDB(asynch.db_connections[ASYNCH_DB_LOC_PEAK_OUTPUT]);
+                ConnectPGDB(asynch->db_connections[ASYNCH_DB_LOC_PEAK_OUTPUT]);
 
                 //Make sure the peakforecast tables are set correctly
-                //CheckPeakforecastTable(asynch.db_connections[ASYNCH_DB_LOC_PEAK_OUTPUT],asynch.GlobalVars,forecaster,num_peakflow_tables);
+                //CheckPeakforecastTable(asynch->db_connections[ASYNCH_DB_LOC_PEAK_OUTPUT],asynch->globals,forecaster,num_peakflow_tables);
 
                 //Clear all future peakflows
-                sprintf(query,"TRUNCATE %s;",asynch.GlobalVars->peak_table);
-                res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_PEAK_OUTPUT]->conn,query);
+                sprintf(query,"TRUNCATE %s;",asynch->globals->peak_table);
+                res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_PEAK_OUTPUT]->conn,query);
                 CheckResError(res,"truncating peakforecast table");
                 PQclear(res);
 
                 //Disconnect
-                DisconnectPGDB(asynch.db_connections[ASYNCH_DB_LOC_PEAK_OUTPUT]);
+                DisconnectPGDB(asynch->db_connections[ASYNCH_DB_LOC_PEAK_OUTPUT]);
         */
         stop = time(NULL);
         printf("Total time to initialize tables: %.2f.\n", difftime(stop, start));
@@ -603,32 +602,32 @@ int main(int argc, char **argv)
         }
 
         //Clear buffers
-        Flush_TransData(asynch.my_data);
+        Flush_TransData(asynch->my_data);
 
         //Make some initializations
         //first_file = last_file;
-        //last_file = last_file + (unsigned int) asynch.forcings[forecast_idx]->file_time * 60 * num_rainsteps;
+        //last_file = last_file + (unsigned int) asynch->forcings[forecast_idx]->file_time * 60 * num_rainsteps;
         forecast_time_unix += change_time;
         background_time_unix = forecast_time_unix - (assim.num_steps - 1) * (unsigned int)(assim.obs_time_step*60.0 + 1e-3);
-        nextforcingtime = forecast_time_unix - 60 * (unsigned int)asynch.forcings[forecast_idx]->file_time;	//This is the actual timestamp of the last needed forcing data. This will be downloaded (unlike last_file)
+        nextforcingtime = forecast_time_unix - 60 * (unsigned int)asynch->forcings[forecast_idx].file_time;	//This is the actual timestamp of the last needed forcing data. This will be downloaded (unlike last_file)
 
         //Reset each link
-        Asynch_Set_System_State(&asynch, 0.0, backup);
-        Set_Output_User_forecastparams(&asynch, forecast_time_unix, simulation_time_with_data_secs);
+        Asynch_Set_System_State(asynch, 0.0, backup);
+        Set_Output_User_forecastparams(asynch, forecast_time_unix, simulation_time_with_data_secs);
         //Set_Output_PeakflowUser_Offset(asynch,forecast_time_unix);
         //Asynch_Write_Current_Step(asynch);
-        Asynch_Set_Forcing_State(&asynch, forecast_idx, 0.0, background_time_unix, forecast_time_unix);
+        Asynch_Set_Forcing_State(asynch, forecast_idx, 0.0, background_time_unix, forecast_time_unix);
 
-        for (i = 0; i < asynch.GlobalVars->num_forcings; i++)	//Set any other database forcings to begin at first_file
+        for (i = 0; i < asynch->globals->num_forcings; i++)	//Set any other database forcings to begin at first_file
         {
-            if (asynch.forcings[i]->flag == 3)
-                Asynch_Set_Forcing_State(&asynch, i, 0.0, background_time_unix, asynch.forcings[i]->last_file);
+            if (asynch->forcings[i].flag == 3)
+                Asynch_Set_Forcing_State(asynch, i, 0.0, background_time_unix, asynch->forcings[i].last_file);
         }
 
         //!!!! Skipped! !!!!
                 //Check if a vacuum should be done
                 //This will happen at hr1
-        //		if(my_rank == 0)	PerformTableMaintainance(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT],asynch.GlobalVars,forecaster,&vac,hr1,num_tables,"archive_hydroforecast");
+        //		if(my_rank == 0)	PerformTableMaintainance(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT],asynch->globals,forecaster,&vac,hr1,num_tables,"archive_hydroforecast");
 
                 //Make sure all buffer flushing is done
         MPI_Barrier(MPI_COMM_WORLD);
@@ -667,15 +666,15 @@ int main(int argc, char **argv)
                 if (my_rank == 0)
                 {
                     printf("No rainfall values returned from SQL database for forcing %u. %u %u\n", forecast_idx, forecast_time_unix, isnull);
-                    PerformTableMaintainance(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], asynch.GlobalVars, forecaster, &vac, hr1, num_tables, "archive_hydroforecast", NULL);
+                    PerformTableMaintainance(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], asynch->globals, forecaster, &vac, hr1, num_tables, "archive_hydroforecast", NULL);
                 }
 
                 halt = CheckFinished(forecaster->halt_filename);
                 if (halt)
                 {
                     sprintf(filename, "%s%u.rec", dump_filename, forecast_time_unix);
-                    Asynch_Set_Snapshot_Output_Name(&asynch, filename);
-                    Asynch_Take_System_Snapshot(&asynch, NULL);
+                    Asynch_Set_Snapshot_Output_Name(asynch, filename);
+                    Asynch_Take_System_Snapshot(asynch, NULL);
                 }
                 else
                 {
@@ -689,11 +688,11 @@ int main(int argc, char **argv)
 
         //Make forecasts
         current_offset = forecast_time_unix;
-        Set_Output_User_forecastparams(&asynch, current_offset, simulation_time_with_data_secs);	//!!!! Why am I doing this twice? (look like 50 lines up) !!!!
+        Set_Output_User_forecastparams(asynch, current_offset, simulation_time_with_data_secs);	//!!!! Why am I doing this twice? (look like 50 lines up) !!!!
         //Set_Output_PeakflowUser_Offset(asynch,current_offset);
         MPI_Barrier(MPI_COMM_WORLD);
         time(&start);
-        Make_Assimilated_Forecasts(&asynch, background_time_unix, simulation_time_with_data, backup, &user, forecaster, &assim, assim_dim, forecast_idx);
+        Make_Assimilated_Forecasts(asynch, background_time_unix, simulation_time_with_data, backup, &user, forecaster, &assim, assim_dim, forecast_idx);
 
         MPI_Barrier(MPI_COMM_WORLD);
         if (my_rank == 0)
@@ -705,8 +704,8 @@ int main(int argc, char **argv)
                 //Output some data
                 if(my_rank == 0)
                 {
-                    printf("[%i]: The answer at ID %i at time %.12f is\n",my_rank,asynch.sys[asynch.my_sys[0]]->ID,asynch.sys[asynch.my_sys[0]]->last_t);
-                    Print_Vector(asynch.sys[asynch.my_sys[0]]->list->tail->y_approx);
+                    printf("[%i]: The answer at ID %i at time %.12f is\n",my_rank,asynch->sys[asynch->my_sys[0]]->ID,asynch->sys[asynch->my_sys[0]]->last_t);
+                    Print_Vector(asynch->sys[asynch->my_sys[0]]->list->tail->y_approx);
                 }
         */
         //Upload the peak data to the database **********************************************************************************************
@@ -715,12 +714,12 @@ int main(int argc, char **argv)
         MPI_Barrier(MPI_COMM_WORLD);
         start = time(NULL);
 
-        repeat_for_errors = Asynch_Create_Peakflows_Output(&asynch);
+        repeat_for_errors = Asynch_Create_Peakflows_Output(asynch);
         while (repeat_for_errors > 0)
         {
             if (my_rank == 0)	printf("[%i]: Attempting resend of peakflow data.\n", my_rank);
             ASYNCH_SLEEP(5);
-            repeat_for_errors = Asynch_Create_Peakflows_Output(&asynch);
+            repeat_for_errors = Asynch_Create_Peakflows_Output(asynch);
         }
 
         MPI_Barrier(MPI_COMM_WORLD);
@@ -738,30 +737,30 @@ int main(int argc, char **argv)
         if (my_rank == 0)
         {
             //Make sure database connection is still good
-            ConnectPGDB(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+            ConnectPGDB(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
 
-            sprintf(query, "TRUNCATE %s;", asynch.GlobalVars->hydro_table);
-            res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
+            sprintf(query, "TRUNCATE %s;", asynch->globals->hydro_table);
+            res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
             CheckResError(res, "deleting hydrographs");
             PQclear(res);
 
-            DisconnectPGDB(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+            DisconnectPGDB(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
         }
         MPI_Barrier(MPI_COMM_WORLD);
 
-        repeat_for_errors = Asynch_Create_Output(&asynch, NULL);
+        repeat_for_errors = Asynch_Create_Output(asynch, NULL);
         while (repeat_for_errors > 0)
         {
             if (my_rank == 0)	printf("[%i]: Attempting resend of hydrographs data.\n", my_rank);
             ASYNCH_SLEEP(5);
-            repeat_for_errors = Asynch_Create_Output(&asynch, NULL);
+            repeat_for_errors = Asynch_Create_Output(asynch, NULL);
         }
 
         //Call functions
         if (my_rank == 0)
         {
             //Connect to database
-            ConnectPGDB(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+            ConnectPGDB(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
 
             //Functions for displaying data on IFIS
             if (forecaster->ifis_display)
@@ -773,14 +772,14 @@ int main(int argc, char **argv)
                     repeat_for_errors = 0;
                     //sprintf(query,"SELECT get_stages_%s();",forecaster->model_name);
                     sprintf(query, "SELECT get_stages_ifc01();");
-                    res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
+                    res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
                     repeat_for_errors = repeat_for_errors || CheckResError(res, "calling stage function");
                     PQclear(res);
                     if (repeat_for_errors)
                     {
                         printf("[%i]: Attempting to call stage function again...\n", my_rank);
                         ASYNCH_SLEEP(5);
-                        CheckConnConnection(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+                        CheckConnConnection(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
                     }
                 }
                 /*
@@ -790,14 +789,14 @@ int main(int argc, char **argv)
                                 {
                                     repeat_for_errors = 0;
                                     sprintf(query,"SELECT update_warnings_%s();",forecaster->model_name);
-                                    res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]->conn,query);
+                                    res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]->conn,query);
                                     repeat_for_errors = repeat_for_errors || CheckResError(res,"calling warnings function");
                                     PQclear(res);
                                     if(repeat_for_errors)
                                     {
                                         printf("[%i]: Attempting to call warning function again...\n",my_rank);
                                         ASYNCH_SLEEP(5);
-                                        CheckConnConnection(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+                                        CheckConnConnection(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
                                     }
                                 }
                 */
@@ -820,17 +819,17 @@ int main(int argc, char **argv)
             {
                 repeat_for_errors = 0;
                 sprintf(query, "ALTER TABLE master_archive_hydroforecast_%s ALTER COLUMN forecast_time SET DEFAULT %u;", forecaster->model_name, current_offset);
-                res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
+                res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
                 repeat_for_errors = repeat_for_errors || CheckResError(res, "setting default value");
                 PQclear(res);
 
                 sprintf(query, "SELECT copy_to_archive_hydroforecast_%s();", forecaster->model_name);
-                res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
+                res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
                 repeat_for_errors = repeat_for_errors || CheckResError(res, "calling stage archive function");
                 PQclear(res);
 
                 sprintf(query, "ALTER TABLE master_archive_hydroforecast_%s ALTER COLUMN forecast_time DROP DEFAULT;", forecaster->model_name);
-                res = PQexec(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
+                res = PQexec(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT].conn, query);
                 repeat_for_errors = repeat_for_errors || CheckResError(res, "dropping default value");
                 PQclear(res);
 
@@ -838,12 +837,12 @@ int main(int argc, char **argv)
                 {
                     printf("[%i]: Attempting to call stage archive function again...\n", my_rank);
                     ASYNCH_SLEEP(5);
-                    CheckConnConnection(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+                    CheckConnConnection(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
                 }
             }
 
             //Disconnect
-            DisconnectPGDB(&asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
+            DisconnectPGDB(&asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT]);
         }
 
         if (my_rank == 0)
@@ -863,14 +862,14 @@ int main(int argc, char **argv)
         {
             for (i = 0; i < N; i++)
             {
-                current = &asynch.sys[i];
+                current = &asynch->sys[i];
                 if (current->list != NULL)
                     v_copy(backup[i], current->list->tail->y_approx);
             }
 
             sprintf(filename, "%s%u.rec", dump_filename, forecast_time_unix);
-            Asynch_Set_Snapshot_Output_Name(&asynch, filename);
-            Asynch_Take_System_Snapshot(&asynch, NULL);
+            Asynch_Set_Snapshot_Output_Name(asynch, filename);
+            Asynch_Take_System_Snapshot(asynch, NULL);
         }
     }
 
@@ -911,15 +910,15 @@ int main(int argc, char **argv)
     FreeAssimData(&assim);
     Free_ForecastData(&forecaster);
     //Free_Output_PeakflowUser_Offset(asynch);
-    Free_Output_User_forecastparams(&asynch);
+    Free_Output_User_forecastparams(asynch);
 
     //Petsc clean up
     PetscFinalize();
 
     //Asynch clean up
-    FreeUpstreamLinks(&asynch);
-    Asynch_Delete_Temporary_Files(&asynch);
-    Asynch_Free(&asynch);
+    FreeUpstreamLinks(asynch);
+    Asynch_Delete_Temporary_Files(asynch);
+    Asynch_Free(asynch);
 
     return 0;
 }
@@ -932,7 +931,7 @@ void Make_Assimilated_Forecasts(AsynchSolver* asynch, unsigned int background_ti
     short int *getting = asynch->getting;
     unsigned int **id_to_loc = asynch->id_to_loc, N = asynch->N, num_obs = assim->num_obs;
     Link *sys = asynch->sys, *current;
-    GlobalVars* GlobalVars = asynch->GlobalVars;
+    GlobalVars* globals = asynch->globals;
     unsigned int i, j, l, num_steps = assim->num_steps, assim_window_unix = assim->num_steps * (int)(assim->obs_time_step + 1e-3);
     double t_b = 0.0, obs_time_step = assim->obs_time_step, forecast_window = forecaster->forecast_window, assim_window = assim->num_steps * assim->obs_time_step;
     double *d_full = user->d_full, *x_start = user->x_start, *x_b = user->x_b;
@@ -955,7 +954,7 @@ void Make_Assimilated_Forecasts(AsynchSolver* asynch, unsigned int background_ti
                 steps_to_use = (k < max_steps_to_use) ? k+1 : max_steps_to_use;
         */
         //Set the forecast window
-        Asynch_Set_Total_Simulation_Time(asynch, forecast_window + num_steps*obs_time_step);	//!!!! Is this needed? !!!!
+        Asynch_Set_Total_Simulation_Duration(asynch, forecast_window + num_steps*obs_time_step);	//!!!! Is this needed? !!!!
 
         //Get the new observations
         MPI_Barrier(MPI_COMM_WORLD);
@@ -1102,19 +1101,19 @@ void Make_Assimilated_Forecasts(AsynchSolver* asynch, unsigned int background_ti
         time(&q_start);
 
         //Advance to get new background
-        ResetSysLS(sys, N, GlobalVars, t_b, analysis, assim_dim, asynch->GlobalVars->num_forcings, asynch->my_data);
+        ResetSysLS(sys, N, globals, t_b, analysis, assim_dim, asynch->globals->num_forcings, asynch->my_data);
         for (i = 0; i < N; i++)				//!!!! Put this into ResetSysLS? !!!!
         {
             if (assignments[i] == my_rank || getting[i])
             {
                 current = &sys[i];
-                custom_model->InitializeEqs(GlobalVars->global_params, current->params, NULL, 0, current->list->head->y_approx, GlobalVars->type, current->diff_start, current->no_ini_start, current->user, NULL);
+                custom_model->initialize_eqs(globals->global_params, current->params, NULL, 0, current->list->head->y_approx, globals->type, current->diff_start, current->no_ini_start, current->user, NULL);
             }
         }
 
         {
-            Asynch_Set_Total_Simulation_Time(asynch, simulation_time_with_data);
-            //GlobalVars->maxtime = t_b + inc;
+            Asynch_Set_Total_Simulation_Duration(asynch, simulation_time_with_data);
+            //globals->maxtime = t_b + inc;
             Asynch_Advance(asynch, 1);
 
             //Extract background !!!! Isn't there a routine for this? (there needs to be...) !!!!
@@ -1132,7 +1131,7 @@ void Make_Assimilated_Forecasts(AsynchSolver* asynch, unsigned int background_ti
 
         //Make forecasts
         Asynch_Deactivate_Forcing(asynch, forecast_idx);
-        Asynch_Set_Total_Simulation_Time(asynch, forecast_window + simulation_time_with_data);
+        Asynch_Set_Total_Simulation_Duration(asynch, forecast_window + simulation_time_with_data);
         Asynch_Advance(asynch, 1);
         Asynch_Activate_Forcing(asynch, forecast_idx);
 
@@ -1193,7 +1192,7 @@ int LinearLeastSquares(Workspace* ptr, double* q)
     AsynchSolver* asynch = user->asynch;
     unsigned int N = asynch->N;
     Link* sys = asynch->sys;
-    GlobalVars* GlobalVars = asynch->GlobalVars;
+    GlobalVars* globals = asynch->globals;
     int* assignments = asynch->assignments;
     short int* getting = asynch->getting;
     Mat *HM = user->HM, *HTH = user->HTH, *HMTR = user->HMTR;
@@ -1228,24 +1227,24 @@ int LinearLeastSquares(Workspace* ptr, double* q)
     getchar();
     */
     //Initialize the system
-    ResetSysLS(sys, N, GlobalVars, t_b, x_start, assim_dim, GlobalVars->num_forcings, asynch->my_data);
+    ResetSysLS(sys, N, globals, t_b, x_start, assim_dim, globals->num_forcings, asynch->my_data);
     for (i = 0; i < N; i++)				//!!!! Put this into ResetSysLS? !!!!
         if (assignments[i] == my_rank || getting[i])
-            custom_model->InitializeEqs(GlobalVars->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, GlobalVars->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
-            //ReadInitData(GlobalVars->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,GlobalVars->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);	//!!!! Very inefficient. Too many checks. !!!!
-    for (i = 0; i < asynch->GlobalVars->num_forcings; i++)
+            custom_model->initialize_eqs(globals->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, globals->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
+            //ReadInitData(globals->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,globals->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);	//!!!! Very inefficient. Too many checks. !!!!
+    for (i = 0; i < asynch->globals->num_forcings; i++)
     {
-        if (asynch->forcings[i]->flag == 3)	//!!!! Recurring and binary files need this too !!!!
+        if (asynch->forcings[i].flag == 3)	//!!!! Recurring and binary files need this too !!!!
         {
             //printf("Setting to %u and %u\n",asynch->forcings[i]->first_file,asynch->forcings[i]->last_file);
-            Asynch_Set_Forcing_State(asynch, i, t_b, asynch->forcings[i]->first_file, asynch->forcings[i]->last_file);
+            Asynch_Set_Forcing_State(asynch, i, t_b, asynch->forcings[i].first_file, asynch->forcings[i].last_file);
         }
     }
 
     //Advance the system and extract the HM matrix
     for (i = 0; i < max_or_steps; i++)	//!!!! Start at i=1? For i = 0, I don't think we need to set anything... !!!!		//HM here holds the values of M that are needed
     {
-        GlobalVars->maxtime = t_b + (i)* obs_time_step;
+        globals->maxtime = t_b + (i)* obs_time_step;
         if (i)
         {
             MPI_Barrier(MPI_COMM_WORLD);
@@ -1254,7 +1253,7 @@ int LinearLeastSquares(Workspace* ptr, double* q)
             MPI_Barrier(MPI_COMM_WORLD);
             time(&stop);
             if (my_rank == 0)
-                printf("Time for advance %u to time %f: %.0f\n", i, GlobalVars->maxtime, difftime(stop, start2));
+                printf("Time for advance %u to time %f: %.0f\n", i, globals->maxtime, difftime(stop, start2));
         }
 
 
@@ -1434,19 +1433,19 @@ int LinearLeastSquares(Workspace* ptr, double* q)
         }
         double first_diff = compute_diff(d_els, q, max_or_steps*num_obs);
 
-        ResetSysLS(sys, N, GlobalVars, t_b, x_start, problem_dim, GlobalVars->num_forcings, asynch->my_data);
+        ResetSysLS(sys, N, globals, t_b, x_start, problem_dim, globals->num_forcings, asynch->my_data);
         for (i = 0; i < N; i++)
             if (assignments[i] == my_rank || getting[i])
-                //ReadInitData(GlobalVars->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,GlobalVars->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);
-                custom_model->InitializeEqs(GlobalVars->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, GlobalVars->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
-        for (i = 0; i < asynch->GlobalVars->num_forcings; i++)
+                //ReadInitData(globals->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,globals->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);
+                custom_model->initialize_eqs(globals->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, globals->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
+        for (i = 0; i < asynch->globals->num_forcings; i++)
         {
-            if (asynch->forcings[i]->flag == 3)	//!!!! I think .mon and binary files need this too !!!!
-                Asynch_Set_Forcing_State(asynch, i, t_b, asynch->forcings[i]->first_file, asynch->forcings[i]->last_file);
+            if (asynch->forcings[i].flag == 3)	//!!!! I think .mon and binary files need this too !!!!
+                Asynch_Set_Forcing_State(asynch, i, t_b, asynch->forcings[i].first_file, asynch->forcings[i].last_file);
         }
         for (i = 0; i < max_or_steps; i++)
         {
-            GlobalVars->maxtime = t_b + (i)* obs_time_step;
+            globals->maxtime = t_b + (i)* obs_time_step;
             if (i)	Asynch_Advance(asynch, 0);
 
             for (j = 0; j < num_obs; j++)
@@ -1667,13 +1666,13 @@ double*** DownloadGaugeReadings(unsigned int start_time, unsigned int stop_time,
 
 
 //Output functions ****************************************************************************
-int Output_Linkid(double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
+int Output_Linkid(unsigned int link_id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
     CustomParams* forecastparams = (CustomParams*)user;
     return forecastparams->ID;
 }
 
-int Output_Timestamp(double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
+int Output_Timestamp(unsigned int link_id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
     CustomParams* forecastparams = (CustomParams*)user;
     return (int)(round(t * 60.0 + forecastparams->offset - forecastparams->simulation_time_with_data) + 0.1);

@@ -15,7 +15,7 @@
 //Link* link: link to be freed.
 //unsigned int list_length: the length of the list stored with link.
 //int rkd_flag: should be 1 if an .rkd file was used, 0 if not.
-void Destroy_Link(Link* link,unsigned int list_length,int rkd_flag,Forcing** forcings,GlobalVars* GlobalVars)
+void Destroy_Link(Link* link,unsigned int list_length,int rkd_flag,Forcing* forcings,GlobalVars* GlobalVars)
 {
 	unsigned int i;
 	assert(link != NULL);
@@ -27,11 +27,13 @@ void Destroy_Link(Link* link,unsigned int list_length,int rkd_flag,Forcing** for
 		free(link->forcing_values);
 		free(link->forcing_indices);
 		free(link->forcing_change_times);
-		if(rkd_flag)	Destroy_ErrorData(link->errorinfo);
+		if(rkd_flag)
+            Destroy_ErrorData(link->errorinfo);
 		Destroy_List(link->list,list_length);
 		//v_free(link->params);
 		v_free(&link->peak_value);
-		if(link->discont != NULL)	free(link->discont);
+		if(link->discont != NULL)
+            free(link->discont);
 		if(link->discont_send != NULL)
 		{
 			free(link->discont_send);
@@ -39,8 +41,8 @@ void Destroy_Link(Link* link,unsigned int list_length,int rkd_flag,Forcing** for
 		}
 		for(i=0;i<GlobalVars->num_forcings;i++)
 		{
-			if(link->forcing_buff && forcings[i]->flag != 4 && forcings[i]->flag != 7 && link->forcing_buff[i] != NULL)
-				Destroy_ForcingData(&(link->forcing_buff[i]));
+			if(link->forcing_buff && forcings[i].flag != 4 && forcings[i].flag != 7 && link->forcing_buff[i] != NULL)
+				ForcingData_Free(&(link->forcing_buff[i]));
 		}
 		free(link->forcing_buff);
 		if(link->qvs != NULL)
@@ -73,21 +75,22 @@ void Destroy_Link(Link* link,unsigned int list_length,int rkd_flag,Forcing** for
 */
 	}
 
-	if(link->dense_indices)	free(link->dense_indices);
+	if(link->dense_indices)
+        free(link->dense_indices);
 
 	free(link->parents);
 }
 
 //Frees rain
 //ForcingData** forcing_buff: forcing data to be freed
-void Destroy_ForcingData(ForcingData** forcing_buff)
+void ForcingData_Free(ForcingData** forcing_buff)
 {
 	unsigned int i;
 	if(forcing_buff && *forcing_buff)
 	{
-		for(i=0;i<(*forcing_buff)->n_times;i++)
-			free((*forcing_buff)->rainfall[i]);
-		free((*forcing_buff)->rainfall);
+		for(i=0;i<(*forcing_buff)->nrows;i++)
+			free((*forcing_buff)->data[i]);
+		free((*forcing_buff)->data);
 		free(*forcing_buff);
 	}
 }
@@ -299,7 +302,6 @@ void Destroy_Workspace(TempStorage* workspace,unsigned short int s,unsigned shor
 void Destroy_UnivVars(GlobalVars* GlobalVars)
 {
 	unsigned int i;
-	free(GlobalVars->output_data);
 	free(GlobalVars->peakflow_function_name);
 	free(GlobalVars->output_types);
 	free(GlobalVars->output_sizes);

@@ -29,6 +29,7 @@
 #endif
 
 #include "riversys.h"
+#include "data_types.h"
 
 //Read topo data and build the network.
 //Also creates id_to_loc.
@@ -36,18 +37,16 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
 {
     Link *system;
     FILE* riverdata = NULL;
-    PGresult *mainres, *res;
     unsigned int *link_ids = NULL;
     unsigned int *dbres_link_id = NULL;
     unsigned int *dbres_parent = NULL;
     unsigned int sizeres = 0;
-    unsigned int i, j, k;
+    unsigned int i, j;
     unsigned int max_children = 10;
     unsigned int *num_parents = NULL;
     unsigned int **loc_to_children = NULL;
     unsigned int *loc_to_children_array = NULL;
     unsigned int curr_loc;
-    int db;
 
     if (globals->rvr_flag == 0)	//Read topo data from file
     {
@@ -115,9 +114,11 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
     }
     else if (globals->rvr_flag == 1)	//Download topo data from database
     {
-        //if(my_rank == 0)	printf("\nTransferring topology data from database...\n");
-        //MPI_Barrier(MPI_COMM_WORLD);
-        //start = time(NULL);
+
+#if defined(HAVE_POSTGRESQL)
+        PGresult *mainres, *res;
+        int db;
+        int k;
 
         if (my_rank == 0)
         {
@@ -140,7 +141,8 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
 
                 //Get the list of link ids
                 link_ids = (unsigned int*)malloc(*N * sizeof(unsigned int));
-                for (i = 0; i < *N; i++)	link_ids[i] = atoi(PQgetvalue(mainres, i, 0));
+                for (i = 0; i < *N; i++)
+                    link_ids[i] = atoi(PQgetvalue(mainres, i, 0));
                 PQclear(mainres);
 
                 sizeres = PQntuples(res);
@@ -158,7 +160,8 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
                 //Be careful to not overload the database
                 sprintf(db_connections[ASYNCH_DB_LOC_TOPO].query, db_connections[ASYNCH_DB_LOC_TOPO].queries[2], globals->outletlink);	//For parent data
                 res = PQexec(db_connections[ASYNCH_DB_LOC_TOPO].conn, db_connections[ASYNCH_DB_LOC_TOPO].query);
-                if (CheckResError(res, "querying connectivity"))	return NULL;
+                if (CheckResError(res, "querying connectivity"))
+                    return NULL;
                 DisconnectPGDB(&db_connections[ASYNCH_DB_LOC_TOPO]);
 
                 *N = PQntuples(res) + 1;
@@ -244,9 +247,12 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
             MPI_Bcast(num_parents, *N, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
         }
 
-        //MPI_Barrier(MPI_COMM_WORLD);
-        //stop = time(NULL);
-        //if(my_rank == 0)	printf("Time to receive data: %f\n",difftime(stop,start));
+#else //HAVE_POSTGRESQL
+
+        if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
     }
     else
     {
@@ -368,9 +374,7 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
 int Load_Local_Parameters(Link* system, unsigned int N, unsigned int* my_sys, unsigned int my_N, int* assignments, short int* getting, unsigned int** id_to_loc, GlobalVars* globals, ConnData* db_connections, short int load_all, Model* custom_model, void* external)
 {
     unsigned int i, j, *db_link_id, curr_loc;
-    int db;
     double *db_params_array, **db_params;
-    PGresult *res;
     FILE* paramdata;
 
     //Error checking
@@ -432,8 +436,9 @@ int Load_Local_Parameters(Link* system, unsigned int N, unsigned int* my_sys, un
         }
         else if (globals->prm_flag == 1)
         {
-            //printf("\nTransferring parameter data from database...\n");
-            //start = time(NULL);
+#if defined(HAVE_POSTGRESQL)
+            int db;
+            PGresult *res;
 
             if (globals->outletlink == 0)	//Grab entire network
             {
@@ -478,10 +483,14 @@ int Load_Local_Parameters(Link* system, unsigned int N, unsigned int* my_sys, un
 
             //Cleanup
             PQclear(res);
-        }
 
-        //stop = time(NULL);
-        //printf("Time to receive data: %f\n",difftime(stop,start));
+#else //HAVE_POSTGRESQL
+
+            if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
+        }
     }
 
     //Broadcast data
@@ -504,7 +513,7 @@ int Load_Local_Parameters(Link* system, unsigned int N, unsigned int* my_sys, un
                 system[curr_loc].params.ve[j] = db_params[i][j];
 
             if (custom_model)
-                custom_model->Convert(system[curr_loc].params, globals->type, external);
+                custom_model->convert(system[curr_loc].params, globals->type, external);
             else
                 ConvertParams(system[curr_loc].params, globals->type, external);
         }
@@ -527,8 +536,10 @@ int Load_Local_Parameters(Link* system, unsigned int N, unsigned int* my_sys, un
                     for (j = 0; j < globals->disk_params; j++)
                         system[curr_loc].params.ve[j] = db_params[i][j];
 
-                    if (custom_model)	custom_model->Convert(system[curr_loc].params, globals->type, external);
-                    else	ConvertParams(system[curr_loc].params, globals->type, external);
+                    if (custom_model)
+                        custom_model->convert(system[curr_loc].params, globals->type, external);
+                    else
+                        ConvertParams(system[curr_loc].params, globals->type, external);
                 }
             }
         }
@@ -551,14 +562,14 @@ int Partition_Network(Link* system, unsigned int N, GlobalVars* GlobalVars, unsi
     unsigned int i, j;
     Link *current, *prev;//**upstream_order = (Link**) malloc(N*sizeof(Link*));
 
-/*
-    //Order the links by upstream area
-    for(i=0;i<N;i++)
-        upstream_order[i] = system[i];
-    merge_sort(upstream_order,N,globals->area_idx);
-*/
+                         /*
+                         //Order the links by upstream area
+                         for(i=0;i<N;i++)
+                         upstream_order[i] = system[i];
+                         merge_sort(upstream_order,N,globals->area_idx);
+                         */
 
-//Perform a DFS to sort the leaves
+                         //Perform a DFS to sort the leaves
     Link** stack = malloc(N * sizeof(Link*)); //Holds the index in system
     int stack_size = 0;
 
@@ -619,8 +630,8 @@ int Partition_Network(Link* system, unsigned int N, GlobalVars* GlobalVars, unsi
     //Partition the system and assign the links
     *my_data = Initialize_TransData();
     *getting = (short int*)malloc(N * sizeof(short int));
-    if (custom_model && custom_model->Partitioning)
-        *assignments = custom_model->Partitioning(system, N, leaves, leaves_size, my_sys, my_N, *my_data, *getting);
+    if (custom_model && custom_model->partition)
+        *assignments = custom_model->partition(system, N, leaves, leaves_size, my_sys, my_N, *my_data, *getting);
     else
     {
         *assignments = Partition_System_By_Leaves(system, N, leaves, leaves_size, my_sys, my_N, *my_data, *getting);
@@ -659,7 +670,7 @@ int Build_RKData(Link* system, char rk_filename[], unsigned int N, unsigned int*
     for (i = 1; i < *nummethods; i++)
     {
         globals->max_localorder = (globals->max_localorder < (*AllMethods)[i]->localorder) ? (*AllMethods)[i]->localorder : globals->max_localorder;
-        globals->max_s = (globals->max_s > (*AllMethods)[i]->s) ? globals->max_s : (*AllMethods)[i]->s;
+        globals->max_s = (globals->max_s >(*AllMethods)[i]->s) ? globals->max_s : (*AllMethods)[i]->s;
         //!!!! Note: Use a +1 for Radau solver? !!!!
     }
 
@@ -782,8 +793,8 @@ int Initialize_Model(Link* system, unsigned int N, unsigned int* my_sys, unsigne
         {
             if (custom_model)
             {
-                custom_model->Routines(&system[i], globals->type, system[i].method->exp_imp, system[i].dam, external);
-                custom_model->Precalculations(&system[i], globals->global_params, system[i].params, globals->disk_params, globals->params_size, system[i].dam, globals->type, external);
+                custom_model->routines(&system[i], globals->type, system[i].method->exp_imp, system[i].dam, external);
+                custom_model->precalculations(&system[i], globals->global_params, system[i].params, globals->disk_params, globals->params_size, system[i].dam, globals->type, external);
             }
             else
             {
@@ -943,7 +954,7 @@ static int Load_Initial_Conditions_Ini(Link* system, unsigned int N, int* assign
             if (assignments[loc] == my_rank || getting[loc])
             {
                 if (custom_model)
-                    system[loc].state = custom_model->InitializeEqs(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
+                    system[loc].state = custom_model->initialize_eqs(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
                 else
                     system[loc].state = ReadInitData(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
                 system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
@@ -997,7 +1008,7 @@ static int Load_Initial_Conditions_Ini(Link* system, unsigned int N, int* assign
                 MPI_Recv(&(y_0.ve[diff_start]), no_ini_start - diff_start, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 if (custom_model)
-                    system[loc].state = custom_model->InitializeEqs(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
+                    system[loc].state = custom_model->initialize_eqs(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
                 else
                     system[loc].state = ReadInitData(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
                 system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
@@ -1103,7 +1114,7 @@ static int Load_Initial_Conditions_Uini(Link* system, unsigned int N, int* assig
                 y_0.ve[j] = y_0_backup.ve[j - diff_start];
 
             if (custom_model)
-                system[i].state = custom_model->InitializeEqs(globals->global_params, system[i].params, system[i].qvs, system[i].dam, y_0, globals->type, diff_start, no_ini_start, system[i].user, external);
+                system[i].state = custom_model->initialize_eqs(globals->global_params, system[i].params, system[i].qvs, system[i].dam, y_0, globals->type, diff_start, no_ini_start, system[i].user, external);
             else
                 system[i].state = ReadInitData(globals->global_params, system[i].params, system[i].qvs, system[i].dam, y_0, globals->type, diff_start, no_ini_start, system[i].user, external);
             system[i].list = Create_List(y_0, globals->t_0, system[i].dim, system[i].num_dense, system[i].method->s, globals->iter_limit);
@@ -1255,6 +1266,9 @@ static int Load_Initial_Conditions_Rec(Link* system, unsigned int N, int* assign
 
 static int Load_Initial_Conditions_Dbc(Link* system, unsigned int N, int* assignments, short int* getting, unsigned int** id_to_loc, GlobalVars* globals, ConnData* db_connections, Model* custom_model, void* external)
 {
+
+#if defined(HAVE_POSTGRESQL)
+
     unsigned int i, j, loc;
     short int *who_needs = NULL;
     short int my_need;
@@ -1358,6 +1372,13 @@ static int Load_Initial_Conditions_Dbc(Link* system, unsigned int N, int* assign
         //Clean up
         v_free(&y_0);
     }
+
+#else //HAVE_POSTGRESQL
+
+    if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
 
     return 0;
 }
@@ -1548,12 +1569,11 @@ int Load_Initial_Conditions(Link* system, unsigned int N, int* assignments, shor
 
 
 //Loads the forcing data specified in the global file.
-int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned int my_N, int* assignments, short int* getting, unsigned int* res_list, unsigned int res_size, unsigned int** id_to_loc, GlobalVars* globals, Forcing** forcings, ConnData* db_connections)
+int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned int my_N, int* assignments, short int* getting, unsigned int* res_list, unsigned int res_size, unsigned int** id_to_loc, GlobalVars* globals, Forcing* forcings, ConnData* db_connections)
 {
     unsigned int i, j, l, m, limit, id, loc;
     FILE* forcingfile = NULL;
     double *buffer = NULL, univ_forcing_change_time[ASYNCH_MAX_NUM_FORCINGS];
-    PGresult *res;
     Link* current;
 
     //Reserve space for forcing data
@@ -1569,16 +1589,16 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
     //Setup forcings. Read uniform forcing data and open .str files. Also initialize rainfall from database.
     for (l = 0; l < globals->num_forcings; l++)
     {
-        forcings[l]->maxtime = globals->t_0;
-        forcings[l]->iteration = 0;
-        forcings[l]->active = 1;
+        forcings[l].maxtime = globals->t_0;
+        forcings[l].iteration = 0;
+        forcings[l].active = 1;
 
         //Go through each possible flag
-        if (forcings[l]->flag == 0)	//0 forcing
+        if (forcings[l].flag == 0)	//0 forcing
         {
             //Set routines
-            forcings[l]->GetPasses = &PassesOther;
-            forcings[l]->GetNextForcing = &NextForcingOther;
+            forcings[l].GetPasses = &PassesOther;
+            forcings[l].GetNextForcing = &NextForcingOther;
 
             //Setup buffers at each link
             for (i = 0; i < N; i++)
@@ -1591,24 +1611,24 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                 }
             }
         }
-        else if (forcings[l]->flag == 1)	//Storm file
+        else if (forcings[l].flag == 1)	//Storm file
         {
             //Set routines
-            forcings[l]->GetPasses = &PassesOther;
-            forcings[l]->GetNextForcing = &NextForcingOther;
+            forcings[l].GetPasses = &PassesOther;
+            forcings[l].GetNextForcing = &NextForcingOther;
 
             if (my_rank == 0)
             {
                 //Open .str file
-                forcingfile = fopen(forcings[l]->filename, "r");
+                forcingfile = fopen(forcings[l].filename, "r");
                 if (!forcingfile)
                 {
-                    printf("Error: cannot open forcing file %s.\n", forcings[l]->filename);
+                    printf("Error: cannot open forcing file %s.\n", forcings[l].filename);
                     return 1;
                 }
                 if (CheckWinFormat(forcingfile))
                 {
-                    printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", forcings[l]->filename);
+                    printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", forcings[l].filename);
                     fclose(forcingfile);
                     return 1;
                 }
@@ -1671,31 +1691,31 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                     if (!(globals->res_flag) || !(l == globals->res_forcing_idx) || system[loc].res)
                     {
                         system[loc].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
-                        system[loc].forcing_buff[l]->rainfall = (double**)malloc(m * sizeof(double*));
-                        system[loc].forcing_buff[l]->n_times = m;
-                        for (j = 0; j < m; j++)	system[loc].forcing_buff[l]->rainfall[j] = (double*)malloc(2 * sizeof(double));
+                        system[loc].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
+                        system[loc].forcing_buff[l]->nrows = m;
+                        for (j = 0; j < m; j++)	system[loc].forcing_buff[l]->data[j] = (double*)malloc(2 * sizeof(double));
 
                         //Read in the storm data for this link
                         for (j = 0; j < m; j++)
                         {
-                            system[loc].forcing_buff[l]->rainfall[j][0] = buffer[2 * j];
-                            system[loc].forcing_buff[l]->rainfall[j][1] = buffer[2 * j + 1];
+                            system[loc].forcing_buff[l]->data[j][0] = buffer[2 * j];
+                            system[loc].forcing_buff[l]->data[j][1] = buffer[2 * j + 1];
                         }
 
-                        double rainfall_buffer = system[loc].forcing_buff[l]->rainfall[0][1];
+                        double rainfall_buffer = system[loc].forcing_buff[l]->data[0][1];
                         system[loc].forcing_values[l] = rainfall_buffer;
                         system[loc].forcing_indices[l] = 0;
-                        for (j = 1; j < system[loc].forcing_buff[l]->n_times; j++)
+                        for (j = 1; j < system[loc].forcing_buff[l]->nrows; j++)
                         {
-                            if (fabs(system[loc].forcing_buff[l]->rainfall[j][1] - rainfall_buffer) > 1e-8)
+                            if (fabs(system[loc].forcing_buff[l]->data[j][1] - rainfall_buffer) > 1e-8)
                             {
-                                system[loc].forcing_change_times[l] = system[loc].forcing_buff[l]->rainfall[j][0];
+                                system[loc].forcing_change_times[l] = system[loc].forcing_buff[l]->data[j][0];
                                 break;
                             }
                         }
-                        if (j == system[loc].forcing_buff[l]->n_times)
+                        if (j == system[loc].forcing_buff[l]->nrows)
                         {
-                            system[loc].forcing_change_times[l] = system[loc].forcing_buff[l]->rainfall[j - 1][0];
+                            system[loc].forcing_change_times[l] = system[loc].forcing_buff[l]->data[j - 1][0];
                             system[loc].forcing_indices[l] = j - 1;
                         }
                     }
@@ -1704,28 +1724,28 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                         m = 2;	//Init value (assumed 0.0)
 
                         system[loc].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
-                        system[loc].forcing_buff[l]->rainfall = (double**)malloc(m * sizeof(double*));
-                        system[loc].forcing_buff[l]->n_times = m;
-                        for (j = 0; j < m; j++)	system[loc].forcing_buff[l]->rainfall[j] = (double*)malloc(2 * sizeof(double));
+                        system[loc].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
+                        system[loc].forcing_buff[l]->nrows = m;
+                        for (j = 0; j < m; j++)	system[loc].forcing_buff[l]->data[j] = (double*)malloc(2 * sizeof(double));
 
-                        system[loc].forcing_buff[l]->rainfall[0][0] = globals->t_0;
-                        system[loc].forcing_buff[l]->rainfall[0][1] = 0.0;
-                        system[loc].forcing_buff[l]->rainfall[1][0] = globals->maxtime + 3.0;
-                        system[loc].forcing_buff[l]->rainfall[1][1] = -1.0;
+                        system[loc].forcing_buff[l]->data[0][0] = globals->t_0;
+                        system[loc].forcing_buff[l]->data[0][1] = 0.0;
+                        system[loc].forcing_buff[l]->data[1][0] = globals->maxtime + 3.0;
+                        system[loc].forcing_buff[l]->data[1][1] = -1.0;
 
-                        double rainfall_buffer = system[loc].forcing_buff[l]->rainfall[0][1];
+                        double rainfall_buffer = system[loc].forcing_buff[l]->data[0][1];
                         system[loc].forcing_values[l] = rainfall_buffer;
                         system[loc].forcing_indices[l] = 0;
-                        for (j = 1; j < system[loc].forcing_buff[l]->n_times; j++)
+                        for (j = 1; j < system[loc].forcing_buff[l]->nrows; j++)
                         {
-                            if (fabs(system[loc].forcing_buff[l]->rainfall[j][1] - rainfall_buffer) > 1e-8)
+                            if (fabs(system[loc].forcing_buff[l]->data[j][1] - rainfall_buffer) > 1e-8)
                             {
-                                system[loc].forcing_change_times[l] = system[loc].forcing_buff[l]->rainfall[j][0];
+                                system[loc].forcing_change_times[l] = system[loc].forcing_buff[l]->data[j][0];
                                 break;
                             }
                         }
-                        if (j == system[loc].forcing_buff[l]->n_times)
-                            system[loc].forcing_change_times[l] = system[loc].forcing_buff[l]->rainfall[j - 1][0];
+                        if (j == system[loc].forcing_buff[l]->nrows)
+                            system[loc].forcing_change_times[l] = system[loc].forcing_buff[l]->data[j - 1][0];
                     }
                 } //if(assigned to me)
             }
@@ -1740,28 +1760,28 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                         m = 2;	//Init value (assumed 0.0)
 
                         system[i].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
-                        system[i].forcing_buff[l]->rainfall = (double**)malloc(m * sizeof(double*));
-                        system[i].forcing_buff[l]->n_times = m;
-                        for (j = 0; j < m; j++)	system[i].forcing_buff[l]->rainfall[j] = (double*)malloc(2 * sizeof(double));
+                        system[i].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
+                        system[i].forcing_buff[l]->nrows = m;
+                        for (j = 0; j < m; j++)	system[i].forcing_buff[l]->data[j] = (double*)malloc(2 * sizeof(double));
 
-                        system[i].forcing_buff[l]->rainfall[0][0] = globals->t_0;
-                        system[i].forcing_buff[l]->rainfall[0][1] = 0.0;
-                        system[i].forcing_buff[l]->rainfall[1][0] = globals->maxtime + 3.0;
-                        system[i].forcing_buff[l]->rainfall[1][1] = -1.0;
+                        system[i].forcing_buff[l]->data[0][0] = globals->t_0;
+                        system[i].forcing_buff[l]->data[0][1] = 0.0;
+                        system[i].forcing_buff[l]->data[1][0] = globals->maxtime + 3.0;
+                        system[i].forcing_buff[l]->data[1][1] = -1.0;
 
-                        double rainfall_buffer = system[i].forcing_buff[l]->rainfall[0][1];
+                        double rainfall_buffer = system[i].forcing_buff[l]->data[0][1];
                         system[i].forcing_values[l] = rainfall_buffer;
                         system[i].forcing_indices[l] = 0;
-                        for (j = 1; j < system[i].forcing_buff[l]->n_times; j++)
+                        for (j = 1; j < system[i].forcing_buff[l]->nrows; j++)
                         {
-                            if (fabs(system[i].forcing_buff[l]->rainfall[j][1] - rainfall_buffer) > 1e-8)
+                            if (fabs(system[i].forcing_buff[l]->data[j][1] - rainfall_buffer) > 1e-8)
                             {
-                                system[i].forcing_change_times[l] = system[i].forcing_buff[l]->rainfall[j][0];
+                                system[i].forcing_change_times[l] = system[i].forcing_buff[l]->data[j][0];
                                 break;
                             }
                         }
-                        if (j == system[i].forcing_buff[l]->n_times)
-                            system[i].forcing_change_times[l] = system[i].forcing_buff[l]->rainfall[j - 1][0];
+                        if (j == system[i].forcing_buff[l]->nrows)
+                            system[i].forcing_change_times[l] = system[i].forcing_buff[l]->data[j - 1][0];
                     }
                 }
             }
@@ -1769,11 +1789,11 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             //Clean up
             if (forcingfile)	fclose(forcingfile);
         }
-        else if (forcings[l]->flag == 2)	//Binary files
+        else if (forcings[l].flag == 2)	//Binary files
         {
             //Set routines
-            forcings[l]->GetPasses = &PassesBinaryFiles;
-            forcings[l]->GetNextForcing = &NextForcingBinaryFiles;
+            forcings[l].GetPasses = &PassesBinaryFiles;
+            forcings[l].GetNextForcing = &NextForcingBinaryFiles;
 
             //Setup buffers at each link
             //!!!! This should really be improved... !!!!
@@ -1783,11 +1803,11 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                     system[i].forcing_buff[l] = NULL;
             }
         }
-        else if (forcings[l]->flag == 6)	//GZ binary files
+        else if (forcings[l].flag == 6)	//GZ binary files
         {
             //Set routines
-            forcings[l]->GetPasses = &PassesBinaryFiles;
-            forcings[l]->GetNextForcing = &NextForcingGZBinaryFiles;
+            forcings[l].GetPasses = &PassesBinaryFiles;
+            forcings[l].GetNextForcing = &NextForcingGZBinaryFiles;
 
             //Setup buffers at each link
             //!!!! This should really be improved... !!!!
@@ -1797,11 +1817,11 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                     system[i].forcing_buff[l] = NULL;
             }
         }
-        else if (forcings[l]->flag == 8)	//Grid cell based files
+        else if (forcings[l].flag == 8)	//Grid cell based files
         {
             //Set routines
-            forcings[l]->GetPasses = &PassesBinaryFiles;
-            forcings[l]->GetNextForcing = &NextForcingGridCell;
+            forcings[l].GetPasses = &PassesBinaryFiles;
+            forcings[l].GetNextForcing = &NextForcingGridCell;
 
             //Setup buffers at each link
             //!!!! This should really be improved... !!!!
@@ -1814,59 +1834,59 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             //Read the index file
             if (my_rank == 0)
             {
-                forcingfile = fopen(forcings[l]->filename, "r");
+                forcingfile = fopen(forcings[l].filename, "r");
                 if (!forcingfile)
                 {
-                    printf("Error: forcing file %s not found.\n", forcings[l]->filename);
+                    printf("Error: forcing file %s not found.\n", forcings[l].filename);
                     return 1;
                 }
 
                 char* tempspace1 = (char*)malloc(1024 * sizeof(char));
                 char* tempspace2 = (char*)malloc(1024 * sizeof(char));
-                forcings[l]->lookup_filename = (char*)malloc(1024 * sizeof(char));
-                forcings[l]->fileident = (char*)malloc(1024 * sizeof(char));
-                FindPath(forcings[l]->filename, forcings[l]->fileident);
-                unsigned int length = (unsigned int)strlen(forcings[l]->fileident);
-                strcpy(forcings[l]->lookup_filename, forcings[l]->fileident);
-                //fscanf(forcingfile,"%lf %lf %u %s %s",&(forcings[l]->file_time),&(forcings[l]->factor),&(forcings[l]->num_cells),&(forcings[l]->fileident[i]),&(forcings[l]->lookup_filename[i]));
-                fscanf(forcingfile, "%lf %lf %u %s %s", &(forcings[l]->file_time), &(forcings[l]->factor), &(forcings[l]->num_cells), tempspace1, tempspace2);
+                forcings[l].lookup_filename = (char*)malloc(1024 * sizeof(char));
+                forcings[l].fileident = (char*)malloc(1024 * sizeof(char));
+                FindPath(forcings[l].filename, forcings[l].fileident);
+                unsigned int length = (unsigned int)strlen(forcings[l].fileident);
+                strcpy(forcings[l].lookup_filename, forcings[l].fileident);
+                //fscanf(forcingfile,"%lf %lf %u %s %s",&(forcings[l].file_time),&(forcings[l].factor),&(forcings[l].num_cells),&(forcings[l].fileident[i]),&(forcings[l].lookup_filename[i]));
+                fscanf(forcingfile, "%lf %lf %u %s %s", &(forcings[l].file_time), &(forcings[l].factor), &(forcings[l].num_cells), tempspace1, tempspace2);
                 fclose(forcingfile);
 
                 //Add path from index file?
                 if (tempspace1[0] == '/')	//Use absolute path
-                    strcpy(forcings[l]->fileident, tempspace1);
+                    strcpy(forcings[l].fileident, tempspace1);
                 else		//Relative path
-                    strcpy(&(forcings[l]->fileident[i]), tempspace1);
+                    strcpy(&(forcings[l].fileident[i]), tempspace1);
                 if (tempspace2[0] == '/')	//Use absolute path
-                    strcpy(forcings[l]->lookup_filename, tempspace2);
+                    strcpy(forcings[l].lookup_filename, tempspace2);
                 else		//Relative path
-                    strcpy(&(forcings[l]->lookup_filename[i]), tempspace2);
+                    strcpy(&(forcings[l].lookup_filename[i]), tempspace2);
 
                 //Process the lookup file
-                forcingfile = fopen(forcings[l]->lookup_filename, "r");
+                forcingfile = fopen(forcings[l].lookup_filename, "r");
                 if (!forcingfile)
                 {
-                    printf("Error: lookup file %s not found.\n", forcings[l]->lookup_filename);
+                    printf("Error: lookup file %s not found.\n", forcings[l].lookup_filename);
                     return 1;
                 }
-                forcings[l]->grid_to_linkid = (unsigned int**)malloc(forcings[l]->num_cells * sizeof(unsigned int*));
-                forcings[l]->num_links_in_grid = (unsigned int*)calloc(forcings[l]->num_cells, sizeof(unsigned int));
+                forcings[l].grid_to_linkid = (unsigned int**)malloc(forcings[l].num_cells * sizeof(unsigned int*));
+                forcings[l].num_links_in_grid = (unsigned int*)calloc(forcings[l].num_cells, sizeof(unsigned int));
 
                 while (!feof(forcingfile))	//Count the number of links in each grid cell
                 {
                     if (!fscanf(forcingfile, "%*u %u", &j))	break;
-                    (forcings[l]->num_links_in_grid[j])++;
+                    (forcings[l].num_links_in_grid[j])++;
                 }
 
                 rewind(forcingfile);
-                for (i = 0; i < forcings[l]->num_cells; i++)
-                    forcings[l]->grid_to_linkid[i] = (unsigned int*)malloc(forcings[l]->num_links_in_grid[i] * sizeof(unsigned int));
-                unsigned int* counters = (unsigned int*)calloc(forcings[l]->num_cells, sizeof(unsigned int));
+                for (i = 0; i < forcings[l].num_cells; i++)
+                    forcings[l].grid_to_linkid[i] = (unsigned int*)malloc(forcings[l].num_links_in_grid[i] * sizeof(unsigned int));
+                unsigned int* counters = (unsigned int*)calloc(forcings[l].num_cells, sizeof(unsigned int));
 
                 while (!feof(forcingfile))	//Read in the link ids
                 {
                     if (!fscanf(forcingfile, "%u %u", &id, &j))	break;
-                    forcings[l]->grid_to_linkid[j][counters[j]++] = id;
+                    forcings[l].grid_to_linkid[j][counters[j]++] = id;
                 }
 
                 fclose(forcingfile);
@@ -1874,9 +1894,9 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                 free(tempspace1);
 
                 //Check if a grid cell file actually exists
-                for (i = forcings[l]->first_file; i < forcings[l]->last_file; i++)
+                for (i = forcings[l].first_file; i < forcings[l].last_file; i++)
                 {
-                    sprintf(tempspace2, "%s%u", forcings[l]->fileident, i);
+                    sprintf(tempspace2, "%s%u", forcings[l].fileident, i);
                     forcingfile = fopen(tempspace2, "rb");
                     if (forcingfile)
                     {
@@ -1884,61 +1904,64 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                         break;
                     }
                 }
-                if (i == forcings[l]->last_file)
-                    printf("Warning: No forcing files found at %s for forcing %u. Be sure this is the correct directory.\n", forcings[l]->fileident, l);
+                if (i == forcings[l].last_file)
+                    printf("Warning: No forcing files found at %s for forcing %u. Be sure this is the correct directory.\n", forcings[l].fileident, l);
 
                 free(tempspace2);
             }
 
             //Broadcast data
-            MPI_Bcast(&(forcings[l]->file_time), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-            MPI_Bcast(&(forcings[l]->factor), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-            MPI_Bcast(&(forcings[l]->num_cells), 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+            MPI_Bcast(&(forcings[l].file_time), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+            MPI_Bcast(&(forcings[l].factor), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+            MPI_Bcast(&(forcings[l].num_cells), 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
             if (my_rank != 0)
             {
-                forcings[l]->grid_to_linkid = (unsigned int**)malloc(forcings[l]->num_cells * sizeof(unsigned int*));
-                forcings[l]->num_links_in_grid = (unsigned int*)malloc(forcings[l]->num_cells * sizeof(unsigned int*));
+                forcings[l].grid_to_linkid = (unsigned int**)malloc(forcings[l].num_cells * sizeof(unsigned int*));
+                forcings[l].num_links_in_grid = (unsigned int*)malloc(forcings[l].num_cells * sizeof(unsigned int*));
             }
-            MPI_Bcast(forcings[l]->num_links_in_grid, forcings[l]->num_cells, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+            MPI_Bcast(forcings[l].num_links_in_grid, forcings[l].num_cells, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
             if (my_rank != 0)
             {
-                for (i = 0; i < forcings[l]->num_cells; i++)
-                    forcings[l]->grid_to_linkid[i] = (unsigned int*)malloc(forcings[l]->num_links_in_grid[i] * sizeof(unsigned int));
+                for (i = 0; i < forcings[l].num_cells; i++)
+                    forcings[l].grid_to_linkid[i] = (unsigned int*)malloc(forcings[l].num_links_in_grid[i] * sizeof(unsigned int));
             }
-            for (i = 0; i < forcings[l]->num_cells; i++)
-                MPI_Bcast(forcings[l]->grid_to_linkid[i], forcings[l]->num_links_in_grid[i], MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+            for (i = 0; i < forcings[l].num_cells; i++)
+                MPI_Bcast(forcings[l].grid_to_linkid[i], forcings[l].num_links_in_grid[i], MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
-            forcings[l]->received = (char*)malloc(forcings[l]->num_cells * sizeof(char));
-            forcings[l]->intensities = (float*)malloc(forcings[l]->num_cells * sizeof(float));
+            forcings[l].received = (char*)malloc(forcings[l].num_cells * sizeof(char));
+            forcings[l].intensities = (float*)malloc(forcings[l].num_cells * sizeof(float));
 
             //Remove from grid_to_linkid all links not on this proc
             unsigned int drop;
-            for (i = 0; i < forcings[l]->num_cells; i++)
+            for (i = 0; i < forcings[l].num_cells; i++)
             {
                 drop = 0;
-                for (j = 0; j < forcings[l]->num_links_in_grid[i]; j++)
+                for (j = 0; j < forcings[l].num_links_in_grid[i]; j++)
                 {
-                    if (assignments[forcings[l]->grid_to_linkid[i][j]] != my_rank)
+                    if (assignments[forcings[l].grid_to_linkid[i][j]] != my_rank)
                         drop++;
                     else
-                        forcings[l]->grid_to_linkid[i][j - drop] = forcings[l]->grid_to_linkid[i][j];
+                        forcings[l].grid_to_linkid[i][j - drop] = forcings[l].grid_to_linkid[i][j];
                 }
-                forcings[l]->num_links_in_grid[i] -= drop;
-                forcings[l]->grid_to_linkid[i] = (unsigned int*)realloc(forcings[l]->grid_to_linkid[i], forcings[l]->num_links_in_grid[i] * sizeof(unsigned int));
+                forcings[l].num_links_in_grid[i] -= drop;
+                forcings[l].grid_to_linkid[i] = (unsigned int*)realloc(forcings[l].grid_to_linkid[i], forcings[l].num_links_in_grid[i] * sizeof(unsigned int));
             }
         }
-        else if (forcings[l]->flag == 3 || forcings[l]->flag == 9)	//Database (could be irregular timesteps)
+        else if (forcings[l].flag == 3 || forcings[l].flag == 9)	//Database (could be irregular timesteps)
         {
+#if defined(HAVE_POSTGRESQL)
+            PGresult *res;
+
             //Set routines
-            if (forcings[l]->flag == 3)
+            if (forcings[l].flag == 3)
             {
-                forcings[l]->GetPasses = &PassesDatabase;
-                forcings[l]->GetNextForcing = &NextForcingDatabase;
+                forcings[l].GetPasses = &PassesDatabase;
+                forcings[l].GetNextForcing = &NextForcingDatabase;
             }
             else
             {
-                forcings[l]->GetPasses = &PassesDatabase_Irregular;
-                forcings[l]->GetNextForcing = &NextForcingDatabase_Irregular;
+                forcings[l].GetPasses = &PassesDatabase_Irregular;
+                forcings[l].GetNextForcing = &NextForcingDatabase_Irregular;
             }
 
             //Get good_timestamp
@@ -1947,7 +1970,7 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             if (my_rank == 0)
             {
                 ConnectPGDB(&db_connections[ASYNCH_DB_LOC_FORCING_START + l]);
-                sprintf(query, db_connections[ASYNCH_DB_LOC_FORCING_START + l].queries[2], forcings[l]->first_file);
+                sprintf(query, db_connections[ASYNCH_DB_LOC_FORCING_START + l].queries[2], forcings[l].first_file);
                 res = PQexec(db_connections[ASYNCH_DB_LOC_FORCING_START + l].conn, query);
                 if (CheckResError(res, "querying a valid forcing time"))	return 1;
                 is_null = PQgetisnull(res, 0, 0);
@@ -1959,29 +1982,29 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
 
             MPI_Bcast(&is_null, 1, MPI_INT, 0, MPI_COMM_WORLD);
             if (is_null)
-                forcings[l]->good_timestamp = forcings[l]->raindb_start_time;
+                forcings[l].good_timestamp = forcings[l].raindb_start_time;
             else
             {
                 MPI_Bcast(&good_time, 1, MPI_INT, 0, MPI_COMM_WORLD);
-                forcings[l]->good_timestamp = good_time;
+                forcings[l].good_timestamp = good_time;
             }
 
-            if (forcings[l]->flag == 9)	//Download some extra data if the first_file is not on a timestamp with a forcing
-                forcings[l]->next_timestamp = forcings[l]->good_timestamp;	//!!!! Could probably do something similar for flag 3 !!!!
+            if (forcings[l].flag == 9)	//Download some extra data if the first_file is not on a timestamp with a forcing
+                forcings[l].next_timestamp = forcings[l].good_timestamp;	//!!!! Could probably do something similar for flag 3 !!!!
 
-            //Allocate space
+                                                                            //Allocate space
             for (i = 0; i < N; i++)
             {
                 if (assignments[i] == my_rank)
                 {
                     if (!(globals->res_flag) || !(l == globals->res_forcing_idx) || system[i].res)
                     {
-                        m = forcings[l]->increment + 4;	//+1 for init, +1 for ceiling, +2 for when init time doesn't line up with file_time
+                        m = forcings[l].increment + 4;	//+1 for init, +1 for ceiling, +2 for when init time doesn't line up with file_time
                         system[i].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
-                        system[i].forcing_buff[l]->rainfall = (double**)malloc(m * sizeof(double*));
-                        system[i].forcing_buff[l]->n_times = m;
-                        for (j = 0; j < m; j++)	system[i].forcing_buff[l]->rainfall[j] = (double*)calloc(2, sizeof(double));
-                        system[i].forcing_buff[l]->rainfall[0][0] = globals->t_0;
+                        system[i].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
+                        system[i].forcing_buff[l]->nrows = m;
+                        for (j = 0; j < m; j++)	system[i].forcing_buff[l]->data[j] = (double*)calloc(2, sizeof(double));
+                        system[i].forcing_buff[l]->data[0][0] = globals->t_0;
                         system[i].forcing_values[l] = 0.0;
                         system[i].forcing_change_times[l] = fabs(globals->t_0 + globals->maxtime) + 10.0;	//Just pick something away from t_0, and positive
                     }
@@ -1989,34 +2012,42 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                     {
                         m = 4;	//+1 for init, +1 for ceiling, +2 for when init time doesn't line up with file_time
                         system[i].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
-                        system[i].forcing_buff[l]->rainfall = (double**)malloc(m * sizeof(double*));
-                        system[i].forcing_buff[l]->n_times = m;
-                        for (j = 0; j < m; j++)	system[i].forcing_buff[l]->rainfall[j] = (double*)calloc(2, sizeof(double));
-                        system[i].forcing_buff[l]->rainfall[0][0] = globals->t_0;
+                        system[i].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
+                        system[i].forcing_buff[l]->nrows = m;
+                        for (j = 0; j < m; j++)	system[i].forcing_buff[l]->data[j] = (double*)calloc(2, sizeof(double));
+                        system[i].forcing_buff[l]->data[0][0] = globals->t_0;
                         system[i].forcing_values[l] = 0.0;
                         system[i].forcing_change_times[l] = fabs(globals->t_0 + globals->maxtime) + 10.0;	//Just pick something away from t_0, and positive
                     }
                 }
             }
+
+#else //HAVE_POSTGRESQL
+
+            if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
+
         }
-        else if (forcings[l]->flag == 4)	//.ustr
+        else if (forcings[l].flag == 4)	//.ustr
         {
             //Set routines
-            forcings[l]->GetPasses = &PassesOther;
-            forcings[l]->GetNextForcing = &NextForcingOther;
+            forcings[l].GetPasses = &PassesOther;
+            forcings[l].GetNextForcing = &NextForcingOther;
 
             //Read uniform data
             if (my_rank == 0)
             {
-                forcingfile = fopen(forcings[l]->filename, "r");
+                forcingfile = fopen(forcings[l].filename, "r");
                 if (!forcingfile)
                 {
-                    printf("[%i]: Error: cannot open uniform forcing file %s.\n", my_rank, forcings[l]->filename);
+                    printf("[%i]: Error: cannot open uniform forcing file %s.\n", my_rank, forcings[l].filename);
                     return 1;
                 }
                 if (CheckWinFormat(forcingfile))
                 {
-                    printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", forcings[l]->filename);
+                    printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", forcings[l].filename);
                     fclose(forcingfile);
                     return 1;
                 }
@@ -2041,46 +2072,46 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             MPI_Bcast(buffer, 2 * m, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
             //Create a global forcing object
-            forcings[l]->GlobalForcing = (ForcingData*)malloc(sizeof(ForcingData));
-            forcings[l]->GlobalForcing->rainfall = (double**)malloc(m * sizeof(double*));
-            forcings[l]->GlobalForcing->n_times = m;
-            for (j = 0; j < m; j++)	forcings[l]->GlobalForcing->rainfall[j] = (double*)malloc(2 * sizeof(double));
+            forcings[l].GlobalForcing = (ForcingData*)malloc(sizeof(ForcingData));
+            forcings[l].GlobalForcing->data = (double**)malloc(m * sizeof(double*));
+            forcings[l].GlobalForcing->nrows = m;
+            for (j = 0; j < m; j++)	forcings[l].GlobalForcing->data[j] = (double*)malloc(2 * sizeof(double));
 
             for (j = 0; j < m; j++)
             {
-                forcings[l]->GlobalForcing->rainfall[j][0] = buffer[2 * j];
-                forcings[l]->GlobalForcing->rainfall[j][1] = buffer[2 * j + 1];
+                forcings[l].GlobalForcing->data[j][0] = buffer[2 * j];
+                forcings[l].GlobalForcing->data[j][1] = buffer[2 * j + 1];
             }
 
-            double rainfall_buffer = forcings[l]->GlobalForcing->rainfall[0][1];
-            for (j = 1; j < forcings[l]->GlobalForcing->n_times; j++)
+            double rainfall_buffer = forcings[l].GlobalForcing->data[0][1];
+            for (j = 1; j < forcings[l].GlobalForcing->nrows; j++)
             {
-                if (rainfall_buffer != forcings[l]->GlobalForcing->rainfall[j][1])
+                if (rainfall_buffer != forcings[l].GlobalForcing->data[j][1])
                 {
-                    univ_forcing_change_time[l] = forcings[l]->GlobalForcing->rainfall[j][0];
+                    univ_forcing_change_time[l] = forcings[l].GlobalForcing->data[j][0];
                     break;
                 }
             }
-            if (j == forcings[l]->GlobalForcing->n_times)
-                univ_forcing_change_time[l] = forcings[l]->GlobalForcing->rainfall[j - 1][0];
+            if (j == forcings[l].GlobalForcing->nrows)
+                univ_forcing_change_time[l] = forcings[l].GlobalForcing->data[j - 1][0];
 
             //Load the links
             for (i = 0; i < N; i++)
             {
                 if (assignments[i] == my_rank)
                 {
-                    system[i].forcing_buff[l] = forcings[l]->GlobalForcing;
-                    system[i].forcing_values[l] = system[i].forcing_buff[l]->rainfall[0][1];
+                    system[i].forcing_buff[l] = forcings[l].GlobalForcing;
+                    system[i].forcing_values[l] = system[i].forcing_buff[l]->data[0][1];
                     system[i].forcing_change_times[l] = univ_forcing_change_time[l];
                     system[i].forcing_indices[l] = 0;
                 }
             }
         }
-        else if (forcings[l]->flag == 7)	//monthly recurring files
+        else if (forcings[l].flag == 7)	//monthly recurring files
         {
             //Set routines
-            forcings[l]->GetPasses = &PassesRecurring;
-            forcings[l]->GetNextForcing = &NextForcingRecurring;
+            forcings[l].GetPasses = &PassesRecurring;
+            forcings[l].GetNextForcing = &NextForcingRecurring;
 
             int num_months = 12;
             buffer = (double*)realloc(buffer, num_months * sizeof(double));
@@ -2088,15 +2119,15 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             //Read monthly file
             if (my_rank == 0)
             {
-                forcingfile = fopen(forcings[l]->filename, "r");
+                forcingfile = fopen(forcings[l].filename, "r");
                 if (!forcingfile)
                 {
-                    printf("Error: cannot open uniform forcing file %s.\n", forcings[l]->filename);
+                    printf("Error: cannot open uniform forcing file %s.\n", forcings[l].filename);
                     return 1;
                 }
                 if (CheckWinFormat(forcingfile))
                 {
-                    printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", forcings[l]->filename);
+                    printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", forcings[l].filename);
                     fclose(forcingfile);
                     return 1;
                 }
@@ -2110,15 +2141,15 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             MPI_Bcast(buffer, num_months, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
             //Create a global forcing object
-            forcings[l]->GlobalForcing = (ForcingData*)malloc(sizeof(ForcingData));
-            forcings[l]->GlobalForcing->rainfall = (double**)malloc((num_months + 1) * sizeof(double*));
-            forcings[l]->GlobalForcing->n_times = num_months + 1;
-            for (j = 0; j < num_months + 1; j++)	forcings[l]->GlobalForcing->rainfall[j] = (double*)malloc(2 * sizeof(double));
-            for (j = 0; j < num_months; j++)	forcings[l]->GlobalForcing->rainfall[j][1] = buffer[j];
-            forcings[l]->GlobalForcing->rainfall[num_months][1] = -1.0;
+            forcings[l].GlobalForcing = (ForcingData*)malloc(sizeof(ForcingData));
+            forcings[l].GlobalForcing->data = (double**)malloc((num_months + 1) * sizeof(double*));
+            forcings[l].GlobalForcing->nrows = num_months + 1;
+            for (j = 0; j < num_months + 1; j++)	forcings[l].GlobalForcing->data[j] = (double*)malloc(2 * sizeof(double));
+            for (j = 0; j < num_months; j++)	forcings[l].GlobalForcing->data[j][1] = buffer[j];
+            forcings[l].GlobalForcing->data[num_months][1] = -1.0;
 
             //Find the starting month, and use the next month for the change time
-            time_t start_time_t = forcings[l]->first_file;
+            time_t start_time_t = forcings[l].first_file;
             struct tm *start_time = gmtime(&start_time_t);
 
             (start_time->tm_mon)++;
@@ -2127,15 +2158,15 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             start_time->tm_min = 0;
             start_time->tm_sec = 0;
             time_t next_month = mktime(start_time);
-            univ_forcing_change_time[l] = difftime(next_month, forcings[l]->first_file) / 60.0;
+            univ_forcing_change_time[l] = difftime(next_month, forcings[l].first_file) / 60.0;
 
             //Load the links
             for (i = 0; i < N; i++)
             {
                 if (assignments[i] == my_rank)
                 {
-                    system[i].forcing_buff[l] = forcings[l]->GlobalForcing;
-                    system[i].forcing_values[l] = system[i].forcing_buff[l]->rainfall[0][1];
+                    system[i].forcing_buff[l] = forcings[l].GlobalForcing;
+                    system[i].forcing_values[l] = system[i].forcing_buff[l]->data[0][1];
                     system[i].forcing_change_times[l] = univ_forcing_change_time[l];
                     system[i].forcing_indices[l] = 0;
                 }
@@ -2143,7 +2174,7 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
         }
         else
         {
-            if (my_rank == 0)	printf("Error: Bad forcing flag for forcing %u.\n", forcings[l]->flag);
+            if (my_rank == 0)	printf("Error: Bad forcing flag for forcing %u.\n", forcings[l].flag);
             return 1;
         }
 
@@ -2153,12 +2184,12 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
     if (globals->res_flag)
     {
         //Download forcing data	!!!! Not sure if this is the way to go. Maybe separate function? !!!!
-        forcings[globals->res_forcing_idx]->passes = 1;
-        unsigned int start_iteration = forcings[globals->res_forcing_idx]->iteration;
-        forcings[globals->res_forcing_idx]->GetNextForcing(system, N, my_sys, my_N, assignments, globals, forcings[globals->res_forcing_idx], db_connections, id_to_loc, globals->res_forcing_idx);
-        forcings[globals->res_forcing_idx]->iteration = start_iteration;	//Keep this the same
+        forcings[globals->res_forcing_idx].passes = 1;
+        unsigned int start_iteration = forcings[globals->res_forcing_idx].iteration;
+        forcings[globals->res_forcing_idx].GetNextForcing(system, N, my_sys, my_N, assignments, globals, &forcings[globals->res_forcing_idx], db_connections, id_to_loc, globals->res_forcing_idx);
+        forcings[globals->res_forcing_idx].iteration = start_iteration;	//Keep this the same
 
-        //Setup init condition at links with forcing
+                                                                        //Setup init condition at links with forcing
         Exchange_InitState_At_Forced(system, N, assignments, getting, res_list, res_size, id_to_loc, globals);
     }
 
@@ -2176,7 +2207,6 @@ int Load_Dams(Link* system, unsigned int N, unsigned int* my_sys, unsigned int m
     Link* current;
     FILE* damfile = NULL;
     double* buffer = NULL;
-    PGresult *res;
 
     //Read dam file
     if (globals->uses_dam && globals->dam_flag == 1)	//.dam file
@@ -2415,6 +2445,8 @@ int Load_Dams(Link* system, unsigned int N, unsigned int* my_sys, unsigned int m
     }
     else if (globals->uses_dam && globals->dam_flag == 3)	//database connection
     {
+#if defined(HAVE_POSTGRESQL)
+        PGresult *res;
         Link* current;
         unsigned int num_pts, curr_loc;
         num_dams = 0;
@@ -2546,6 +2578,13 @@ int Load_Dams(Link* system, unsigned int N, unsigned int* my_sys, unsigned int m
             globals->discont_tol = 1e-8;
             if (my_rank == 0)	printf("Notice: Discontinuity tolerance has been set to %e.\n", globals->discont_tol);
         }
+
+#else //HAVE_POSTGRESQL
+
+        if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
     }
     else	//Some other type of discontinuity (or none at all)
     {
@@ -2849,7 +2888,7 @@ int FinalizeSystem(Link* system, unsigned int N, unsigned int* my_sys, unsigned 
 //PGconn** conn:	NULL pointer that will be set to an SQL database, if needed.
 //char* rkdfilename (set by this method): Will be the filename of the .rkd file, if the error data is not global.
 //Returns a UnivVars that contains all the global data read in from the file globalfilename.
-GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing** forcings, ConnData* db_connections, char* rkdfilename, Model* custom_model, void* external)
+GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing* forcings, ConnData* db_connections, char* rkdfilename, Model* custom_model, void* external)
 {
     unsigned int i, total, written;
     int flag, valsread;
@@ -2928,15 +2967,17 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
     }
 
     //Set dim and other sizes
-    if (custom_model)	custom_model->SetParamSizes(globals, external);
-    else			SetParamSizes(globals, external);
+    if (custom_model)
+        custom_model->set_param_sizes(globals, external);
+    else
+        SetParamSizes(globals, external);
 
     //Find the states needed for printing
     globals->num_states_for_printing = 0;
     globals->print_indices = (unsigned int*)calloc(globals->num_print, sizeof(unsigned int));
-    globals->outputs_i = (int(**)(double, VEC, VEC, VEC, int, void*)) calloc(globals->num_print, sizeof(int(*)(double, VEC, VEC, VEC, int, void*)));
-    globals->outputs_d = (double(**)(double, VEC, VEC, VEC, int, void*)) calloc(globals->num_print, sizeof(double(*)(double, VEC, VEC, VEC, int, void*)));
-    globals->output_types = (short int*)malloc(globals->num_print * sizeof(short int));
+    globals->outputs_i = (OutputIntCallback **)calloc(globals->num_print, sizeof(OutputIntCallback*));
+    globals->outputs_d = (OutputDoubleCallback **)calloc(globals->num_print, sizeof(OutputDoubleCallback*));
+    globals->output_types = (enum AsynchTypes*)malloc(globals->num_print * sizeof(enum AsynchTypes));
     globals->output_sizes = (short int*)malloc(globals->num_print * sizeof(short int));
     globals->output_specifiers = (char**)malloc(globals->num_print * sizeof(char*));
     for (i = 0; i < globals->num_print; i++)
@@ -3037,31 +3078,31 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
     for (i = 0; i < globals->num_forcings; i++)
     {
         ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
-        valsread = sscanf(line_buffer, "%hi", &(forcings[i]->flag));
+        valsread = sscanf(line_buffer, "%hi", &(forcings[i].flag));
         if (ReadLineError(valsread, 1, "forcings flag"))	return NULL;
 
-        if (forcings[i]->flag == 1 || forcings[i]->flag == 2 || forcings[i]->flag == 4 || forcings[i]->flag == 6 || forcings[i]->flag == 8)
+        if (forcings[i].flag == 1 || forcings[i].flag == 2 || forcings[i].flag == 4 || forcings[i].flag == 6 || forcings[i].flag == 8)
         {
-            forcings[i]->filename = (char*)malloc(ASYNCH_MAX_PATH_LENGTH * sizeof(char));
-            valsread = sscanf(line_buffer, "%*i %s", forcings[i]->filename);
+            forcings[i].filename = (char*)malloc(ASYNCH_MAX_PATH_LENGTH * sizeof(char));
+            valsread = sscanf(line_buffer, "%*i %s", forcings[i].filename);
             if (ReadLineError(valsread, 1, "forcing data filename"))	return NULL;
-            if (forcings[i]->flag == 1 && !CheckFilenameExtension(forcings[i]->filename, ".str"))	return NULL;
-            if (forcings[i]->flag == 4 && !CheckFilenameExtension(forcings[i]->filename, ".ustr"))	return NULL;
+            if (forcings[i].flag == 1 && !CheckFilenameExtension(forcings[i].filename, ".str"))	return NULL;
+            if (forcings[i].flag == 4 && !CheckFilenameExtension(forcings[i].filename, ".ustr"))	return NULL;
 
-            if (forcings[i]->flag == 2 || forcings[i]->flag == 6)
+            if (forcings[i].flag == 2 || forcings[i].flag == 6)
             {
                 ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
-                valsread = sscanf(line_buffer, "%u %lf %u %u", &(forcings[i]->increment), &(forcings[i]->file_time), &(forcings[i]->first_file), &(forcings[i]->last_file));
+                valsread = sscanf(line_buffer, "%u %lf %u %u", &(forcings[i].increment), &(forcings[i].file_time), &(forcings[i].first_file), &(forcings[i].last_file));
                 if (ReadLineError(valsread, 4, "time increment, file time, first file, and last file"))	return NULL;
             }
-            else if (forcings[i]->flag == 8)
+            else if (forcings[i].flag == 8)
             {
                 ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
-                valsread = sscanf(line_buffer, "%u %u %u", &(forcings[i]->increment), &(forcings[i]->first_file), &(forcings[i]->last_file));
+                valsread = sscanf(line_buffer, "%u %u %u", &(forcings[i].increment), &(forcings[i].first_file), &(forcings[i].last_file));
                 if (ReadLineError(valsread, 3, "time increment, first file, and last file"))	return NULL;
             }
         }
-        else if (forcings[i]->flag == 3)	//Database
+        else if (forcings[i].flag == 3)	//Database
         {
             valsread = sscanf(line_buffer, "%*i %s", db_filename);
             if (ReadLineError(valsread, 1, ".dbc for forcing"))	return NULL;
@@ -3069,11 +3110,11 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
             ReadDBC(db_filename, &db_connections[ASYNCH_DB_LOC_FORCING_START + i]);
 
             ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
-            valsread = sscanf(line_buffer, "%u %lf %u %u", &(forcings[i]->increment), &(forcings[i]->file_time), &(forcings[i]->first_file), &(forcings[i]->last_file));
+            valsread = sscanf(line_buffer, "%u %lf %u %u", &(forcings[i].increment), &(forcings[i].file_time), &(forcings[i].first_file), &(forcings[i].last_file));
             if (ReadLineError(valsread, 4, "time increment, file time, first file, and last file"))	return NULL;
-            forcings[i]->raindb_start_time = forcings[i]->first_file;
+            forcings[i].raindb_start_time = forcings[i].first_file;
         }
-        else if (forcings[i]->flag == 9)	//Database with irregular timesteps
+        else if (forcings[i].flag == 9)	//Database with irregular timesteps
         {
             valsread = sscanf(line_buffer, "%*i %s", db_filename);
             if (ReadLineError(valsread, 1, ".dbc for forcing"))	return NULL;
@@ -3081,33 +3122,33 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
             ReadDBC(db_filename, &db_connections[ASYNCH_DB_LOC_FORCING_START + i]);
 
             ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
-            valsread = sscanf(line_buffer, "%u %u %u", &(forcings[i]->increment), &(forcings[i]->first_file), &(forcings[i]->last_file));
+            valsread = sscanf(line_buffer, "%u %u %u", &(forcings[i].increment), &(forcings[i].first_file), &(forcings[i].last_file));
             if (ReadLineError(valsread, 3, "time increment, file time, first file, and last file"))	return NULL;
-            forcings[i]->raindb_start_time = forcings[i]->first_file;
+            forcings[i].raindb_start_time = forcings[i].first_file;
 
-            forcings[i]->lastused_first_file = forcings[i]->lastused_last_file = 0;
-            forcings[i]->next_timestamp = forcings[i]->first_file;
-            forcings[i]->number_timesteps = 0;
+            forcings[i].lastused_first_file = forcings[i].lastused_last_file = 0;
+            forcings[i].next_timestamp = forcings[i].first_file;
+            forcings[i].number_timesteps = 0;
         }
-        else if (forcings[i]->flag == 7)	//Recurring
+        else if (forcings[i].flag == 7)	//Recurring
         {
-            forcings[i]->filename = (char*)malloc(ASYNCH_MAX_PATH_LENGTH * sizeof(char));
-            valsread = sscanf(line_buffer, "%*i %s", forcings[i]->filename);
+            forcings[i].filename = (char*)malloc(ASYNCH_MAX_PATH_LENGTH * sizeof(char));
+            valsread = sscanf(line_buffer, "%*i %s", forcings[i].filename);
             if (ReadLineError(valsread, 1, "recurring rainfall filename"))	return NULL;
-            if (!CheckFilenameExtension(forcings[i]->filename, ".mon"))	return NULL;
+            if (!CheckFilenameExtension(forcings[i].filename, ".mon"))	return NULL;
 
             ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
-            valsread = sscanf(line_buffer, "%u %u", &(forcings[i]->first_file), &(forcings[i]->last_file));
+            valsread = sscanf(line_buffer, "%u %u", &(forcings[i].first_file), &(forcings[i].last_file));
             if (ReadLineError(valsread, 2, "first time, and last time"))	return NULL;
-            forcings[i]->raindb_start_time = forcings[i]->first_file;
+            forcings[i].raindb_start_time = forcings[i].first_file;
         }
-        else if (forcings[i]->flag == 0) //No forcing
+        else if (forcings[i].flag == 0) //No forcing
         {
-            forcings[i]->filename = NULL;
+            forcings[i].filename = NULL;
         }
         else
         {
-            printf("[%i]: Error reading %s: Invalid forcing flag %i.\n", my_rank, globalfilename, forcings[i]->flag);
+            printf("[%i]: Error reading %s: Invalid forcing flag %i.\n", my_rank, globalfilename, forcings[i].flag);
             return NULL;
         }
     }
@@ -3432,12 +3473,16 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
     }
 
     //Setup an io object
-    globals->output_data = BuildIO(globals);
+    OutputFunc_Init(
+        globals->hydros_loc_flag,
+        globals->peaks_loc_flag,
+        globals->dump_loc_flag,
+        &globals->output_func);
 
     //Clean up
     if (my_rank == 0)
         fclose(globalfile);
-    
+
     return globals;
 }
 
@@ -3503,6 +3548,8 @@ int Create_SAV_Data(char filename[], Link* sys, unsigned int N, unsigned int** s
     }
     else if (flag == 2)	//Grab from database
     {
+#if defined(HAVE_POSTGRESQL)
+
         //char* query = conninfo.query;
         PGresult *res;
 
@@ -3529,6 +3576,13 @@ int Create_SAV_Data(char filename[], Link* sys, unsigned int N, unsigned int** s
         MPI_Bcast(size, 1, MPI_INT, 0, MPI_COMM_WORLD);
         if (my_rank != 0)	*save_list = malloc(*size * sizeof(unsigned int));
         MPI_Bcast(*save_list, *size, MPI_INT, 0, MPI_COMM_WORLD);
+
+#else //HAVE_POSTGRESQL
+
+        if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
     }
     else if (flag == 3)	//All links
     {
@@ -3549,7 +3603,7 @@ void ReadLineFromTextFile(FILE* globalfile, char line_buffer[], unsigned int siz
         line_buffer[0] = '%';
         while (!feof(globalfile) && (line_buffer[0] == '%' || line_buffer[0] == '\n'))
             fgets(line_buffer, size, globalfile);
-        
+
         line_buffer_length = (unsigned int)strlen(line_buffer);
         if (line_buffer_length > size - 1)
             printf("Warning: %zu %u Line in .gbl file may be too long. Read in the long line:\n\"%s\"\n", strlen(line_buffer), size, line_buffer);
@@ -3726,4 +3780,3 @@ int FindFilename(char* fullpath, char* filename)
     sprintf(filename, "%s", &(fullpath[i]));
     return 0;
 }
-

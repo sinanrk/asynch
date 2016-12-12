@@ -10,48 +10,92 @@
 #include "io.h"
 
 //Creates an io object
-InputOutput* BuildIO(GlobalVars* GlobalVars)
+void OutputFunc_Init(unsigned short hydros_loc_flag, unsigned short peaks_loc_flag, unsigned short dump_loc_flag, OutputFunc* output_func)
 {
-    InputOutput* output_data = (InputOutput*)malloc(sizeof(InputOutput));
-
     //Temporary Calculations
-    output_data->PrepareTempOutput = &PrepareTempFiles;
+    output_func->PrepareTempOutput = &PrepareTempFiles;
 
     //Prepare Final Time Series Output
-    if (GlobalVars->hydros_loc_flag == 3)	output_data->PrepareOutput = &PrepareDatabaseTable;
-    else					output_data->PrepareOutput = NULL;
+    if (hydros_loc_flag == 3)
+    {
+#if defined(HAVE_POSTGRESQL)
+
+        output_func->PrepareOutput = &PrepareDatabaseTable;
+
+#else //HAVE_POSTGRESQL
+
+        if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
+    }
+    else
+        output_func->PrepareOutput = NULL;
 
     //Prepare Peakflow Output
-    if (GlobalVars->peaks_loc_flag == 1)	output_data->PreparePeakflowOutput = &PreparePeakFlowFiles;
-    else					output_data->PreparePeakflowOutput = NULL;
+    if (peaks_loc_flag == 1)
+        output_func->PreparePeakflowOutput = &PreparePeakFlowFiles;
+    else
+        output_func->PreparePeakflowOutput = NULL;
 
     //Create Final Time Series Output
-    if (GlobalVars->hydros_loc_flag == 1 || GlobalVars->hydros_loc_flag == 2 || GlobalVars->hydros_loc_flag == 4)
-        output_data->CreateOutput = &Process_Data;
-    else if (GlobalVars->hydros_loc_flag == 3)
-        output_data->CreateOutput = &UploadHydrosDB;
+    if (hydros_loc_flag == 1 || hydros_loc_flag == 2 || hydros_loc_flag == 4)
+        output_func->CreateOutput = &Process_Data;
+    else if (hydros_loc_flag == 3)
+    {
+#if defined(HAVE_POSTGRESQL)
+
+        output_func->CreateOutput = &DumpTimeSerieDB;
+
+#else //HAVE_POSTGRESQL
+
+        if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
+    }       
     else
-        output_data->CreateOutput = NULL;
+        output_func->CreateOutput = NULL;
 
     //Create Peakflow Output
-    if (GlobalVars->peaks_loc_flag == 1)
-        output_data->CreatePeakflowOutput = &DumpPeakFlowData;
-    else if (GlobalVars->peaks_loc_flag == 2)
-        output_data->CreatePeakflowOutput = &UploadPeakFlowData;
+    if (peaks_loc_flag == 1)
+        output_func->CreatePeakflowOutput = &DumpPeakFlowText;
+    else if (peaks_loc_flag == 2)
+    {
+#if defined(HAVE_POSTGRESQL)
+
+        output_func->CreatePeakflowOutput = &DumpPeakFlowDB;
+
+#else //HAVE_POSTGRESQL
+
+        if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
+    }        
     else
-        output_data->CreatePeakflowOutput = NULL;
+        output_func->CreatePeakflowOutput = NULL;
 
     //Set data dump routines
-    if (GlobalVars->dump_loc_flag == 1)
-        output_data->CreateSnapShot = &DataDump2;
-    else if (GlobalVars->dump_loc_flag == 2)
-        output_data->CreateSnapShot = &UploadDBDataDump;
-    else if (GlobalVars->dump_loc_flag == 3)
-        output_data->CreateSnapShot = &DataDumpH5;
-    else
-        output_data->CreateSnapShot = NULL;
+    if (dump_loc_flag == 1)
+        output_func->CreateSnapShot = &DumpStateText;
+    else if (dump_loc_flag == 2)
+    {
+#if defined(HAVE_POSTGRESQL)
 
-    return output_data;
+        output_func->CreateSnapShot = &DumpStateDB;
+
+#else //HAVE_POSTGRESQL
+
+        if (my_rank == 0)	printf("Error: Asynch was build without PostgreSQL support.\n");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+
+#endif //HAVE_POSTGRESQL
+    }
+    else if (dump_loc_flag == 3)
+        output_func->CreateSnapShot = &DumpStateH5;
+    else
+        output_func->CreateSnapShot = NULL;
 }
 
 
@@ -205,8 +249,7 @@ void WriteValue(FILE* outputfile, char* specifier, char* data_storage, short int
     fprintf(outputfile, delim);
 }
 
-//void WriteStep(double t,VEC* y,UnivVars* GlobalVars,VEC* params,unsigned int state,FILE* outputfile,void* user,fpos_t* pos)
-unsigned int WriteStep(double t, VEC y, GlobalVars* GlobalVars, VEC params, unsigned int state, FILE* outputfile, void* user, long int* pos_offset)
+unsigned int WriteStep(FILE* outputfile, unsigned int id, double t, VEC y, GlobalVars* GlobalVars, VEC params, unsigned int state, void* user, long int* pos_offset)
 {
     unsigned int i;
 
@@ -227,11 +270,11 @@ unsigned int WriteStep(double t, VEC y, GlobalVars* GlobalVars, VEC params, unsi
         switch (GlobalVars->output_types[i])	//!!!! Get rid of this. Try char[] and output_sizes. !!!!
         {
         case ASYNCH_DOUBLE:
-            output_d = (GlobalVars->outputs_d[i])(t, y, GlobalVars->global_params, params, state, user);
+            output_d = (GlobalVars->outputs_d[i])(id, t, y, GlobalVars->global_params, params, state, user);
             fwrite(&output_d, sizeof(double), 1, outputfile);
             break;
         case ASYNCH_INT:
-            output_i = (GlobalVars->outputs_i[i])(t, y, GlobalVars->global_params, params, state, user);
+            output_i = (GlobalVars->outputs_i[i])(id, t, y, GlobalVars->global_params, params, state, user);
             fwrite(&output_i, sizeof(int), 1, outputfile);
             break;
         default:

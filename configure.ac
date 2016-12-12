@@ -1,4 +1,4 @@
-AC_INIT([asynch], [1.0.1], [felipe-quintero@uiowa.edu])
+AC_INIT([asynch], [1.1.0], [samuel-debionne@uiowa.edu])
 AC_CONFIG_MACRO_DIR([m4])
 
 AM_INIT_AUTOMAKE([tar-ustar foreign -Wall -Werror])
@@ -10,10 +10,12 @@ AC_PROG_RANLIB
 
 # Checks for libraries
 AX_CHECK_ZLIB
-AX_LIB_POSTGRESQL
 AX_LIB_HDF5([serial])
+AX_LIB_POSTGRESQL
 AX_BLAS
 AX_LAPACK
+
+AM_CONDITIONAL([HAVE_POSTGRESQL], [test "$HAVE_POSTGRESQL" -eq 1])
 
 # Checks for packages
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.8], [AC_DEFINE([HAVE_LIBCHECK], [1], [Defined if you have libcheck support] )],[HAVE_LIBCHECK=0])

@@ -7,7 +7,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "asynch_interface.h"
+#include "structs.h"
 
 extern int np;
 extern int my_rank;
@@ -60,3 +62,4 @@ int SnapShot_ModelStates(AsynchSolver* asynch, unsigned int problem_dim);
 //int GaugeDataAvailable(AssimData* Assim, unsigned int start_time, unsigned int end_time);
 
 #endif //ASSIM_LS_METHODS_H
+

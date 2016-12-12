@@ -13,9 +13,16 @@
 
 #include <stdbool.h>
 
-#include "metis.h"
+#include <metis.h>
+
+// Internal Asynch stuffs
+#include "sort.h"
+#include "rkmethods.h"
 
 #include "assim_models.h"
+
+
+
 
 int* Partition_METIS_ByEqs(Link* sys, unsigned int N, Link** leaves, unsigned int numleaves, unsigned int** my_sys, unsigned int* my_N, TransData* my_data, short int *getting)
 {
@@ -168,23 +175,23 @@ int* Partition_METIS_ByEqs(Link* sys, unsigned int N, Link** leaves, unsigned in
 
 void Setup_Errors(AsynchSolver* asynch, unsigned int problem_dim)
 {
-    GlobalVars* GlobalVars = asynch->GlobalVars;
-    ErrorData* GlobalErrors = asynch->GlobalErrors;
-    unsigned int i, max_dim = GlobalVars->max_dim;
+    GlobalVars* globals = asynch->globals;
+    ErrorData* errors_tol = asynch->errors_tol;
+    unsigned int i, max_dim = globals->max_dim;
 
-    GlobalErrors->abstol.ve = realloc(GlobalErrors->abstol.ve, max_dim * sizeof(double));
-    GlobalErrors->reltol.ve = realloc(GlobalErrors->reltol.ve, max_dim * sizeof(double));
-    GlobalErrors->abstol_dense.ve = realloc(GlobalErrors->abstol_dense.ve, max_dim * sizeof(double));
-    GlobalErrors->reltol_dense.ve = realloc(GlobalErrors->reltol_dense.ve, max_dim * sizeof(double));
-    GlobalErrors->abstol.dim = GlobalErrors->reltol.dim = GlobalErrors->reltol_dense.dim = GlobalErrors->reltol_dense.dim = max_dim;
+    errors_tol->abstol.ve = realloc(errors_tol->abstol.ve, max_dim * sizeof(double));
+    errors_tol->reltol.ve = realloc(errors_tol->reltol.ve, max_dim * sizeof(double));
+    errors_tol->abstol_dense.ve = realloc(errors_tol->abstol_dense.ve, max_dim * sizeof(double));
+    errors_tol->reltol_dense.ve = realloc(errors_tol->reltol_dense.ve, max_dim * sizeof(double));
+    errors_tol->abstol.dim = errors_tol->reltol.dim = errors_tol->reltol_dense.dim = errors_tol->reltol_dense.dim = max_dim;
 
     //Setup error
     for (i = problem_dim + 1; i < max_dim; i++)
     {
-        GlobalErrors->abstol.ve[i] = GlobalErrors->abstol.ve[problem_dim];
-        GlobalErrors->reltol.ve[i] = GlobalErrors->reltol.ve[problem_dim];
-        GlobalErrors->abstol_dense.ve[i] = GlobalErrors->abstol_dense.ve[problem_dim];
-        GlobalErrors->reltol_dense.ve[i] = GlobalErrors->reltol_dense.ve[problem_dim];
+        errors_tol->abstol.ve[i] = errors_tol->abstol.ve[problem_dim];
+        errors_tol->reltol.ve[i] = errors_tol->reltol.ve[problem_dim];
+        errors_tol->abstol_dense.ve[i] = errors_tol->abstol_dense.ve[problem_dim];
+        errors_tol->reltol_dense.ve[i] = errors_tol->reltol_dense.ve[problem_dim];
     }
 }
 

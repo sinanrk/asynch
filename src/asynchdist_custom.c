@@ -282,22 +282,22 @@ int ReadInitData_MyModel(VEC* global_params,VEC* params,QVSData* qvs,unsigned sh
 void Setup_Errors(AsynchSolver* asynch)
 {
 	GlobalVars* GlobalVars = asynch->GlobalVars;
-	ErrorData* GlobalErrors = asynch->GlobalErrors;
+	ErrorData* errors_tol = asynch->errors_tol;
 	unsigned int i,problem_dim = 2,max_dim = GlobalVars->max_dim;
 
-	GlobalErrors->abstol->ve = realloc(GlobalErrors->abstol->ve,max_dim*sizeof(double));
-	GlobalErrors->reltol->ve = realloc(GlobalErrors->reltol->ve,max_dim*sizeof(double));
-	GlobalErrors->abstol_dense->ve = realloc(GlobalErrors->abstol_dense->ve,max_dim*sizeof(double));
-	GlobalErrors->reltol_dense->ve = realloc(GlobalErrors->reltol_dense->ve,max_dim*sizeof(double));
-	GlobalErrors->abstol->dim = GlobalErrors->reltol->dim = GlobalErrors->reltol_dense->dim = GlobalErrors->reltol_dense->dim = max_dim;
+	errors_tol->abstol->ve = realloc(errors_tol->abstol->ve,max_dim*sizeof(double));
+	errors_tol->reltol->ve = realloc(errors_tol->reltol->ve,max_dim*sizeof(double));
+	errors_tol->abstol_dense->ve = realloc(errors_tol->abstol_dense->ve,max_dim*sizeof(double));
+	errors_tol->reltol_dense->ve = realloc(errors_tol->reltol_dense->ve,max_dim*sizeof(double));
+	errors_tol->abstol->dim = errors_tol->reltol->dim = errors_tol->reltol_dense->dim = errors_tol->reltol_dense->dim = max_dim;
 
 	//Setup error
 	for(i=problem_dim+1;i<max_dim;i++)
 	{
-		GlobalErrors->abstol->ve[i] = GlobalErrors->abstol->ve[problem_dim];
-		GlobalErrors->reltol->ve[i] = GlobalErrors->reltol->ve[problem_dim];
-		GlobalErrors->abstol_dense->ve[i] = GlobalErrors->abstol_dense->ve[problem_dim];
-		GlobalErrors->reltol_dense->ve[i] = GlobalErrors->reltol_dense->ve[problem_dim];
+		errors_tol->abstol->ve[i] = errors_tol->abstol->ve[problem_dim];
+		errors_tol->reltol->ve[i] = errors_tol->reltol->ve[problem_dim];
+		errors_tol->abstol_dense->ve[i] = errors_tol->abstol_dense->ve[problem_dim];
+		errors_tol->reltol_dense->ve[i] = errors_tol->reltol_dense->ve[problem_dim];
 	}
 }
 

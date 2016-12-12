@@ -74,7 +74,7 @@ void PerformTableMaintainance(ConnData* conninfo_hydros, GlobalVars* GlobalVars,
     PGresult* res;
     char query[ASYNCH_MAX_QUERY_LENGTH];
     struct tm* timeinfo;
-    time(&start);
+    start = MPI_Wtime();
     timeinfo = localtime(&start);
 
     if (timeinfo->tm_hour == hr1 && *vac == 0)
@@ -417,7 +417,7 @@ ForecastData* Init_ForecastData(char* fcst_filename, unsigned int string_size)
     //Read table name
     //if(my_rank == 0)
     {
-        ReadLineFromTextFile(inputfile, linebuffer, buff_size, string_size);
+        ReadLineFromTextFile(inputfile, linebuffer, buff_size);
         valsread = sscanf(linebuffer, "%s", Forecaster->model_name);
         if (ReadLineError(valsread, 1, "forecaster model name"))	return NULL;
         //length = strlen(Forecaster->model_name);
@@ -428,7 +428,7 @@ ForecastData* Init_ForecastData(char* fcst_filename, unsigned int string_size)
     //Read if data is displayed on ifis
     //if(my_rank == 0)
     {
-        ReadLineFromTextFile(inputfile, linebuffer, buff_size, string_size);
+        ReadLineFromTextFile(inputfile, linebuffer, buff_size);
         valsread = sscanf(linebuffer, "%hi", &(Forecaster->ifis_display));
         if (ReadLineError(valsread, 1, "flag if displaying on ifis"))	return NULL;
     }
@@ -437,7 +437,7 @@ ForecastData* Init_ForecastData(char* fcst_filename, unsigned int string_size)
     //Read which forcing index is used for forecasting
     //if(my_rank == 0)
     {
-        ReadLineFromTextFile(inputfile, linebuffer, buff_size, string_size);
+        ReadLineFromTextFile(inputfile, linebuffer, buff_size);
         valsread = sscanf(linebuffer, "%u", &(Forecaster->forecasting_forcing));
         if (ReadLineError(valsread, 1, "index of forecastin forcing"))	return NULL;
     }
@@ -446,14 +446,14 @@ ForecastData* Init_ForecastData(char* fcst_filename, unsigned int string_size)
     //Read number of rainfall steps to use per forecast
     //if(my_rank == 0)
     {
-        ReadLineFromTextFile(inputfile, linebuffer, buff_size, string_size);
+        ReadLineFromTextFile(inputfile, linebuffer, buff_size);
         valsread = sscanf(linebuffer, "%u", &(Forecaster->num_rainsteps));
         if (ReadLineError(valsread, 1, "number of precipitation values"))	return NULL;
     }
     //MPI_Bcast(&(Forecaster->num_rainsteps),1,MPI_UNSIGNED,0,MPI_COMM_WORLD);
 
     //Read forecast window
-    ReadLineFromTextFile(inputfile, linebuffer, buff_size, string_size);
+    ReadLineFromTextFile(inputfile, linebuffer, buff_size);
     valsread = sscanf(linebuffer, "%lf", &(Forecaster->forecast_window));
     if (ReadLineError(valsread, 1, "forecast window"))	return NULL;
 
@@ -463,7 +463,7 @@ ForecastData* Init_ForecastData(char* fcst_filename, unsigned int string_size)
     //if(my_rank == 0)
     {
         Forecaster->rainmaps_filename = (char*)malloc(string_size * sizeof(char));
-        ReadLineFromTextFile(inputfile, linebuffer, buff_size, string_size);
+        ReadLineFromTextFile(inputfile, linebuffer, buff_size);
         valsread = sscanf(linebuffer, "%s", Forecaster->rainmaps_filename);
         if (ReadLineError(valsread, 1, "rain map filename"))	return NULL;
 
@@ -474,7 +474,7 @@ ForecastData* Init_ForecastData(char* fcst_filename, unsigned int string_size)
     Forecaster->halt_filename = (char*)malloc(string_size * sizeof(char));
     //if(my_rank == 0)
     {
-        ReadLineFromTextFile(inputfile, linebuffer, buff_size, string_size);
+        ReadLineFromTextFile(inputfile, linebuffer, buff_size);
         valsread = sscanf(linebuffer, "%s", Forecaster->halt_filename);
         if (ReadLineError(valsread, 1, "halt filename"))	return NULL;
         //length = strlen(Forecaster->halt_filename);
@@ -485,7 +485,7 @@ ForecastData* Init_ForecastData(char* fcst_filename, unsigned int string_size)
     //Read ending mark
     //if(my_rank == 0)
     {
-        ReadLineFromTextFile(inputfile, linebuffer, buff_size, string_size);
+        ReadLineFromTextFile(inputfile, linebuffer, buff_size);
         valsread = sscanf(linebuffer, "%c", &end_char);
         if (ReadLineError(valsread, 1, "ending mark"))	return NULL;
     }
@@ -670,5 +670,3 @@ shutdown:
 #endif 
     return error_code;
 }
-
-

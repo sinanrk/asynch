@@ -522,7 +522,7 @@ void TopLayerNonlinearExpSoilvel(double t,VEC y_i,VEC* y_p,unsigned short int nu
 	double c_3 = params.ve[12];
 
 	//Forcings
-	double rainfall = forcing_values[0] * c_1;			//[mm/hr] -> [m/min]
+	double data = forcing_values[0] * c_1;			//[mm/hr] -> [m/min]
 	double e_pot = forcing_values[1] * (1e-3/(30.0*24.0*60.0));	//[mm/month] -> [m/min]
 	double eta = forcing_values[2];					//[]
 
@@ -569,12 +569,12 @@ void TopLayerNonlinearExpSoilvel(double t,VEC y_i,VEC* y_p,unsigned short int nu
 		ans.ve[1] += y_p[i].ve[0] * 60.0;
 
 	//Hillslope
-	ans.ve[2] = rainfall - q_pl - q_pt - e_p;
+	ans.ve[2] = data - q_pl - q_pt - e_p;
 	ans.ve[3] = q_pt - q_ts - e_t;
 	ans.ve[4] = q_ts - q_sl - e_s;
 
 	//Additional states
-	ans.ve[5] = rainfall;
+	ans.ve[5] = data;
 	ans.ve[6] = q_pl;
 	ans.ve[7] = q_sl * A_h - q_b*60.0;
 	for(i=0;i<num_parents;i++)
@@ -676,7 +676,7 @@ void TopLayerNonlinearExpSoilvel_ConstEta(double t,VEC y_i,VEC* y_p,unsigned sho
 	double k_2 = params.ve[13];
 
 	//Forcings
-	double rainfall = forcing_values[0] * c_1;			//[mm/hr] -> [m/min]
+	double data = forcing_values[0] * c_1;			//[mm/hr] -> [m/min]
 	double e_pot = forcing_values[1] * (1e-3/(30.0*24.0*60.0));	//[mm/month] -> [m/min]
 
 	//System states
@@ -722,12 +722,12 @@ void TopLayerNonlinearExpSoilvel_ConstEta(double t,VEC y_i,VEC* y_p,unsigned sho
 		ans.ve[1] += y_p[i].ve[0] * 60.0;
 
 	//Hillslope
-	ans.ve[2] = rainfall - q_pl - q_pt - e_p;
+	ans.ve[2] = data - q_pl - q_pt - e_p;
 	ans.ve[3] = q_pt - q_ts - e_t;
 	ans.ve[4] = q_ts - q_sl - e_s;
 
 	//Additional states
-	ans.ve[5] = rainfall;
+	ans.ve[5] = data;
 	ans.ve[6] = q_pl;
 	ans.ve[7] = q_sl * A_h - q_b*60.0;
 	for(i=0;i<num_parents;i++)

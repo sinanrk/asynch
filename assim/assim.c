@@ -203,20 +203,19 @@ int main(int argc, char* argv[])
     //srand(time(NULL));	//!!!! Is this needed? !!!!
 
     //Init asynch object and the river network
-    AsynchSolver asynch;
-    Asynch_Init(&asynch, MPI_COMM_WORLD);
+    AsynchSolver *asynch = Asynch_Init(MPI_COMM_WORLD);
 
     //Model 15
-    //Asynch_Custom_Model(&asynch,&SetParamSizes_Assim,&ConvertParams_Assim,&InitRoutines_Assim,&Precalculations_Assim,&ReadInitData_Assim);
+    //Asynch_Custom_Model(asynch,&SetParamSizes_Assim,&ConvertParams_Assim,&InitRoutines_Assim,&Precalculations_Assim,&ReadInitData_Assim);
     //Model 254
-    //Asynch_Custom_Model(&asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
+    //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
     //Model 254, q
-    Asynch_Custom_Model(&asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);
+    Asynch_Custom_Model(asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);
     //Model 254, q and s_p
-    //Asynch_Custom_Model(&asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qsp,&Precalculations_Assim_254,&ReadInitData_Assim_254_qsp);
+    //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qsp,&Precalculations_Assim_254,&ReadInitData_Assim_254_qsp);
     //Model 254, q and s_t
-    //Asynch_Custom_Model(&asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qst,&Precalculations_Assim_254,&ReadInitData_Assim_254_qst);
-    //Asynch_Custom_Partitioning(&asynch,&Partition_METIS_ByEqs);
+    //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qst,&Precalculations_Assim_254,&ReadInitData_Assim_254_qst);
+    //Asynch_Custom_Partitioning(asynch,&Partition_METIS_ByEqs);
 
     //Data assimilation parameters
 /*
@@ -235,60 +234,60 @@ int main(int argc, char* argv[])
 
     //Read global file
     if (my_rank == 0)	printf("Reading global file...\n");
-    Asynch_Parse_GBL(&asynch, global_filename);
+    Asynch_Parse_GBL(asynch, global_filename);
     if (my_rank == 0)	printf("Loading network...\n");
-    Asynch_Load_Network(&asynch);
+    Asynch_Load_Network(asynch);
 
     //Read data assimilation file
     //Create assim
     AssimData assim;
-    InitAssimData(&assim, assim_filename, &asynch);
+    InitAssimData(&assim, assim_filename, asynch);
 
     //unsigned int obs_locs[] = {2};	//Locations of links with data	!!!! Make sure these are locations and not IDs !!!!
     //unsigned int obs_locs[] = {1,3,4};	//!!!! This should come from ReadSolution. Or should be calculated at least. !!!!
     //obs_locs = (unsigned int*) malloc(3*sizeof(unsigned int));
     //obs_locs[0] = 1; obs_locs[1] = 3; obs_locs[2] = 4;
-    //double*** truesolution = ReadSolution("TempData/assim/yobservations.dat",asynch.id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);
-    //double*** truesolution = ReadSolution("TempData/assim/testobservations.dat",asynch.id_to_loc,asynch.N,&num_obs,&ids,&obs_locs,&numsteps);
-    //double*** truesolution = ReadSolution("TempData/assim/254testobservations.dat",asynch.id_to_loc,asynch.N,&num_obs,&ids,&obs_locs,&numsteps);
-    //double*** truesolution = DownloadGaugeReadings(1402790400,1405382400,asynch.id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);	//June 15 2014 to July 15 2014
-    //double*** truesolution = DownloadGaugeReadings(1403654400,1405382400,asynch.id_to_loc,asynch.N,&num_obs,&ids,&obs_locs,&numsteps);	//June 25 2014 to July 15 2014
+    //double*** truesolution = ReadSolution("TempData/assim/yobservations.dat",asynch->id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);
+    //double*** truesolution = ReadSolution("TempData/assim/testobservations.dat",asynch->id_to_loc,asynch->N,&num_obs,&ids,&obs_locs,&numsteps);
+    //double*** truesolution = ReadSolution("TempData/assim/254testobservations.dat",asynch->id_to_loc,asynch->N,&num_obs,&ids,&obs_locs,&numsteps);
+    //double*** truesolution = DownloadGaugeReadings(1402790400,1405382400,asynch->id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);	//June 15 2014 to July 15 2014
+    //double*** truesolution = DownloadGaugeReadings(1403654400,1405382400,asynch->id_to_loc,asynch->N,&num_obs,&ids,&obs_locs,&numsteps);	//June 25 2014 to July 15 2014
 
     //Find the gauged locations
-    if (GetObservationsIds(&asynch, &assim))
+    if (GetObservationsIds(asynch, &assim))
         MPI_Abort(MPI_COMM_WORLD, 1);
 
     //Finds the link ids upstreams from every gauged locations
-    FindUpstreamLinks(&asynch, &assim, problem_dim, true, assim.obs_time_step, assim.num_steps, assim.obs_locs, assim.num_obs);
+    FindUpstreamLinks(asynch, &assim, problem_dim, true, assim.obs_time_step, assim.num_steps, assim.obs_locs, assim.num_obs);
 
     print_out("Partitioning network...\n");
-    Asynch_Partition_Network(&asynch);
-    CleanUpstreamLinks(&asynch);
+    Asynch_Partition_Network(asynch);
+    CleanUpstreamLinks(asynch);
     print_out("Loading parameters...\n");
-    Asynch_Load_Network_Parameters(&asynch, 0);
+    Asynch_Load_Network_Parameters(asynch, 0);
     print_out("Reading dam and reservoir data...\n");
-    Asynch_Load_Dams(&asynch);
+    Asynch_Load_Dams(asynch);
     print_out("Setting up numerical error data...\n");
-    Asynch_Load_Numerical_Error_Data(&asynch);
+    Asynch_Load_Numerical_Error_Data(asynch);
     print_out("Initializing model...\n");
-    Asynch_Initialize_Model(&asynch);
-    Setup_Errors(&asynch, problem_dim);
+    Asynch_Initialize_Model(asynch);
+    Setup_Errors(asynch, problem_dim);
     print_out("Loading initial conditions...\n");
-    Asynch_Load_Initial_Conditions(&asynch);
+    Asynch_Load_Initial_Conditions(asynch);
     print_out("Loading forcings...\n");
-    Asynch_Load_Forcings(&asynch);
+    Asynch_Load_Forcings(asynch);
     print_out("Loading output data information...\n");
-    Asynch_Load_Save_Lists(&asynch);
+    Asynch_Load_Save_Lists(asynch);
     print_out("Finalizing network...\n");
-    Asynch_Finalize_Network(&asynch);
+    Asynch_Finalize_Network(asynch);
     print_out("Calculating initial step sizes...\n");
-    Asynch_Calculate_Step_Sizes(&asynch);
+    Asynch_Calculate_Step_Sizes(asynch);
 
     // No output needed, since we are not forecasting
 
     ////Setup output for link id, if needed
-    //int setup_id = Asynch_Check_Output(&asynch, "LinkID");
-    //int setup_timestamp = Asynch_Check_Output(&asynch, "Timestamp");
+    //int setup_id = Asynch_Check_Output(asynch, "LinkID");
+    //int setup_timestamp = Asynch_Check_Output(asynch, "Timestamp");
     //if (setup_id || setup_timestamp)
     //{
     //    if (my_rank == 0)	printf("Error: forecaster needs LinkID (%i), Timestamp (%i).\n", setup_id, setup_timestamp);
@@ -296,36 +295,36 @@ int main(int argc, char* argv[])
     //}
 
     ////Setup output for link id, if needed
-    //int setup = Asynch_Check_Output(&asynch, "LinkID");
+    //int setup = Asynch_Check_Output(asynch, "LinkID");
     //if (setup != -1)
     //{
-    //    Set_Output_User_LinkID(&asynch);
-    //    Asynch_Set_Output(&asynch, "LinkID", ASYNCH_INT, &Output_Linkid, NULL, 0);
+    //    Set_Output_User_LinkID(asynch);
+    //    Asynch_Set_Output(asynch, "LinkID", ASYNCH_INT, &Output_Linkid, NULL, 0);
     //}
 
     ////Setup output for timestamp, if needed
-    //setup = Asynch_Check_Output(&asynch, "Timestamp");
+    //setup = Asynch_Check_Output(asynch, "Timestamp");
     //if (setup != -1)
     //{
-    //    Asynch_Set_Output(&asynch, "Timestamp", ASYNCH_INT, &Output_Timestamp, NULL, 0);
+    //    Asynch_Set_Output(asynch, "Timestamp", ASYNCH_INT, &Output_Timestamp, NULL, 0);
     //}
 
     ////Prepare output files
-    //Asynch_Prepare_Temp_Files(&asynch);
-    //Asynch_Write_Current_Step(&asynch);
-    //Asynch_Prepare_Peakflow_Output(&asynch);
-    //Asynch_Prepare_Output(&asynch);
+    //Asynch_Prepare_Temp_Files(asynch);
+    //Asynch_Write_Current_Step(asynch);
+    //Asynch_Prepare_Peakflow_Output(asynch);
+    //Asynch_Prepare_Output(asynch);
 
     //Pull data from asynch
-    unsigned int my_N = asynch.my_N, N = asynch.N, *my_sys = asynch.my_sys, **id_to_loc = asynch.id_to_loc, num_forcings = asynch.GlobalVars->num_forcings;
-    int *assignments = asynch.assignments;
-    Link* sys = asynch.sys;
-    short int *getting = asynch.getting;
-    GlobalVars *GlobalVars = asynch.GlobalVars;
-    Model* custom_model = asynch.custom_model;
+    unsigned int my_N = asynch->my_N, N = asynch->N, *my_sys = asynch->my_sys, **id_to_loc = asynch->id_to_loc, num_forcings = asynch->globals->num_forcings;
+    int *assignments = asynch->assignments;
+    Link* sys = asynch->sys;
+    short int *getting = asynch->getting;
+    GlobalVars *globals = asynch->globals;
+    Model* custom_model = asynch->custom_model;
 
     //Set print_time to t_0
-    //Asynch_Reset_Temp_Files(&asynch,sys[my_sys[0]]->last_t);
+    //Asynch_Reset_Temp_Files(asynch,sys[my_sys[0]]->last_t);
 
     ////Reserve space for backups
     //VEC* backup = (VEC*)malloc(N * sizeof(VEC));	//!!!! Same as background x_b? !!!!
@@ -340,7 +339,7 @@ int main(int argc, char* argv[])
     //Initialize choices
     unsigned int num_obs = assim.num_obs, *obs_locs = assim.obs_locs, num_steps = assim.num_steps;
     double t_b = 0.0, obs_time_step = assim.obs_time_step;
-    double t_f = Asynch_Get_Total_Simulation_Time(&asynch);
+    double t_f = Asynch_Get_Total_Simulation_Duration(asynch);
     unsigned int allstates = assim_dim * N;
     //double x_b[allstates];
 
@@ -373,17 +372,17 @@ int main(int argc, char* argv[])
 
     //Call model specific data assimilation routines
     //For Model 254
-    //unsigned int allstates_needed = Setup_Fitting_Data_Model254(&asynch,obs_locs,num_obs);
+    //unsigned int allstates_needed = Setup_Fitting_Data_Model254(asynch,obs_locs,num_obs);
     //For Model 254 trim, q
-    Setup_Fitting_Data_Model254_q(&asynch, obs_locs, num_obs);
+    Setup_Fitting_Data_Model254_q(asynch, obs_locs, num_obs);
     //For Model 254 trim, q and s_p
-    //Setup_Fitting_Data_Model254_qsp(&asynch,obs_locs,num_obs);
+    //Setup_Fitting_Data_Model254_qsp(asynch,obs_locs,num_obs);
     //For Model 254 trim, q and s_t
-    //Setup_Fitting_Data_Model254_qst(&asynch,obs_locs,num_obs);
+    //Setup_Fitting_Data_Model254_qst(asynch,obs_locs,num_obs);
 
     //Find locations unaffected by gauges
     unsigned int *vareq_shift, *inv_vareq_shift;
-    unsigned int allstates_needed = BuildStateShift(&asynch, allstates, obs_locs, num_obs, &vareq_shift, &inv_vareq_shift);
+    unsigned int allstates_needed = BuildStateShift(asynch, allstates, obs_locs, num_obs, &vareq_shift, &inv_vareq_shift);
 
 
     printf("allstates_needed: %u allstates: %u\n", allstates_needed, allstates);
@@ -453,7 +452,7 @@ int main(int argc, char* argv[])
     for (i = 0; i < N; i++)
     {
         if (assignments[i] == my_rank)
-            inv_upareas[i] = 1.0 / (sys[i].params.ve[GlobalVars->area_idx] * 1e3);
+            inv_upareas[i] = 1.0 / (sys[i].params.ve[globals->area_idx] * 1e3);
     }
 
     MPI_Allreduce(MPI_IN_PLACE, inv_upareas, N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -522,7 +521,7 @@ int main(int argc, char* argv[])
     ws.d_indices = d_indices;
     ws.d_full = d_full;
     ws.x_start = x_start;
-    ws.asynch = &asynch;
+    ws.asynch = asynch;
     ws.problem_dim = problem_dim;
     ws.assim_dim = assim_dim;
     ws.allstates = allstates;
@@ -555,17 +554,17 @@ int main(int argc, char* argv[])
     //k = 0;
     //for (i = 0; i < N; i++)
     //    if (backup[i].dim > 0)
-    //        v_copy(asynch.sys[i].list->tail->y_approx, backup[i]);
+    //        v_copy(asynch->sys[i].list->tail->y_approx, backup[i]);
 
-    //double simulation_time_with_data = asynch.forcings[forecast_idx]->file_time * forecaster->num_rainsteps;
+    //double simulation_time_with_data = asynch->forcings[forecast_idx]->file_time * forecaster->num_rainsteps;
     double simulation_time_with_data = (assim.num_steps - 1) * assim.obs_time_step;
     unsigned int simulation_time_with_data_secs = (int)(simulation_time_with_data + 1e-3) * 60;
 
     //Setup temp files
-    //Set_Output_User_forecastparams(&asynch, forecast_time_unix, simulation_time_with_data_secs);	//!!!! Should this be done here at all? !!!!
-    //Set_Output_PeakflowUser_Offset(&asynch,forecast_time_unix);
-    //Asynch_Set_Total_Simulation_Time(&asynch, forecast_window + simulation_time_with_data);
-    //Asynch_Prepare_Temp_Files(&asynch);
+    //Set_Output_User_forecastparams(asynch, forecast_time_unix, simulation_time_with_data_secs);	//!!!! Should this be done here at all? !!!!
+    //Set_Output_PeakflowUser_Offset(asynch,forecast_time_unix);
+    //Asynch_Set_Total_Simulation_Time(asynch, forecast_window + simulation_time_with_data);
+    //Asynch_Prepare_Temp_Files(asynch);
 
     //if (my_rank == 0)
     //{
@@ -576,42 +575,42 @@ int main(int argc, char* argv[])
     //}
 
     //Clear buffers
-    Flush_TransData(asynch.my_data);
+    Flush_TransData(asynch->my_data);
 
     //Make some initializations
     //first_file = last_file;
-    //last_file = last_file + (unsigned int) asynch.forcings[forecast_idx]->file_time * 60 * num_rainsteps;
+    //last_file = last_file + (unsigned int) asynch->forcings[forecast_idx]->file_time * 60 * num_rainsteps;
     //forecast_time_unix += change_time;
     //unsigned int forecast_idx = 0;
-    //unsigned int forecast_time_unix = (unsigned int) asynch.forcings[forecast_idx]->first_file;
+    //unsigned int forecast_time_unix = (unsigned int) asynch->forcings[forecast_idx]->first_file;
     //unsigned int background_time_unix = forecast_time_unix - (assim.num_steps - 1) * (unsigned int)(assim.obs_time_step * 60.0 + 1.0e-3);
-    //nextforcingtime = forecast_time_unix - 60 * (unsigned int)asynch.forcings[forecast_idx]->file_time;	//This is the actual timestamp of the last needed forcing data. This will be downloaded (unlike last_file)
+    //nextforcingtime = forecast_time_unix - 60 * (unsigned int)asynch->forcings[forecast_idx]->file_time;	//This is the actual timestamp of the last needed forcing data. This will be downloaded (unlike last_file)
 
 
     unsigned int forcing_idx_rain = 0;
     unsigned int forcing_idx_tep = 1;
 
-    unsigned int begin_assim_window = asynch.forcings[forcing_idx_rain]->first_file;
-    unsigned int end_assim_window = asynch.forcings[forcing_idx_rain]->first_file + (unsigned int)(assim.num_steps * assim.obs_time_step * 60.0);
+    unsigned int begin_assim_window = asynch->forcings[forcing_idx_rain].first_file;
+    unsigned int end_assim_window = asynch->forcings[forcing_idx_rain].first_file + (unsigned int)(assim.num_steps * assim.obs_time_step * 60.0);
 
 
     //Reset each link
-    //Asynch_Set_System_State(&asynch, 0.0, backup);
-    //Set_Output_User_forecastparams(&asynch, forecast_time_unix, simulation_time_with_data_secs);
-    //Set_Output_PeakflowUser_Offset(&asynch,forecast_time_unix);
-    //Asynch_Write_Current_Step(&asynch);
-    Asynch_Set_Forcing_State(&asynch, forcing_idx_rain, 0.0, begin_assim_window, end_assim_window);
+    //Asynch_Set_System_State(asynch, 0.0, backup);
+    //Set_Output_User_forecastparams(asynch, forecast_time_unix, simulation_time_with_data_secs);
+    //Set_Output_PeakflowUser_Offset(asynch,forecast_time_unix);
+    //Asynch_Write_Current_Step(asynch);
+    Asynch_Set_Forcing_State(asynch, forcing_idx_rain, 0.0, begin_assim_window, end_assim_window);
 
-    for (i = 0; i < asynch.GlobalVars->num_forcings; i++)	//Set any other database forcings to begin at first_file
+    for (i = 0; i < asynch->globals->num_forcings; i++)	//Set any other database forcings to begin at first_file
     {
-        if (asynch.forcings[i]->flag == 3)
-            Asynch_Set_Forcing_State(&asynch, i, 0.0, begin_assim_window, end_assim_window);
+        if (asynch->forcings[i].flag == 3)
+            Asynch_Set_Forcing_State(asynch, i, 0.0, begin_assim_window, end_assim_window);
     }
 
     //!!!! Skipped! !!!!
             //Check if a vacuum should be done
             //This will happen at hr1
-    //		if(my_rank == 0)	PerformTableMaintainance(asynch.db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT],asynch.GlobalVars,forecaster,&vac,hr1,num_tables,"archive_hydroforecast");
+    //		if(my_rank == 0)	PerformTableMaintainance(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT],asynch->globals,forecaster,&vac,hr1,num_tables,"archive_hydroforecast");
 
             //Make sure all buffer flushing is done
     MPI_Barrier(MPI_COMM_WORLD);
@@ -620,8 +619,8 @@ int main(int argc, char* argv[])
     //if(k % 96 == 0)
     //{
     //	sprintf(filename,"%s%u.rec",dump_filename,forecast_time_unix);
-    //	Asynch_Set_Snapshot_Output_Name(&asynch,filename);
-    //	Asynch_Take_System_Snapshot(&asynch,NULL);
+    //	Asynch_Set_Snapshot_Output_Name(asynch,filename);
+    //	Asynch_Take_System_Snapshot(asynch,NULL);
     //}
 
     double start = MPI_Wtime();
@@ -636,11 +635,11 @@ int main(int argc, char* argv[])
 
 
     //time_t q_start, q_stop;
-    //int *assignments = asynch.assignments;
-    //short int *getting = asynch.getting;
-    //unsigned int **id_to_loc = asynch.id_to_loc, N = asynch.N, num_obs = assim.num_obs;
-    //Link **sys = asynch.sys;
-    //UnivVars* GlobalVars = asynch.GlobalVars;
+    //int *assignments = asynch->assignments;
+    //short int *getting = asynch->getting;
+    //unsigned int **id_to_loc = asynch->id_to_loc, N = asynch->N, num_obs = assim.num_obs;
+    //Link **sys = asynch->sys;
+    //UnivVars* globals = asynch->globals;
     //unsigned int i, j, l;
     //unsigned int steps_to_use = assim.steps_to_use;
     //unsigned int assim_window_unix = assim.num_steps * (int)(assim.obs_time_step + 1e-3);
@@ -651,13 +650,13 @@ int main(int argc, char* argv[])
     //unsigned int allstates = ws->allstates;
     unsigned int least_squares_iters = assim.least_squares_iters;
     double *analysis = (double*)malloc(allstates * sizeof(double));	//!!!! Should be removed !!!!
-    //model* custom_model = asynch.custom_model;
+    //model* custom_model = asynch->custom_model;
     //double q[steps_to_use*num_obs];
     double *q = (double*)malloc(num_steps*num_obs * sizeof(double));
 
 
     //Set the forecast window
-    Asynch_Set_Total_Simulation_Time(&asynch, num_steps * obs_time_step);	//!!!! Is this needed? !!!!
+    Asynch_Set_Total_Simulation_Duration(asynch, num_steps * obs_time_step);	//!!!! Is this needed? !!!!
 
     //Get the new observations
     {
@@ -691,7 +690,7 @@ int main(int argc, char* argv[])
 
     ////Scale by upstream area
     //printf("Scaling init discharges by upstream area...\n");
-    //AdjustDischarges(&asynch, obs_locs, d_full, num_obs, assim_dim, x_b);
+    //AdjustDischarges(asynch, obs_locs, d_full, num_obs, assim_dim, x_b);
 
     //Set the initial guess from background
     memcpy(x_start, x_b, allstates * sizeof(double));
@@ -807,7 +806,7 @@ int main(int argc, char* argv[])
     //Prepare snapshots
     for (i = 0; i < N; i++)
     {
-        Link *current = &asynch.sys[i];
+        Link *current = &asynch->sys[i];
         if (current->list != NULL)
             for (j = 0; j < problem_dim; j++)
                 current->list->head->y_approx.ve[j] = x_start[i * problem_dim + j];
@@ -815,7 +814,7 @@ int main(int argc, char* argv[])
 
     //Make a snaphsot
     print_out("Making snapshot\n");
-    Asynch_Take_System_Snapshot(&asynch, NULL);
+    Asynch_Take_System_Snapshot(asynch, NULL);
 
     //Clean up
     print_out("Cleaning up\n");
@@ -849,9 +848,9 @@ int main(int argc, char* argv[])
     PetscFinalize();
 
     //Asynch clean up
-    FreeUpstreamLinks(&asynch);
-    Asynch_Delete_Temporary_Files(&asynch);
-    Asynch_Free(&asynch);
+    FreeUpstreamLinks(asynch);
+    Asynch_Delete_Temporary_Files(asynch);
+    Asynch_Free(asynch);
 
     return res;
 }
@@ -860,17 +859,17 @@ int main(int argc, char* argv[])
 //void Make_Assimilated_Forecasts(asynchsolver* asynch, unsigned int background_time_unix, double simulation_time_with_data, VEC* backup, AppCtxFull* user, ForecastData* forecaster, AssimData* assim, unsigned int assim_dim, unsigned int forecast_idx)
 //{
 //    time_t q_start, q_stop;
-//    int *assignments = asynch.assignments;
-//    short int *getting = asynch.getting;
-//    unsigned int **id_to_loc = asynch.id_to_loc, N = asynch.N, num_obs = assim->num_obs;
-//    Link **sys = asynch.sys;
-//    UnivVars* GlobalVars = asynch.GlobalVars;
+//    int *assignments = asynch->assignments;
+//    short int *getting = asynch->getting;
+//    unsigned int **id_to_loc = asynch->id_to_loc, N = asynch->N, num_obs = assim->num_obs;
+//    Link **sys = asynch->sys;
+//    UnivVars* globals = asynch->globals;
 //    unsigned int i, j, l, steps_to_use = assim->steps_to_use, assim_window_unix = assim->steps_to_use * (int)(assim->inc + 1e-3);
 //    double t_b = 0.0, inc = assim->inc, forecast_window = forecaster->forecast_window, assim_window = assim->steps_to_use * assim->inc;
 //    double *d_full = user->d_full, *x_start = user->x_start, *x_b = user->x_b;
 //    unsigned int allstates = user->allstates, least_squares_iters = assim->least_squares_iters;
 //    double *analysis = (double*)malloc(allstates * sizeof(double));	//!!!! Should be removed !!!!
-//    model* custom_model = asynch.custom_model;
+//    model* custom_model = asynch->custom_model;
 //    //double q[steps_to_use*num_obs];
 //    double *q = (double*)malloc(steps_to_use*num_obs * sizeof(double));
 //
@@ -887,7 +886,7 @@ int main(int argc, char* argv[])
 //                steps_to_use = (k < max_steps_to_use) ? k+1 : max_steps_to_use;
 //        */
 //        //Set the forecast window
-//        Asynch_Set_Total_Simulation_Time(&asynch, forecast_window + steps_to_use*inc);	//!!!! Is this needed? !!!!
+//        Asynch_Set_Total_Simulation_Time(asynch, forecast_window + steps_to_use*inc);	//!!!! Is this needed? !!!!
 //
 //        //Get the new observations
 //        MPI_Barrier(MPI_COMM_WORLD);
@@ -928,7 +927,7 @@ int main(int argc, char* argv[])
 //        /*
 //        //if(k == 0)	//!!!! Move this outside the loop. Can I just change minimizer? !!!!
 //        {
-//            AdjustDischarges(&asynch,assim->obs_locs,d_full,num_obs,x_b,allstates,assim_dim);
+//            AdjustDischarges(asynch,assim->obs_locs,d_full,num_obs,x_b,allstates,assim_dim);
 //        }
 //        */
 //
@@ -1025,29 +1024,29 @@ int main(int argc, char* argv[])
 //
 //        //Switch to model without variational eqs
 //        //For model 254
-//        //Asynch_Custom_Model(&asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Model_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
+//        //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Model_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
 //        //For model 254 trim
-//        Asynch_Custom_Model(&asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Model_252, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);	//!!!! I think this is ok... !!!!
+//        Asynch_Custom_Model(asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Model_252, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);	//!!!! I think this is ok... !!!!
 //        Asynch_Initialize_Model(asynch);
 //
 //        MPI_Barrier(MPI_COMM_WORLD);
 //        time(&q_start);
 //
 //        //Advance to get new background
-//        ResetSysLS(sys, N, GlobalVars, t_b, analysis, assim_dim, asynch.GlobalVars->num_forcings, asynch.my_data);
+//        ResetSysLS(sys, N, globals, t_b, analysis, assim_dim, asynch->globals->num_forcings, asynch->my_data);
 //        for (i = 0; i < N; i++)				//!!!! Put this into ResetSysLS? !!!!
 //        {
 //            if (assignments[i] == my_rank || getting[i])
 //            {
 //                Link *current = sys[i];
-//                custom_model->InitializeEqs(GlobalVars->global_params, current->params, NULL, 0, current->list->head->y_approx, GlobalVars->type, current->diff_start, current->no_ini_start, current->user, NULL);
+//                custom_model->InitializeEqs(globals->global_params, current->params, NULL, 0, current->list->head->y_approx, globals->type, current->diff_start, current->no_ini_start, current->user, NULL);
 //            }
 //        }
 //
 //        {
-//            Asynch_Set_Total_Simulation_Time(&asynch, simulation_time_with_data);
-//            //GlobalVars->maxtime = t_b + inc;
-//            Asynch_Advance(&asynch, 1);
+//            Asynch_Set_Total_Simulation_Time(asynch, simulation_time_with_data);
+//            //globals->maxtime = t_b + inc;
+//            Asynch_Advance(asynch, 1);
 //
 //            //Extract background !!!! Isn't there a routine for this? (there needs to be...) !!!!
 //            for (j = 0; j < N; j++)
@@ -1063,10 +1062,10 @@ int main(int argc, char* argv[])
 //
 //
 //        //Make forecasts
-//        Asynch_Deactivate_Forcing(&asynch, forecast_idx);
-//        Asynch_Set_Total_Simulation_Time(&asynch, forecast_window + simulation_time_with_data);
-//        Asynch_Advance(&asynch, 1);
-//        Asynch_Activate_Forcing(&asynch, forecast_idx);
+//        Asynch_Deactivate_Forcing(asynch, forecast_idx);
+//        Asynch_Set_Total_Simulation_Time(asynch, forecast_window + simulation_time_with_data);
+//        Asynch_Advance(asynch, 1);
+//        Asynch_Activate_Forcing(asynch, forecast_idx);
 //
 //        MPI_Barrier(MPI_COMM_WORLD);
 //        time(&q_stop);
@@ -1074,13 +1073,13 @@ int main(int argc, char* argv[])
 //
 //        //Switch back to model with variational eqs
 //        //For model 254
-//        //Asynch_Custom_Model(&asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
+//        //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
 //        //For model 254 trim, q
-//        Asynch_Custom_Model(&asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);
+//        Asynch_Custom_Model(asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);
 //        //Model 254, q and s_p
-//        //Asynch_Custom_Model(&asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qsp,&Precalculations_Assim_254,&ReadInitData_Assim_254_qsp);
+//        //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qsp,&Precalculations_Assim_254,&ReadInitData_Assim_254_qsp);
 //        //Model 254, q and s_t
-//        //Asynch_Custom_Model(&asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qst,&Precalculations_Assim_254,&ReadInitData_Assim_254_qst);
+//        //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qst,&Precalculations_Assim_254,&ReadInitData_Assim_254_qst);
 //        Asynch_Initialize_Model(asynch);
 //        /*
 //                //Go to next time
@@ -1094,8 +1093,8 @@ int main(int argc, char* argv[])
 //        MPI_Barrier(MPI_COMM_WORLD);
 //        time(&q_start);
 //                sprintf(additional,"%u",k);	//Add the iteration number to the output files
-//                Asynch_Create_Output(&asynch,additional);
-//                Asynch_Reset_Temp_Files(&asynch,t_b);
+//                Asynch_Create_Output(asynch,additional);
+//                Asynch_Reset_Temp_Files(asynch,t_b);
 //        MPI_Barrier(MPI_COMM_WORLD);
 //        time(&q_stop);
 //        if(my_rank == 0)	printf("Time to create output: %.0f\n",difftime(q_stop,q_start));
@@ -1118,7 +1117,7 @@ int LinearLeastSquares(Workspace* ws, double* q)
     AsynchSolver* asynch = ws->asynch;
     unsigned int N = asynch->N;
     Link* sys = asynch->sys;
-    GlobalVars* GlobalVars = asynch->GlobalVars;
+    GlobalVars* globals = asynch->globals;
     int* assignments = asynch->assignments;
     short int* getting = asynch->getting;
     //Mat *HM = ws->HM, *HTH = ws->HTH, *HMTR = ws->HMTR;
@@ -1151,32 +1150,32 @@ int LinearLeastSquares(Workspace* ws, double* q)
 
     /*
     //!!!! Try to scale the init conditions !!!!
-    AdjustDischarges(&asynch,obs_locs,d_els,num_obs,x_start,allstates);
+    AdjustDischarges(asynch,obs_locs,d_els,num_obs,x_start,allstates);
     printf("Adjusted x_start to\n");
     for(i=0;i<allstates;i++)	printf("%.15e ",x_start[i]);
     printf("\n");
     getchar();
     */
     //Initialize the system
-    ResetSysLS(sys, N, GlobalVars, t_b, x_start, assim_dim, GlobalVars->num_forcings, asynch->my_data);
+    ResetSysLS(sys, N, globals, t_b, x_start, assim_dim, globals->num_forcings, asynch->my_data);
 
     for (i = 0; i < N; i++)				//!!!! Put this into ResetSysLS? !!!!
         if (assignments[i] == my_rank || getting[i])
-            custom_model->InitializeEqs(GlobalVars->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, GlobalVars->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
-            //ReadInitData(GlobalVars->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,GlobalVars->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);	//!!!! Very inefficient. Too many checks. !!!!
-    for (i = 0; i < asynch->GlobalVars->num_forcings; i++)
+            custom_model->initialize_eqs(globals->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, globals->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
+            //ReadInitData(globals->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,globals->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);	//!!!! Very inefficient. Too many checks. !!!!
+    for (i = 0; i < asynch->globals->num_forcings; i++)
     {
-        if (asynch->forcings[i]->flag == 3)	//!!!! Recurring and binary files need this too !!!!
+        if (asynch->forcings[i].flag == 3)	//!!!! Recurring and binary files need this too !!!!
         {
             //printf("Setting to %u and %u\n",asynch->forcings[i]->first_file,asynch->forcings[i]->last_file);
-            Asynch_Set_Forcing_State(asynch, i, t_b, asynch->forcings[i]->first_file, asynch->forcings[i]->last_file);
+            Asynch_Set_Forcing_State(asynch, i, t_b, asynch->forcings[i].first_file, asynch->forcings[i].last_file);
         }
     }
 
     //Advance the system and extract the HM matrix
     for (i = 0; i < ws->num_steps; i++)	//!!!! Start at i=1? For i = 0, I don't think we need to set anything... !!!!		//HM here holds the values of M that are needed
     {
-        GlobalVars->maxtime = t_b + i * obs_time_step;
+        globals->maxtime = t_b + i * obs_time_step;
         if (i)
         {
             MPI_Barrier(MPI_COMM_WORLD);
@@ -1188,7 +1187,7 @@ int LinearLeastSquares(Workspace* ws, double* q)
             double stop = MPI_Wtime();
 
             if (my_rank == 0)
-                printf("Time for advance to time %f: %.0f\n", GlobalVars->maxtime, stop - start);
+                printf("Time for advance to time %f: %.0f\n", globals->maxtime, stop - start);
         }
 
 
@@ -1421,20 +1420,20 @@ int LinearLeastSquares(Workspace* ws, double* q)
     //    }
     //    double first_diff = compute_diff(d_els, q, num_total_obs);
 
-    //    ResetSysLS(sys, N, GlobalVars, t_b, x_start, problem_dim, GlobalVars->num_forcings, asynch->my_data);
+    //    ResetSysLS(sys, N, globals, t_b, x_start, problem_dim, globals->num_forcings, asynch->my_data);
     //    for (i = 0; i < N; i++)
     //        if (assignments[i] == my_rank || getting[i])
-    //            //ReadInitData(GlobalVars->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,GlobalVars->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);
-    //            custom_model->InitializeEqs(GlobalVars->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, GlobalVars->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
-    //    for (i = 0; i < asynch->GlobalVars->num_forcings; i++)
+    //            //ReadInitData(globals->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,globals->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);
+    //            custom_model->InitializeEqs(globals->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, globals->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
+    //    for (i = 0; i < asynch->globals->num_forcings; i++)
     //    {
     //        if (asynch->forcings[i]->flag == 3)	//!!!! I think .mon and binary files need this too !!!!
-    //            Asynch_Set_Forcing_State(&asynch, i, t_b, asynch->forcings[i]->first_file, asynch->forcings[i]->last_file);
+    //            Asynch_Set_Forcing_State(asynch, i, t_b, asynch->forcings[i]->first_file, asynch->forcings[i]->last_file);
     //    }
     //    for (i = 0; i < max_or_steps; i++)
     //    {
-    //        GlobalVars->maxtime = t_b + (i)* inc;
-    //        if (i)	Asynch_Advance(&asynch, 0);
+    //        globals->maxtime = t_b + (i)* inc;
+    //        if (i)	Asynch_Advance(asynch, 0);
 
     //        for (j = 0; j < num_obs; j++)
     //        {
