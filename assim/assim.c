@@ -258,7 +258,8 @@ int main(int argc, char* argv[])
         MPI_Abort(MPI_COMM_WORLD, 1);
 
     //Finds the link ids upstreams from every gauged locations
-    FindUpstreamLinks(asynch, &assim, problem_dim, true, assim.obs_time_step, assim.num_steps, assim.obs_locs, assim.num_obs);
+    const bool trim = true;
+    FindUpstreamLinks(asynch, &assim, problem_dim, trim, assim.obs_time_step, assim.num_steps, assim.obs_locs, assim.num_obs);
 
     print_out("Partitioning network...\n");
     Asynch_Partition_Network(asynch);
@@ -649,16 +650,16 @@ int main(int argc, char* argv[])
     //double *d_full = ws->d_full, *x_start = ws->x_start, *x_b = ws->x_b;
     //unsigned int allstates = ws->allstates;
     unsigned int least_squares_iters = assim.least_squares_iters;
-    double *analysis = (double*)malloc(allstates * sizeof(double));	//!!!! Should be removed !!!!
+    double *analysis = (double*)calloc(allstates, sizeof(double));	//!!!! Should be removed !!!!
     //model* custom_model = asynch->custom_model;
     //double q[steps_to_use*num_obs];
-    double *q = (double*)malloc(num_steps*num_obs * sizeof(double));
+    double *q = (double*)calloc(num_steps * num_obs, sizeof(double));
 
 
     //Set the forecast window
     Asynch_Set_Total_Simulation_Duration(asynch, num_steps * obs_time_step);	//!!!! Is this needed? !!!!
 
-    //Get the new observations
+    //Get the observations
     {
         MPI_Barrier(MPI_COMM_WORLD);
         if (my_rank == 0)
@@ -809,7 +810,7 @@ int main(int argc, char* argv[])
         Link *current = &asynch->sys[i];
         if (current->list != NULL)
             for (j = 0; j < problem_dim; j++)
-                current->list->head->y_approx.ve[j] = x_start[i * problem_dim + j];
+                current->list->tail->y_approx.ve[j] = x_start[i * problem_dim + j];
     }
 
     //Make a snaphsot
@@ -855,255 +856,6 @@ int main(int argc, char* argv[])
     return res;
 }
 
-
-//void Make_Assimilated_Forecasts(asynchsolver* asynch, unsigned int background_time_unix, double simulation_time_with_data, VEC* backup, AppCtxFull* user, ForecastData* forecaster, AssimData* assim, unsigned int assim_dim, unsigned int forecast_idx)
-//{
-//    time_t q_start, q_stop;
-//    int *assignments = asynch->assignments;
-//    short int *getting = asynch->getting;
-//    unsigned int **id_to_loc = asynch->id_to_loc, N = asynch->N, num_obs = assim->num_obs;
-//    Link **sys = asynch->sys;
-//    UnivVars* globals = asynch->globals;
-//    unsigned int i, j, l, steps_to_use = assim->steps_to_use, assim_window_unix = assim->steps_to_use * (int)(assim->inc + 1e-3);
-//    double t_b = 0.0, inc = assim->inc, forecast_window = forecaster->forecast_window, assim_window = assim->steps_to_use * assim->inc;
-//    double *d_full = user->d_full, *x_start = user->x_start, *x_b = user->x_b;
-//    unsigned int allstates = user->allstates, least_squares_iters = assim->least_squares_iters;
-//    double *analysis = (double*)malloc(allstates * sizeof(double));	//!!!! Should be removed !!!!
-//    model* custom_model = asynch->custom_model;
-//    //double q[steps_to_use*num_obs];
-//    double *q = (double*)malloc(steps_to_use*num_obs * sizeof(double));
-//
-//    //for(k=0;k<iterations;k++)
-//    {
-//        /*
-//                if(my_rank == 0)
-//                {
-//                    printf("\n\n*************************************\n");
-//                    printf("Iteration %u/%u. Background = %e.\n",k,iterations,t_b);
-//                }
-//                MPI_Barrier(MPI_COMM_WORLD);
-//
-//                steps_to_use = (k < max_steps_to_use) ? k+1 : max_steps_to_use;
-//        */
-//        //Set the forecast window
-//        Asynch_Set_Total_Simulation_Time(asynch, forecast_window + steps_to_use*inc);	//!!!! Is this needed? !!!!
-//
-//        //Get the new observations
-//        MPI_Barrier(MPI_COMM_WORLD);
-//        if (my_rank == 0)
-//            printf("Downloading observations...\n");
-//        time(&q_start);
-//
-//        while (GetObservationsData(assim, id_to_loc, N, background_time_unix, d_full) == -1)
-//        {
-//            if (my_rank == 0)	printf("Error downloading observations. Retrying...\n");
-//            ASYNCH_SLEEP(5);
-//            MPI_Barrier(MPI_COMM_WORLD);
-//        }
-//
-//        /*
-//                !!!! Need observations !!!!
-//                GetObseravations(assim,background_time_unix + assim_window_unix,d);	!!!! Only gets newest. Need more for first time through !!!!
-//                //FindAllDischarges(truesolution,0.0 + (k)*inc,num_obs,numsteps,d);
-//                for(j=0;j<(steps_to_use-1)*num_obs;j++)
-//                    d_full[j] = d_full[j+num_obs];
-//                for(j=0;j<num_obs;j++)
-//                    d_full[(steps_to_use-1)*num_obs + j] = d[j];
-//        */
-//        MPI_Barrier(MPI_COMM_WORLD);
-//        time(&q_stop);
-//        if (my_rank == 0)
-//            printf("Time to get new discharges: %.0f\n", difftime(q_stop, q_start));
-//
-//
-//        if (verbose && my_rank == 0)
-//        {
-//            printf("d_full\n");
-//            Print_VECTOR(d_full, steps_to_use*num_obs);
-//            printf("\n");
-//        }
-//
-//
-//        /*
-//        //if(k == 0)	//!!!! Move this outside the loop. Can I just change minimizer? !!!!
-//        {
-//            AdjustDischarges(asynch,assim->obs_locs,d_full,num_obs,x_b,allstates,assim_dim);
-//        }
-//        */
-//
-//
-//        //Set the initial guess
-//        for (i = 0; i < N; i++)	//Copy in states that won't be affected by the optimization solver
-//        {
-//            for (j = 0; j < assim_dim; j++)
-//                x_start[i*assim_dim + j] = analysis[i*assim_dim + j] = x_b[i*assim_dim + j];	//!!!! Do I need all these? !!!!
-//        }
-//
-//
-//        if (verbose && my_rank == 0)
-//        {
-//            //printf("Going in, minimizer...\n");
-//            //Print_VECTOR(minimizer,allstates_needed);
-//            printf("Going in, x_start...\n");
-//            Print_VECTOR(x_start, allstates);
-//
-//            /*
-//            double* tempy;
-//            printf("Guess:\n");
-//            VecGetArray(Guess,&tempy);
-//            for(i=0;i<allstates_needed;i++)
-//            printf("%.15e ",tempy[i]);
-//            printf("\n");
-//            VecRestoreArray(Guess,&tempy);
-//            */
-//        }
-//
-//        //Calculate the analysis
-//        int try_again = 0;
-//        do
-//        {
-//            int iterations = 0;
-//            double diff = 10.0, error, prev_error = -1.0;
-//            for (j = 0; j < least_squares_iters; j++)
-//                //while(diff > 1e-2)
-//            {
-//                iterations++;
-//                LinearLeastSquares(user, q);
-//                error = compute_diff(d_full, q, steps_to_use*num_obs);
-//                if (prev_error >= 0.0)
-//                {
-//                    diff = prev_error - error;
-//                    if (error > prev_error)
-//                    {
-//                        if (my_rank == 0)
-//                        {
-//                            printf("!!!! LS error got worse. Breaking... !!!!\n");
-//                            printf("Errors are %f and %f\n", error, prev_error);
-//                        }
-//
-//                        //Go back to previous solution
-//                        for (i = 0; i < allstates; i++)	x_start[i] = analysis[i];
-//
-//                        break;
-//                    }
-//                }
-//                if (my_rank == 0)	printf("Difference is %f (%f vs %f)\n", diff, error, prev_error);
-//                prev_error = error;
-//                for (i = 0; i < allstates; i++)	analysis[i] = x_start[i];
-//            }
-//            if (my_rank == 0)
-//                printf("Total iterations = %i\n", iterations);
-//
-//            //if(error > 30.0 && !try_again)	//Check if the numerical scheme is having convergence issues
-//            //if(error > 10.0 && !try_again)
-//            if (!try_again)
-//            {
-//                //try_again = 1;
-//                try_again = ReduceBadDischargeValues(sys, assignments, N, d_full, q, steps_to_use, user->obs_locs, num_obs, x_start, assim_dim, 1.0);	//!!!! Not sure what to use for the limit... !!!!
-//            }
-//            else	try_again = 0;
-//        } while (try_again);
-//
-//
-//        //Copy x_start to analysis  !!!! This shouldn't happen. Try a pointer dance. Or maybe something better... !!!!
-//        //for(i=0;i<allstates;i++)	analysis[i] = x_start[i];
-//
-//        if (verbose && my_rank == 0)
-//        {
-//            //if(k == 10)
-//            {
-//                printf("x_b\n");
-//                Print_VECTOR(x_b, allstates);
-//                printf("\n");
-//
-//                printf("analysis t_b = %e last assim time = %e\n", t_b, t_b + 5.0*(steps_to_use - 1));
-//                Print_VECTOR(analysis, allstates);
-//                //getchar();
-//            }
-//        }
-//
-//        //Switch to model without variational eqs
-//        //For model 254
-//        //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Model_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
-//        //For model 254 trim
-//        Asynch_Custom_Model(asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Model_252, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);	//!!!! I think this is ok... !!!!
-//        Asynch_Initialize_Model(asynch);
-//
-//        MPI_Barrier(MPI_COMM_WORLD);
-//        time(&q_start);
-//
-//        //Advance to get new background
-//        ResetSysLS(sys, N, globals, t_b, analysis, assim_dim, asynch->globals->num_forcings, asynch->my_data);
-//        for (i = 0; i < N; i++)				//!!!! Put this into ResetSysLS? !!!!
-//        {
-//            if (assignments[i] == my_rank || getting[i])
-//            {
-//                Link *current = sys[i];
-//                custom_model->InitializeEqs(globals->global_params, current->params, NULL, 0, current->list->head->y_approx, globals->type, current->diff_start, current->no_ini_start, current->user, NULL);
-//            }
-//        }
-//
-//        {
-//            Asynch_Set_Total_Simulation_Time(asynch, simulation_time_with_data);
-//            //globals->maxtime = t_b + inc;
-//            Asynch_Advance(asynch, 1);
-//
-//            //Extract background !!!! Isn't there a routine for this? (there needs to be...) !!!!
-//            for (j = 0; j < N; j++)
-//            {
-//                if (assignments[j] == my_rank)
-//                {
-//                    for (l = 0; l < assim_dim; l++)
-//                        x_b[j*assim_dim + l] = backup[j].ve[l] = sys[j]->list->tail->y_approx.ve[l];
-//                }
-//                MPI_Bcast(&(x_b[j*assim_dim]), assim_dim, MPI_DOUBLE, assignments[j], MPI_COMM_WORLD);
-//            }
-//        }
-//
-//
-//        //Make forecasts
-//        Asynch_Deactivate_Forcing(asynch, forecast_idx);
-//        Asynch_Set_Total_Simulation_Time(asynch, forecast_window + simulation_time_with_data);
-//        Asynch_Advance(asynch, 1);
-//        Asynch_Activate_Forcing(asynch, forecast_idx);
-//
-//        MPI_Barrier(MPI_COMM_WORLD);
-//        time(&q_stop);
-//        if (my_rank == 0)	printf("Time for forecast: %.0f\n", difftime(q_stop, q_start));
-//
-//        //Switch back to model with variational eqs
-//        //For model 254
-//        //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
-//        //For model 254 trim, q
-//        Asynch_Custom_Model(asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);
-//        //Model 254, q and s_p
-//        //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qsp,&Precalculations_Assim_254,&ReadInitData_Assim_254_qsp);
-//        //Model 254, q and s_t
-//        //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qst,&Precalculations_Assim_254,&ReadInitData_Assim_254_qst);
-//        Asynch_Initialize_Model(asynch);
-//        /*
-//                //Go to next time
-//                t_b += inc;
-//                user.t_b = t_b;
-//        */
-//
-//        /*
-//                //Reset the temporary files
-//                if(my_rank == 0)	printf("Creating output file...\n");
-//        MPI_Barrier(MPI_COMM_WORLD);
-//        time(&q_start);
-//                sprintf(additional,"%u",k);	//Add the iteration number to the output files
-//                Asynch_Create_Output(asynch,additional);
-//                Asynch_Reset_Temp_Files(asynch,t_b);
-//        MPI_Barrier(MPI_COMM_WORLD);
-//        time(&q_stop);
-//        if(my_rank == 0)	printf("Time to create output: %.0f\n",difftime(q_stop,q_start));
-//        */
-//    }
-//
-//    free(analysis);
-//    free(q);
-//}
 
 //This computes the least squares fit assuming the background and analysis difference is linear in the innovations. 
 //HM is (num_obs*steps_to_use) X allstates_needed
@@ -1211,6 +963,7 @@ int LinearLeastSquares(Workspace* ws, double* q)
                 //Pull out needed data
                 for (n = 0; n < updata->num_fit_states; n++)
                 {
+                    if (verbose)
                     printf("ID = %u | Loading %e (from %u) into spot %u\n",
                         current->ID,
                         current->list->tail->y_approx.ve[updata->fit_states[n]],

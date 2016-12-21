@@ -1294,7 +1294,8 @@ int DumpStateH5(Link* sys, unsigned int N, int* assignments, GlobalVars* globals
             i++;
 
         //Assume that every links have the same dimension
-        unsigned int dim = sys[i].dim;
+        //unsigned int dim = sys[i].dim;
+        unsigned int dim = 4;
 
         int *index = malloc(N * sizeof(unsigned int));
         double *data = malloc(N * dim * sizeof(double));
@@ -1305,7 +1306,7 @@ int DumpStateH5(Link* sys, unsigned int N, int* assignments, GlobalVars* globals
             if (assignments[i] != my_rank)
                 MPI_Recv(&data[i * dim], dim, MPI_DOUBLE, assignments[i], i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             else
-                memcpy(&data[i * dim], sys[i].list->tail->y_approx.ve, sys[i].dim * sizeof(double));
+                memcpy(&data[i * dim], sys[i].list->tail->y_approx.ve, dim * sizeof(double));
 
             index[i] = sys[i].ID;
         }
@@ -1575,7 +1576,7 @@ FILE* PrepareTempFiles(Link* sys, unsigned int N, int* assignments, GlobalVars* 
 
                 //Fill out file
                 for (j = start; j < current->expected_file_vals; j++)
-                    total += WriteStep(outputfile, 0, 0.0, v_get(0), globals, current->params, current->state, current->output_user, NULL);
+                    total += WriteStep(outputfile, 0, 0.0, dummy_y, globals, current->params, current->state, current->output_user, NULL);
                 //WriteStep(dummy_t,dummy_y,GlobalVars,current->params,current->state,outputfile,current->output_user,&current_pos);
 
             //Update current_pos

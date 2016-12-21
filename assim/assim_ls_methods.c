@@ -756,7 +756,7 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
             }
         }
     }
-    /*
+
         //Set the discharges downstream from each gauge. This is for locations with no downstream gauges.
         unsigned int *counter = (unsigned int*)malloc(N * sizeof(unsigned int));
 
@@ -767,20 +767,20 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
 
         for(i=0;i<num_obs;i++)
         {
-            loc = obs_locs[i];
-            current = sys[loc]->child;
+        unsigned int loc = obs_locs[i];
+        unsigned int prev_loc = loc;
+        current = sys[loc].child;
             counter[loc] = 0;
-            prev_loc = loc;
 
             if(current)
             {
-                curr_loc = current->location;
+            unsigned int curr_loc = current->location;
                 while(!locs_set[curr_loc])
                 {
                     if(counter[curr_loc] > counter[prev_loc]+1)
                     {
                         counter[curr_loc] = counter[prev_loc]+1;
-                        locs_newq[curr_loc] = upstream_areas[curr_loc] * locs_newq[loc] / upstream_areas[loc];
+                    locs_newq[curr_loc] = upareas[curr_loc] * locs_newq[loc] / upareas[loc];
                         //locs_newq[curr_loc] = current->params->ve[area_idx] * locs_newq[loc] / sys[loc]->params->ve[area_idx];
                     }
                     prev_loc = curr_loc;
@@ -795,8 +795,6 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
             if(counter[i] < N)	locs_set[i] = 1;
 
         free(counter);
-    */
-
 
     //Set the determined discharge. If a link's discharge was not determined by the above process, then it lies in a totally ungauged basin.
     for (i = 0; i < N; i++)
@@ -996,7 +994,7 @@ int GetObservationsData(const AssimData* assim, const unsigned int **id_loc_loc,
             errorcode = -1;
         else
         {
-            end_time_unix = background_time_unix + num_steps * 60 * (int)(assim->obs_time_step + 1e-3);
+            end_time_unix = background_time_unix + num_steps * 60 * assim->obs_time_step;
             sprintf(query, assim->conninfo.queries[1], background_time_unix, end_time_unix);	//Assumes data sorted by time, then link id (!!!! No, is it the reverse? !!!!)
             res = PQexec(assim->conninfo.conn, query);
             if (CheckResError(res, "downloading gauge data") == 0)
