@@ -935,7 +935,7 @@ void Make_Assimilated_Forecasts(AsynchSolver* asynch, unsigned int background_ti
     unsigned int i, j, l, num_steps = assim->num_steps, assim_window_unix = assim->num_steps * (int)(assim->obs_time_step + 1e-3);
     double t_b = 0.0, obs_time_step = assim->obs_time_step, forecast_window = forecaster->forecast_window, assim_window = assim->num_steps * assim->obs_time_step;
     double *d_full = user->d_full, *x_start = user->x_start, *x_b = user->x_b;
-    unsigned int allstates = user->allstates, least_squares_iters = assim->least_squares_iters;
+    unsigned int allstates = user->allstates, max_least_squares_iters = assim->max_least_squares_iters;
     double *analysis = (double*)malloc(allstates * sizeof(double));	//!!!! Should be removed !!!!
     Model* custom_model = asynch->custom_model;
     //double q[steps_to_use*num_obs];
@@ -1032,7 +1032,7 @@ void Make_Assimilated_Forecasts(AsynchSolver* asynch, unsigned int background_ti
         {
             int iterations = 0;
             double diff = 10.0, error, prev_error = -1.0;
-            for (j = 0; j < least_squares_iters; j++)
+            for (j = 0; j < max_least_squares_iters; j++)
                 //while(diff > 1e-2)
             {
                 iterations++;

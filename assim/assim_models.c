@@ -11,6 +11,7 @@
 #define ASYNCH_SLEEP Sleep
 #endif
 
+#include <assert.h>
 #include <stdbool.h>
 
 #include <metis.h>
@@ -861,10 +862,14 @@ void InitRoutines_Assim_254_q(Link* link, unsigned int type, unsigned int exp_im
     unsigned int i, problem_dim = 4;	//Number of model eqs
 
     //For q only
-    link->dim = problem_dim + 1	//Model eqs + variational eqs from this link
-        + updata->num_upstreams; //Variational eqs from upstreams
-    //for(i=0;i<link->num_parents;i++)
+    link->dim = problem_dim + 1;	//Model eqs + variational eqs from this link
+    //    + updata->num_upstreams;
+    
+    //Variational eqs from upstreams
+    for(i=0;i<link->num_parents;i++)
+        link->dim += ((UpstreamData *)updata->parents[i]->user)->num_upstreams;
     //	link->dim += updata->num_upstreams[i];	//Variational eqs from upstreams
+    
     link->no_ini_start = 4;
     link->diff_start = 0;
 
@@ -1035,6 +1040,9 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
         {
             unsigned int parent_idx = j + offset;
 
+            assert(current_idx < ans.dim);
+            assert(parent_idx < y_p[i].dim);
+            assert(current_idx < y_i.dim);
             ans.ve[current_idx] = dfq_dupq * y_p[i].ve[parent_idx] + dfq_dq * y_i.ve[current_idx]; //q, upq
             current_idx += 1;
         }

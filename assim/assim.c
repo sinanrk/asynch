@@ -178,6 +178,9 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
+    //Disable stdout buffering
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     if (debug)
     {
         //Disable stdout buffering
@@ -259,7 +262,7 @@ int main(int argc, char* argv[])
 
     //Finds the link ids upstreams from every gauged locations
     const bool trim = true;
-    FindUpstreamLinks(asynch, &assim, problem_dim, trim, assim.obs_time_step, assim.num_steps, assim.obs_locs, assim.num_obs);
+    FindUpstreamLinks2(asynch, &assim, problem_dim, trim, assim.obs_time_step, assim.num_steps, assim.obs_locs, assim.num_obs);
 
     print_out("Partitioning network...\n");
     Asynch_Partition_Network(asynch);
@@ -338,7 +341,8 @@ int main(int argc, char* argv[])
     //}
 
     //Initialize choices
-    unsigned int num_obs = assim.num_obs, *obs_locs = assim.obs_locs, num_steps = assim.num_steps;
+    //unsigned int num_obs = assim.num_obs, *obs_locs = assim.obs_locs, num_steps = assim.num_steps;
+    unsigned int num_total_obs = assim.num_steps * assim.num_obs;
     double t_b = 0.0, obs_time_step = assim.obs_time_step;
     double t_f = Asynch_Get_Total_Simulation_Duration(asynch);
     unsigned int allstates = assim_dim * N;
@@ -366,7 +370,7 @@ int main(int argc, char* argv[])
     double* d = calloc(assim.num_obs, sizeof(double));
 
     // Vector of observations (multiple steps)
-    double* d_full = calloc(num_obs * num_steps, sizeof(double));
+    double* d_full = calloc(num_total_obs, sizeof(double));
 
     //Values used to start asynch solver in tao solvers
     double* x_start = calloc(allstates, sizeof(double));	//Values used to start asynch solver in tao solvers
@@ -375,7 +379,7 @@ int main(int argc, char* argv[])
     //For Model 254
     //unsigned int allstates_needed = Setup_Fitting_Data_Model254(asynch,obs_locs,num_obs);
     //For Model 254 trim, q
-    Setup_Fitting_Data_Model254_q(asynch, obs_locs, num_obs);
+    Setup_Fitting_Data_Model254_q(asynch, assim.obs_locs, assim.num_obs);
     //For Model 254 trim, q and s_p
     //Setup_Fitting_Data_Model254_qsp(asynch,obs_locs,num_obs);
     //For Model 254 trim, q and s_t
@@ -383,7 +387,7 @@ int main(int argc, char* argv[])
 
     //Find locations unaffected by gauges
     unsigned int *vareq_shift, *inv_vareq_shift;
-    unsigned int allstates_needed = BuildStateShift(asynch, allstates, obs_locs, num_obs, &vareq_shift, &inv_vareq_shift);
+    unsigned int allstates_needed = BuildStateShift(asynch, allstates, assim.obs_locs, assim.num_obs, &vareq_shift, &inv_vareq_shift);
 
 
     printf("allstates_needed: %u allstates: %u\n", allstates_needed, allstates);
@@ -431,9 +435,9 @@ int main(int argc, char* argv[])
     {
         VecCreateSeq(MPI_COMM_SELF, allstates_needed, &ws.rhs);
         VecCreateSeq(MPI_COMM_SELF, allstates_needed, &ws.x);
-        MatCreateSeqDense(MPI_COMM_SELF, num_obs*num_steps, allstates_needed, NULL, &ws.HM);
+        MatCreateSeqDense(MPI_COMM_SELF, num_total_obs, allstates_needed, NULL, &ws.HM);
         MatCreateSeqDense(MPI_COMM_SELF, allstates_needed, allstates_needed, NULL, &ws.HTH);
-        MatCreateSeqDense(MPI_COMM_SELF, allstates_needed, num_obs*num_steps, NULL, &ws.HMTR);
+        MatCreateSeqDense(MPI_COMM_SELF, allstates_needed, num_total_obs, NULL, &ws.HMTR);
         HM_col_indices = (int*)malloc(allstates_needed * sizeof(int));
         for (i = 0; i < allstates_needed; i++)
             HM_col_indices[i] = i;
@@ -443,8 +447,8 @@ int main(int argc, char* argv[])
         KSPSetFromOptions(ws.ksp);	// This is used to override the solver setting from the command line
     }
 
-    int* d_indices = (int*)malloc(num_steps*num_obs * sizeof(int));
-    for (i = 0; i < num_steps*num_obs; i++)
+    int* d_indices = (int*)malloc(num_total_obs * sizeof(int));
+    for (i = 0; i < num_total_obs; i++)
         d_indices[i] = i;
 
     //Transfer upstreams areas to all procs
@@ -460,11 +464,11 @@ int main(int argc, char* argv[])
 
     //Links needed for fitting
     bool *links_needed = (bool*)calloc(N, sizeof(bool));
-    for (i = 0; i < num_obs; i++)
+    for (i = 0; i < assim.num_obs; i++)
     {
-        if (assignments[obs_locs[i]] == my_rank)
+        if (assignments[assim.obs_locs[i]] == my_rank)
         {
-            Link *current = &sys[obs_locs[i]];
+            Link *current = &sys[assim.obs_locs[i]];
             updata = (UpstreamData*)(current->user);
             links_needed[current->location] = true;
             //for(j=0;j<current->num_parents;j++)
@@ -497,12 +501,12 @@ int main(int argc, char* argv[])
         VecAssemblyBegin(ws.B);
         VecAssemblyEnd(ws.B);
 
-        VecCreateSeq(MPI_COMM_SELF, num_obs*num_steps, &ws.R);
-        for (i = 0; i < num_obs; i++)
+        VecCreateSeq(MPI_COMM_SELF, num_total_obs, &ws.R);
+        for (i = 0; i < assim.num_obs; i++)
         {
-            for (j = 0; j < num_steps; j++)
+            for (j = 0; j < assim.num_steps; j++)
                 //VecSetValue(ws.R, j*num_obs + i, inv_upareas[obs_locs[i]] * 10.0, INSERT_VALUES);
-                VecSetValue(ws.R, j*num_obs + i, 1.0, INSERT_VALUES);
+                VecSetValue(ws.R, j * assim.num_obs + i, 1.0, INSERT_VALUES);
         }
         VecAssemblyBegin(ws.R);
         VecAssemblyEnd(ws.R);
@@ -531,8 +535,8 @@ int main(int argc, char* argv[])
     ws.inv_vareq_shift = inv_vareq_shift;
     ws.obs_time_step = obs_time_step;
     ws.num_steps = assim.num_steps;
-    ws.obs_locs = obs_locs;
-    ws.num_obs = num_obs;
+    ws.obs_locs = assim.obs_locs;
+    ws.num_obs = assim.num_obs;
     ws.t_b = t_b;
     ws.x_b = x_b;
 
@@ -558,8 +562,8 @@ int main(int argc, char* argv[])
     //        v_copy(asynch->sys[i].list->tail->y_approx, backup[i]);
 
     //double simulation_time_with_data = asynch->forcings[forecast_idx]->file_time * forecaster->num_rainsteps;
-    double simulation_time_with_data = (assim.num_steps - 1) * assim.obs_time_step;
-    unsigned int simulation_time_with_data_secs = (int)(simulation_time_with_data + 1e-3) * 60;
+    //double simulation_time_with_data = (assim.num_steps - 1) * assim.obs_time_step;
+    //unsigned int simulation_time_with_data_secs = (int)(simulation_time_with_data + 1e-3) * 60;
 
     //Setup temp files
     //Set_Output_User_forecastparams(asynch, forecast_time_unix, simulation_time_with_data_secs);	//!!!! Should this be done here at all? !!!!
@@ -649,15 +653,15 @@ int main(int argc, char* argv[])
     //double assim_window = assim.num_steps * assim.obs_time_step;
     //double *d_full = ws->d_full, *x_start = ws->x_start, *x_b = ws->x_b;
     //unsigned int allstates = ws->allstates;
-    unsigned int least_squares_iters = assim.least_squares_iters;
+    unsigned int max_least_squares_iters = assim.max_least_squares_iters;
     double *analysis = (double*)calloc(allstates, sizeof(double));	//!!!! Should be removed !!!!
     //model* custom_model = asynch->custom_model;
     //double q[steps_to_use*num_obs];
-    double *q = (double*)calloc(num_steps * num_obs, sizeof(double));
+    double *q = (double*)calloc(num_total_obs, sizeof(double));
 
 
     //Set the forecast window
-    Asynch_Set_Total_Simulation_Duration(asynch, num_steps * obs_time_step);	//!!!! Is this needed? !!!!
+    Asynch_Set_Total_Simulation_Duration(asynch, assim.num_steps * assim.obs_time_step);	//!!!! Is this needed? !!!!
 
     //Get the observations
     {
@@ -685,7 +689,7 @@ int main(int argc, char* argv[])
     if (verbose && my_rank == 0)
     {
         printf("d_full\n");
-        Print_VECTOR(d_full, num_steps*num_obs);
+        Print_VECTOR(d_full, num_total_obs);
         printf("\n");
     }
 
@@ -722,12 +726,12 @@ int main(int argc, char* argv[])
     {
         int iterations = 0;
         double error, prev_error = -1.0;
-        for (j = 0; j < least_squares_iters; j++)
+        for (j = 0; j < max_least_squares_iters; j++)
             //while(diff > 1e-2)
         {
             iterations++;
             LinearLeastSquares(&ws, q);
-            error = compute_diff(d_full, q, num_steps*num_obs);
+            error = compute_diff(d_full, q, num_total_obs);
             if (prev_error >= 0.0)
             {
                 double diff = prev_error - error;
@@ -749,8 +753,14 @@ int main(int argc, char* argv[])
             }
 
             prev_error = error;
-            for (i = 0; i < allstates; i++)
-                analysis[i] = x_start[i];
+            for (i = 0; i < N; i++)
+            {
+                //TODO Add test for negative discharge
+                analysis[i] = x_start[i] > 1.e-14 ? x_start[i] : 1.e-14;
+                analysis[i] = x_start[i + 1] > 0. ? x_start[i + 1] : 0.;
+                analysis[i] = x_start[i + 2] > 0. ? x_start[i + 2] : 0.;
+                analysis[i] = x_start[i + 3] > 0. ? x_start[i + 3] : 0.;
+            }
         }
         if (my_rank == 0)
             printf("Total iterations = %i\n", iterations);
@@ -760,7 +770,7 @@ int main(int argc, char* argv[])
         if (!try_again)
         {
             //try_again = 1;
-            try_again = ReduceBadDischargeValues(sys, assignments, N, d_full, q, num_steps, ws.obs_locs, num_obs, x_start, assim_dim, 1.0);	//!!!! Not sure what to use for the limit... !!!!
+            try_again = ReduceBadDischargeValues(sys, assignments, N, d_full, q, assim.num_steps, assim.obs_locs, assim.num_obs, x_start, assim_dim, 1.0);	//!!!! Not sure what to use for the limit... !!!!
         }
         else
             try_again = false;
@@ -809,8 +819,17 @@ int main(int argc, char* argv[])
     {
         Link *current = &asynch->sys[i];
         if (current->list != NULL)
+        {
+            VEC y = current->list->tail->y_approx;
             for (j = 0; j < problem_dim; j++)
-                current->list->tail->y_approx.ve[j] = x_start[i * problem_dim + j];
+                y.ve[j] = x_start[i * problem_dim + j];
+
+            // Idem CheckConsistency_Nonzero_4States
+            if (y.ve[0] < 1e-14)	y.ve[0] = 1e-14;
+            if (y.ve[1] < 1e-20)	y.ve[1] = 0.0;
+            if (y.ve[2] < 1e-20)	y.ve[2] = 0.0;
+            if (y.ve[3] < 1e-20)	y.ve[3] = 0.0;
+        }
     }
 
     //Make a snaphsot

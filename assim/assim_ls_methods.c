@@ -113,8 +113,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
     unsigned int N = asynch->N, parentsval, leaves_size = 0, i, j, **id_to_loc = asynch->id_to_loc;
     int *assignments = asynch->assignments;
     GlobalVars *globals = asynch->globals;
-    Link **leaves = (Link**)malloc(N * sizeof(Link*));
-    Link **stack = (Link**)malloc(N * sizeof(Link*));
+    
     short int* getting = asynch->getting;
     UpstreamData* updata;
 
@@ -136,6 +135,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
     }
 
     //Find leaves
+    Link **leaves = (Link**)malloc(N * sizeof(Link*));
     for (i = 0; i < N; i++)
         if (sys[i].num_parents == 0)
             leaves[leaves_size++] = &sys[i];
@@ -189,6 +189,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
     unsigned int* counter = (unsigned int*)calloc(N, sizeof(unsigned int));
 
     unsigned int stack_size = leaves_size;
+    Link **stack = (Link**)calloc(N, sizeof(Link*));
     for (i = 0; i < leaves_size; i++)
         stack[i] = leaves[i];
 
@@ -213,12 +214,14 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
             if (parent->res)
                 continue;
 
-            updata->upstreams[count] = current->parents[i];
+            assert(count < updata->num_upstreams);
+            updata->upstreams[count] = parent;
             count++;
 
             UpstreamData *parent_updata = ((UpstreamData*)parent->user);
             for (j = 0; j < parent_updata->num_upstreams; j++)
             {
+                assert(count < updata->num_upstreams);
                 updata->upstreams[count] = parent_updata->upstreams[j];
                 count++;
             }
@@ -410,20 +413,186 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
 
                 if (m == num_influenced)	//Upstream link does not influence any gauged location
                     drop++;
-                else
-                    upstreams[l - drop] = upstreams[l];
+                //else
+                //    upstreams[l - drop] = upstreams[l];
             }
-            *num_upstreams -= drop;
-            if (drop)
+            //*num_upstreams -= drop;
+            //if (drop)
+            //{
+            //    if (*num_upstreams)
+            //        upstreams = (Link**)realloc(upstreams, *num_upstreams * sizeof(Link*));
+            //    else {
+            //        free(upstreams);
+            //        upstreams = NULL;
+            //    }
+            //}
+            //}
+        }
+
+        //For each gauges
+        stack_size = 0;
+        Link **stack = (Link**)calloc(N, sizeof(Link*));
+        for (i = 0; i < num_obs; i++)
+        {
+            Link *gauge = &sys[obs_locs[i]];
+            double d = distance[obs_locs[i]];
+
+            // Visit from gauge to source
+            while (stack_size > 0)
             {
-                if (*num_upstreams)
-                    updata->upstreams = (Link**)realloc(upstreams, *num_upstreams * sizeof(Link*));
-                else {
-                    free(upstreams);
-                    updata->upstreams = NULL;
+                Link *current = stack[stack_size - 1];
+                UpstreamData* updata = (UpstreamData*)current->user;
+
+                // Pop from the stack
+                stack_size--;
+
+                double difference = distance[current->location] - distance[gauge->location];
+                //if (-1e-12 < difference && difference < influence_radius)	//!!!! Does this work if the network is disconnected? !!!!
+
+                // If upstream and in influence radius
+                if (difference >= 0. && difference < influence_radius)
+
+
+
+                for (unsigned int i = 0; i < updata->num_parents; i++)
+                {                        
+                    stack[stack_size] = &sys[i];
+                    stack_size++;
                 }
             }
-            //}
+
+
+        }
+
+
+
+        //For each link, find the gauges influenced. Then, check which upstreams links influence one of those gauges.
+        //Link **stack = (Link**)calloc(N, sizeof(Link*));
+        stack_size = 0;
+        for (i = 0; i < N; i++)
+            if (sys[i].num_parents == 0)
+            {
+                stack[stack_size] = &sys[i];
+                stack_size++;
+            }
+        
+        // Visit from source to outlet
+        unsigned int *visits = (unsigned int *)calloc(N, sizeof(unsigned int));
+        while (stack_size > 0)
+        {
+            Link *current = stack[stack_size - 1];
+            UpstreamData* updata = (UpstreamData*)current->user;
+
+            // Pop from the stack
+            stack_size--;
+
+            // Increment visit counter of child
+            if (current->child)
+                visits[current->child->location]++;
+
+            //Find gauges that influence the current link
+            unsigned int num_influenced = 0;
+            for (j = 0; j < num_obs; j++)
+            {
+                double difference = distance[current->location] - distance[obs_locs[j]];
+                //if (-1e-12 < difference && difference < influence_radius)	//!!!! Does this work if the network is disconnected? !!!!
+                
+                // If upstream and in influence radius
+                if (difference >= 0. && difference < influence_radius)
+                    //influenced_gauges[num_influenced++] = obs_locs[j];
+                    num_influenced++;
+            }
+
+            if (num_influenced == 0)
+            {
+                updata->num_upstreams = 0;
+
+                free(updata->upstreams);
+                updata->upstreams = NULL;
+            }
+            else
+            {
+                //Compute the number of upstreams link
+                unsigned int num_upstreams = updata->num_parents;
+                for (unsigned int l = 0; l < updata->num_parents; l++)
+                {
+                    Link *parent = current->parents[l];
+                    UpstreamData *parent_updata = (UpstreamData*)parent->user;
+
+                    num_upstreams += parent_updata->num_upstreams;
+                }
+
+                assert(num_upstreams <= N);
+
+                //If this link neeeds to be fixed
+                if (updata->num_upstreams != num_upstreams)
+                {
+                    updata->num_upstreams = num_upstreams;
+
+                    //Reallocate the data
+                    if (num_upstreams > 0)
+                    {
+                        updata->upstreams = (Link**)realloc(updata->upstreams, num_upstreams * sizeof(Link*));
+                        assert(updata->upstreams != NULL);
+                    }
+                    else
+                    {
+                        free(updata->upstreams);
+                        updata->upstreams = NULL;
+                    }                    
+
+                    //Add each parents' upstreams list
+                    unsigned int count = 0;
+                    for (i = 0; i < current->num_parents; i++)
+                    {
+                        Link *parent = current->parents[i];
+                        if (parent->res)
+                            continue;
+
+                        assert(count < updata->num_upstreams);
+                        updata->upstreams[count] = parent;
+                        count++;
+
+                        UpstreamData *parent_updata = ((UpstreamData*)parent->user);
+                        for (j = 0; j < parent_updata->num_upstreams; j++)
+                        {
+                            assert(count < updata->num_upstreams);
+                            updata->upstreams[count] = parent_updata->upstreams[j];
+                            count++;
+                        }
+                    }
+
+                    assert(count == updata->num_upstreams);
+                }
+            }
+
+            if (current->child && visits[current->child->location] == current->child->num_parents)
+            {
+                stack[stack_size] = current->child;
+                stack_size++;
+            }
+        }
+
+        for (i = 0; i < N; i++)
+        {
+            current = &sys[i];
+            updata = (UpstreamData*)current->user;
+
+            unsigned int num_upstreams = updata->num_parents;
+
+            for (unsigned int l = 0; l < updata->num_parents; l++)
+            {
+                Link *parent = current->parents[l];
+                UpstreamData *parent_updata = (UpstreamData*)parent->user;
+
+                num_upstreams += parent_updata->num_upstreams;
+            }
+
+            if (num_upstreams != updata->num_upstreams)
+                printf("Olala");
+
+            if (num_upstreams > 0 && updata->upstreams == NULL)
+                printf("Olala");
         }
 
 
@@ -443,10 +612,242 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
         printf("+++++++\n");
         }
         */
+        
         //Clean up
-        free(influenced_gauges);
+        free(stack);
+        free(visits);
         free(distance);
     }
+}
+
+
+//Finds the link ids upstreams from every link in obs_locs. If trim is 1, then only links which can affect the links in obs_locs (assuming a constant channel velocity) are used.
+void FindUpstreamLinks2(const AsynchSolver * const asynch, AssimData* const assim, unsigned int problem_dim, bool trim, double obs_time_step, unsigned int num_steps, unsigned int* obs_locs, unsigned int num_obs)
+{
+    Link *sys = asynch->sys;
+    unsigned int N = asynch->N, i, j, **id_to_loc = asynch->id_to_loc;
+    int *assignments = asynch->assignments;
+    GlobalVars *globals = asynch->globals;
+
+    short int* getting = asynch->getting;
+    //UpstreamData* updata;
+
+    //For every links
+    for (i = 0; i < N; i++)
+    {
+        //Allocate UpstreamData
+        UpstreamData *upstreams = malloc(sizeof(UpstreamData));
+        memset(upstreams, 0, sizeof(UpstreamData));
+
+        //Copy the vector of parents list
+        upstreams->num_parents = sys[i].num_parents;
+        if (upstreams->num_parents > 0)
+        {
+            upstreams->parents = malloc(upstreams->num_parents * sizeof(Link*));
+            memcpy(upstreams->parents, sys[i].parents, upstreams->num_parents * sizeof(Link*));
+        }
+
+        sys[i].user = upstreams;
+    }
+
+    //Remove extra links from the upstreams lists
+    double *distance = (double*)calloc(N, sizeof(double));
+
+    //!!!! Hard coding right now. Blah... !!!!
+    unsigned int outlet = asynch->globals->outletlink;
+    unsigned int n = 0;
+    //unsigned int outlet = 434478;  //Turkey River above French Hollow
+    //unsigned int outlet = 434514;	//Turkey River at Garber
+    //unsigned int outlet = 307864;  //Half Squaw Creek
+    //unsigned int outlet = 292254;	//Squaw Creek at Ames
+
+    if (my_rank == 0)
+    {
+        ConnectPGDB(&assim->conninfo);
+
+        char buffer[16];
+        snprintf(buffer, 16, "%d", outlet);
+        const char *paramValues[1];
+        paramValues[0] = buffer;
+
+        PGresult *res = PQexecParams(assim->conninfo.conn, assim->conninfo.queries[2], 1, NULL, paramValues, NULL, NULL, 0);
+        if (CheckResError(res, "getting list of distances to outlet"))
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        n = PQntuples(res);
+        if (n != N)
+        {
+            printf("Error: got a different number of links for the distances to outlet than links in network. (%u vs %u)\n", i, N);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        else
+        {
+            int i_link_id = PQfnumber(res, "link_id");
+            int i_distance = PQfnumber(res, "distance");
+
+            //Sort the data
+            for (i = 0; i < N; i++)
+            {
+                if (!PQgetisnull(res, i, i_link_id) && PQgetlength(res, i, i_link_id) > 0)
+                {
+                    char *ptr = PQgetvalue(res, i, 0);
+                    //int link_id = be32toh(*((uint32_t *)ptr));
+                    int link_id = atoi(ptr);
+
+                    unsigned int loc = find_link_by_idtoloc(link_id, id_to_loc, N);
+                    if (loc >= N)
+                    {
+                        i = loc;
+                        break;
+                    }
+
+                    if (!PQgetisnull(res, i, i_distance) && PQgetlength(res, i, i_distance) > 0)
+                    {
+                        ptr = PQgetvalue(res, i, i_distance);
+                        //distance[loc] = (double) (be64toh(*((uint64_t *)ptr)));
+                        distance[loc] = atof(ptr);
+                    }
+                }
+            }
+        }
+
+        //Clean up db connection
+        PQclear(res);
+        DisconnectPGDB(&assim->conninfo);
+
+        //printf("!!!! Loading distances for test basin !!!!\n");
+        //distance[0] = 0;distance[1] = 1;distance[2] = 2;distance[3] = 2;distance[4] = 3;distance[5] = 1;distance[6] = 3;distance[7] = 4;distance[8] = 2;distance[9] = 3;distance[10] = 3;
+    }
+    //speed = 0.021;
+
+    MPI_Bcast(distance, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    //Calculate the radius of influence
+    double speed = 3.0 * 60.0;	//In m/min
+    double influence_radius = speed * num_steps * obs_time_step;
+
+    //For each gauges
+    Link **stack = (Link**)calloc(N, sizeof(Link*));
+    Link **sources = (Link**)calloc(N, sizeof(Link*));
+    unsigned int *visits = (unsigned int *)calloc(N, sizeof(unsigned int));
+    for (unsigned int i = 0; i < num_obs; i++)
+    {
+        Link *gauge = &sys[obs_locs[i]];
+        double d = distance[obs_locs[i]];
+
+        unsigned int stack_size = 0;
+        unsigned int source_size = 0;
+        memset(visits, 0, N * sizeof(unsigned int));
+
+        stack[stack_size++] = gauge;
+        
+        unsigned int count_phase1 = 0;
+
+        // Visit from gauge to source
+        while (stack_size > 0)
+        {
+            Link *current = stack[stack_size - 1];
+            UpstreamData* updata = (UpstreamData*)current->user;
+
+            // Pop from the stack
+            stack_size--;
+
+            count_phase1++;
+
+            double difference = distance[current->location] - distance[gauge->location];
+            //if (-1e-12 < difference && difference < influence_radius)	//!!!! Does this work if the network is disconnected? !!!!
+
+            // If upstream and in influence radius
+            if (difference >= 0. && difference < influence_radius)
+            {
+                //assert(updata->num_upstreams == 0);
+                updata->num_upstreams = 1;
+
+                // This is a source
+                if (current->num_parents == 0)
+                    sources[source_size++] = current;
+                else
+                    //Push the parents links to the queue
+                    for (unsigned int j = 0; j < current->num_parents; j++)
+                        stack[stack_size++] = current->parents[j];
+            }
+            else
+                //Else this is a source (technically a source of the domaine of influence)
+                sources[source_size++] = current;
+        }
+
+        unsigned int count_phase2 = 0;
+
+        // Visit from source to outlet
+        while (source_size > 0)
+        {
+            Link *current = sources[source_size - 1];
+            UpstreamData* updata = (UpstreamData*)current->user;
+
+            // Pop from the source stack
+            source_size--;
+
+            count_phase2++;
+
+            // Increment visit counter of child
+            if (current->child)
+                visits[current->child->location]++;
+
+            //Compute the number of upstreams link
+            unsigned int num_upstreams = updata->num_parents;
+            for (unsigned int l = 0; l < updata->num_parents; l++)
+            {
+                Link *parent = current->parents[l];
+                UpstreamData *parent_updata = (UpstreamData*)parent->user;
+
+                num_upstreams += parent_updata->num_upstreams;
+            }
+
+            updata->num_upstreams = num_upstreams;
+
+            //Reallocate the data
+            if (num_upstreams > 0)
+            {
+                updata->upstreams = (Link**)calloc(num_upstreams, sizeof(Link*));
+                assert(updata->upstreams != NULL);
+
+                //Add each parents' upstreams list
+                unsigned int count = 0;
+                for (unsigned int i = 0; i < current->num_parents; i++)
+                {
+                    Link *parent = current->parents[i];
+                    if (parent->res)
+                        continue;
+
+                    assert(count < updata->num_upstreams);
+                    updata->upstreams[count] = parent;
+                    count++;
+
+                    UpstreamData *parent_updata = ((UpstreamData*)parent->user);
+                    for (unsigned int j = 0; j < parent_updata->num_upstreams; j++)
+                    {
+                        assert(count < updata->num_upstreams);
+                        updata->upstreams[count] = parent_updata->upstreams[j];
+                        count++;
+                    }
+                }
+
+                assert(count == updata->num_upstreams);
+            }
+
+            assert(!(updata->num_upstreams > 0 && updata->upstreams == NULL));
+
+            if (current != gauge && current->child && visits[current->child->location] == current->child->num_parents)
+                sources[source_size++] = current->child;
+        }
+
+        assert(count_phase1 == count_phase2);
+    }
+
+    //Clean up
+    free(stack);
+    free(sources);
+    free(visits);
+    free(distance);
 }
 
 
@@ -866,7 +1267,7 @@ bool InitAssimData(AssimData* assim, const char* assim_filename, AsynchSolver* a
     //if(ReadLineError(valsread,1,"forecast window"))	return NULL;
 
     ReadLineFromTextFile(inputfile, linebuffer, buff_size);
-    valsread = sscanf(linebuffer, "%u", &(assim->least_squares_iters));
+    valsread = sscanf(linebuffer, "%u", &(assim->max_least_squares_iters));
     if (ReadLineError(valsread, 1, "least squares iterations"))	return false;
 
     //Read ending mark
@@ -1119,11 +1520,11 @@ bool ReduceBadDischargeValues(Link* sys, int* assignments, unsigned int N, doubl
 
         //Check how far off each gauge is
         //old_diff = d_full[i] - q[i];
-        old_diff = q[i] - d_full[i];
+        old_diff = fabs(q[i] - d_full[i]);
         for (j = 1; j < num_steps; j++)
         {
             //new_diff = d_full[i+j*num_obs] - q[i+j*num_obs];
-            new_diff = q[i + j*num_obs] - d_full[i + j*num_obs];
+            new_diff = fabs(q[i + j*num_obs] - d_full[i + j*num_obs]);
             if (old_diff < new_diff)	//Getting worse...
                 old_diff = new_diff;
             else

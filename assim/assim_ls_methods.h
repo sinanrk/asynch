@@ -14,7 +14,7 @@
 extern int np;
 extern int my_rank;
 
-typedef struct
+typedef struct UpstreamData
 {
     unsigned int* fit_states;       //Holds the index in each state vector of the ith sensitivity at this link.
     unsigned int* fit_to_universal; //Holds universal index of the ith sensitivity at this link.
@@ -28,15 +28,15 @@ typedef struct
 
 } UpstreamData;
 
-typedef struct
+typedef struct AssimData
 {
     char db_filename[ASYNCH_MAX_PATH_LENGTH];
     ConnData conninfo;	        // Query to get link ids with gauges, query to download gauge readings
-    unsigned int num_obs;       // Number of observation
-    unsigned int* obs_locs;     // Link index in the sys[] vector of the observation
+    unsigned int num_obs;       // Number of observation sites
+    unsigned int* obs_locs;     // Link index in the sys[] vector associtated with the site
     unsigned int num_steps;     // Number of time step to use for the optimization
     double obs_time_step;       // Observation time step
-    unsigned int least_squares_iters;   // Maximum number of LS iterations
+    unsigned int max_least_squares_iters;   // Maximum number of LS iterations
     unsigned int** id_to_assim;
 } AssimData;
 
@@ -46,6 +46,8 @@ unsigned int GaugeDownstream(const AsynchSolver* asynch, const unsigned int* obs
 int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, const double * obs, unsigned int num_obs, unsigned int problem_dim, double* x);
 
 void FindUpstreamLinks(const AsynchSolver* const asynch, AssimData* const assim, unsigned int problem_dim, bool trim, double obs_time_step, unsigned int num_steps, unsigned int* obs_locs, unsigned int num_obs);
+void FindUpstreamLinks2(const AsynchSolver* const asynch, AssimData* const assim, unsigned int problem_dim, bool trim, double obs_time_step, unsigned int num_steps, unsigned int* obs_locs, unsigned int num_obs);
+
 void CleanUpstreamLinks(const AsynchSolver* asynch);
 void FreeUpstreamLinks(const AsynchSolver* asynch);
 
