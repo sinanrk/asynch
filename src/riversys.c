@@ -1408,9 +1408,6 @@ static int Load_Initial_Conditions_H5(Link* system, unsigned int N, int* assignm
             return 1;
         }
 
-        //Assume that every links have the same dimension
-        unsigned int dim = system[0].dim;
-
         //Read model type, init time
         unsigned short type;
         H5LTget_attribute_ushort(file_id, "/", "model", &type);
@@ -1427,8 +1424,9 @@ static int Load_Initial_Conditions_H5(Link* system, unsigned int N, int* assignm
         int *index = malloc(dims[0] * sizeof(unsigned int));
         double *data = malloc(dims[0] * dims[1] * sizeof(double));
 
-        H5LTread_dataset_int(file_id, "/index", index);
-        H5LTread_dataset_double(file_id, "/state", data);
+        herr_t ret;
+        ret = H5LTread_dataset_int(file_id, "/index", index);
+        ret = H5LTread_dataset_double(file_id, "/state", data);
 
         //Read the .h5 file
         for (unsigned int i = 0; i < N; i++)
@@ -1456,7 +1454,7 @@ static int Load_Initial_Conditions_H5(Link* system, unsigned int N, int* assignm
 
             //Read init data
             VEC y_0 = v_get(dim);
-            memcpy(y_0.ve, &data[i * dim], dim * sizeof(double));
+            memcpy(y_0.ve, &data[i * dims[1]], dims[1] * sizeof(double));
 
             //Send data to assigned proc and getting proc
             if (assignments[loc] == my_rank || getting[loc])
@@ -1562,6 +1560,20 @@ int Load_Initial_Conditions(Link* system, unsigned int N, int* assignments, shor
     default:
         printf("Error: invalid intial condition file type.\n");
         res = -1;
+    }
+
+    //TODO Check intial conditions
+    for (unsigned int i = 0; i < N; i++)
+    {
+        if (system[i].list)
+        {
+            VEC y = system[i].list->head->y_approx;
+            if (y.ve[0] < 0.0 || y.ve[1] < 0.0 || y.ve[2] < 0.0 || y.ve[3] < 0.0)
+            {
+                printf("ERROR: Invalid initial conditions");
+                exit(EXIT_FAILURE);
+            }
+        }
     }
 
     return res;

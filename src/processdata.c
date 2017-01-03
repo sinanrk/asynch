@@ -1339,9 +1339,9 @@ int DumpStateH5(Link* sys, unsigned int N, int* assignments, GlobalVars* globals
 
         for (i = 0; i < N; i++)
         {
-            assert(sys[i].dim == dim);
+            assert(sys[i].dim >= dim);
             if (assignments[i] != 0)
-                MPI_Recv(&data[i * dim], sys[i].dim, MPI_DOUBLE, assignments[i], i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(&data[i * dim], dim, MPI_DOUBLE, assignments[i], i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             else
                 memcpy(&data[i * dim], sys[i].list->tail->y_approx.ve, dim * sizeof(double));
 
