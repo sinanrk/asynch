@@ -113,7 +113,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
     unsigned int N = asynch->N, parentsval, leaves_size = 0, i, j, **id_to_loc = asynch->id_to_loc;
     int *assignments = asynch->assignments;
     GlobalVars *globals = asynch->globals;
-    
+
     short int* getting = asynch->getting;
     UpstreamData* updata;
 
@@ -454,11 +454,11 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
 
 
 
-                for (unsigned int i = 0; i < updata->num_parents; i++)
-                {                        
-                    stack[stack_size] = &sys[i];
-                    stack_size++;
-                }
+                    for (unsigned int i = 0; i < updata->num_parents; i++)
+                    {
+                        stack[stack_size] = &sys[i];
+                        stack_size++;
+                    }
             }
 
 
@@ -475,7 +475,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
                 stack[stack_size] = &sys[i];
                 stack_size++;
             }
-        
+
         // Visit from source to outlet
         unsigned int *visits = (unsigned int *)calloc(N, sizeof(unsigned int));
         while (stack_size > 0)
@@ -496,7 +496,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
             {
                 double difference = distance[current->location] - distance[obs_locs[j]];
                 //if (-1e-12 < difference && difference < influence_radius)	//!!!! Does this work if the network is disconnected? !!!!
-                
+
                 // If upstream and in influence radius
                 if (difference >= 0. && difference < influence_radius)
                     //influenced_gauges[num_influenced++] = obs_locs[j];
@@ -539,7 +539,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
                     {
                         free(updata->upstreams);
                         updata->upstreams = NULL;
-                    }                    
+                    }
 
                     //Add each parents' upstreams list
                     unsigned int count = 0;
@@ -612,7 +612,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
         printf("+++++++\n");
         }
         */
-        
+
         //Clean up
         free(stack);
         free(visits);
@@ -636,18 +636,19 @@ void FindUpstreamLinks2(const AsynchSolver * const asynch, AssimData* const assi
     for (i = 0; i < N; i++)
     {
         //Allocate UpstreamData
-        UpstreamData *upstreams = malloc(sizeof(UpstreamData));
-        memset(upstreams, 0, sizeof(UpstreamData));
+        UpstreamData *updata = malloc(sizeof(UpstreamData));
+        memset(updata, 0, sizeof(UpstreamData));
 
         //Copy the vector of parents list
-        upstreams->num_parents = sys[i].num_parents;
-        if (upstreams->num_parents > 0)
+        updata->num_parents = sys[i].num_parents;
+        if (updata->num_parents > 0)
         {
-            upstreams->parents = malloc(upstreams->num_parents * sizeof(Link*));
-            memcpy(upstreams->parents, sys[i].parents, upstreams->num_parents * sizeof(Link*));
+            updata->parents = malloc(updata->num_parents * sizeof(Link*));
+            memcpy(updata->parents, sys[i].parents, updata->num_parents * sizeof(Link*));
         }
 
-        sys[i].user = upstreams;
+        assert(updata != NULL);
+        sys[i].user = updata;
     }
 
     //Remove extra links from the upstreams lists
@@ -739,7 +740,7 @@ void FindUpstreamLinks2(const AsynchSolver * const asynch, AssimData* const assi
         memset(visits, 0, N * sizeof(unsigned int));
 
         stack[stack_size++] = gauge;
-        
+
         unsigned int count_phase1 = 0;
 
         // Visit from gauge to source
@@ -754,10 +755,20 @@ void FindUpstreamLinks2(const AsynchSolver * const asynch, AssimData* const assi
             count_phase1++;
 
             double difference = distance[current->location] - distance[gauge->location];
+            assert(difference >= 0.);
             //if (-1e-12 < difference && difference < influence_radius)	//!!!! Does this work if the network is disconnected? !!!!
 
+            //Check if this link is an upstream gauge
+            bool is_gauge = false;
+            for (unsigned int j = 0; j < num_obs; j++)
+                if ((i != j) && (current->location == obs_locs[j]))
+                {
+                    is_gauge = true;
+                    break;
+                }
+
             // If upstream and in influence radius
-            if (difference >= 0. && difference < influence_radius)
+            if (!is_gauge && (difference < influence_radius))
             {
                 //assert(updata->num_upstreams == 0);
                 updata->num_upstreams = 1;
@@ -1158,44 +1169,44 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
         }
     }
 
-        //Set the discharges downstream from each gauge. This is for locations with no downstream gauges.
-        unsigned int *counter = (unsigned int*)malloc(N * sizeof(unsigned int));
+    //Set the discharges downstream from each gauge. This is for locations with no downstream gauges.
+    unsigned int *counter = (unsigned int*)malloc(N * sizeof(unsigned int));
 
-        //This follows each gauge downstream until a link is found with locs_set or an outlet.
-        //counter is set to help track the closest gauge.
-        for(i=0;i<N;i++)
-            counter[i] = N;
+    //This follows each gauge downstream until a link is found with locs_set or an outlet.
+    //counter is set to help track the closest gauge.
+    for (i = 0; i < N; i++)
+        counter[i] = N;
 
-        for(i=0;i<num_obs;i++)
-        {
+    for (i = 0; i < num_obs; i++)
+    {
         unsigned int loc = obs_locs[i];
         unsigned int prev_loc = loc;
         current = sys[loc].child;
-            counter[loc] = 0;
+        counter[loc] = 0;
 
-            if(current)
-            {
+        if (current)
+        {
             unsigned int curr_loc = current->location;
-                while(!locs_set[curr_loc])
+            while (!locs_set[curr_loc])
+            {
+                if (counter[curr_loc] > counter[prev_loc] + 1)
                 {
-                    if(counter[curr_loc] > counter[prev_loc]+1)
-                    {
-                        counter[curr_loc] = counter[prev_loc]+1;
+                    counter[curr_loc] = counter[prev_loc] + 1;
                     locs_newq[curr_loc] = upareas[curr_loc] * locs_newq[loc] / upareas[loc];
-                        //locs_newq[curr_loc] = current->params->ve[area_idx] * locs_newq[loc] / sys[loc]->params->ve[area_idx];
-                    }
-                    prev_loc = curr_loc;
-                    current = current->child;
-                    if(current)	curr_loc = current->location;
-                    else		break;
+                    //locs_newq[curr_loc] = current->params->ve[area_idx] * locs_newq[loc] / sys[loc]->params->ve[area_idx];
                 }
+                prev_loc = curr_loc;
+                current = current->child;
+                if (current)	curr_loc = current->location;
+                else		break;
             }
         }
+    }
 
-        for(i=0;i<N;i++)
-            if(counter[i] < N)	locs_set[i] = 1;
+    for (i = 0; i < N; i++)
+        if (counter[i] < N)	locs_set[i] = 1;
 
-        free(counter);
+    free(counter);
 
     //Set the determined discharge. If a link's discharge was not determined by the above process, then it lies in a totally ungauged basin.
     for (i = 0; i < N; i++)

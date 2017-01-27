@@ -294,17 +294,26 @@ int Process_Data(Link* sys, GlobalVars* globals, unsigned int N, unsigned int* s
         //Make the .csv header
         if (my_rank == 0)
         {
-            for (i = 0; i < save_size; i++)
-            {
-                fprintf(outputfile, "Link %u", save_list[i]);
-                for (k = 0; k < dim; k++)	fprintf(outputfile, " ,");
-            }
-            fprintf(outputfile, "\n");
+            //for (i = 0; i < save_size; i++)
+            //{
+            //    fprintf(outputfile, "Link %u", save_list[i]);
+            //    for (k = 0; k < dim; k++)	fprintf(outputfile, " ,");
+            //}
+            //fprintf(outputfile, "\n");
 
-            for (i = 0; i < save_size; i++)
+            //for (i = 0; i < save_size; i++)
+            //{
+            //    loc = find_link_by_idtoloc(save_list[i], id_to_loc, N);	//!!!! Ugh... !!!!
+            //    for (k = 0; k < dim; k++)	fprintf(outputfile, "Output_%u,", k);	//!!!! Use names. What if skipping some? !!!!
+            //}
+            //fprintf(outputfile, "\n");
+
+            //fprintf(outputfile, "link_id");
+            for (k = 0; k < dim; k++)	
             {
-                loc = find_link_by_idtoloc(save_list[i], id_to_loc, N);	//!!!! Ugh... !!!!
-                for (k = 0; k < dim; k++)	fprintf(outputfile, "Output_%u,", k);	//!!!! Use names. What if skipping some? !!!!
+                if (k != 0)
+                    fprintf(outputfile, ",");
+                fprintf(outputfile, "output_%u", k);	//!!!! Use names. What if skipping some? !!!!s
             }
             fprintf(outputfile, "\n");
         }
@@ -329,7 +338,9 @@ int Process_Data(Link* sys, GlobalVars* globals, unsigned int N, unsigned int* s
                             for (l = 0; l < dim; l++)
                             {
                                 fread(data_storage, globals->output_sizes[l], 1, inputfile);
-                                WriteValue(outputfile, globals->output_specifiers[l], data_storage, globals->output_types[l], ",");
+                                if (l != 0)
+                                    fprintf(outputfile, ",");
+                                WriteValue(outputfile, globals->output_specifiers[l], data_storage, globals->output_types[l], "");
                             }
                             fgetpos(inputfile, &(positions[i]));
                             (space_counter[i])++;
@@ -339,13 +350,16 @@ int Process_Data(Link* sys, GlobalVars* globals, unsigned int N, unsigned int* s
                             for (l = 0; l < dim; l++)
                             {
                                 MPI_Recv(&data_storage, 16, MPI_CHAR, assignments[loc], save_list[i], MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                                WriteValue(outputfile, globals->output_specifiers[l], data_storage, globals->output_types[l], ",");
+                                if (i)
+                                    fprintf(outputfile, ",");
+                                WriteValue(outputfile, globals->output_specifiers[l], data_storage, globals->output_types[l], "");
                             }
                             (space_counter[i])++;
                         }
                     }
-                }
-                fprintf(outputfile, "\n");
+
+                    fprintf(outputfile, "\n");
+                }                
             }
         }
         else
@@ -1359,17 +1373,20 @@ int DumpStateH5(Link* sys, unsigned int N, int* assignments, GlobalVars* globals
         //Clean up
         H5Fclose(file_id);
     }
-    else			//Sending data to proc 0
+    //Sending data to proc 0
+    else
     {
         //Check for error while opening the file
         MPI_Bcast(&res, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
         if (res)
             return 1;
 
+        unsigned int dim = 4;
+
         for (i = 0; i < N; i++)
         {
             if (assignments[i] == my_rank)
-                MPI_Ssend(sys[i].list->tail->y_approx.ve, sys[i].dim, MPI_DOUBLE, 0, i, MPI_COMM_WORLD);
+                MPI_Ssend(sys[i].list->tail->y_approx.ve, dim, MPI_DOUBLE, 0, i, MPI_COMM_WORLD);
         }
     }
 

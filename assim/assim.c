@@ -4,6 +4,7 @@
 #include <config_msvc.h>
 #endif
 
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -266,7 +267,7 @@ int main(int argc, char* argv[])
 
     print_out("Partitioning network...\n");
     Asynch_Partition_Network(asynch);
-    CleanUpstreamLinks(asynch);
+    //CleanUpstreamLinks(asynch);
     print_out("Loading parameters...\n");
     Asynch_Load_Network_Parameters(asynch, 0);
     print_out("Reading dam and reservoir data...\n");
@@ -343,7 +344,7 @@ int main(int argc, char* argv[])
     //Initialize choices
     //unsigned int num_obs = assim.num_obs, *obs_locs = assim.obs_locs, num_steps = assim.num_steps;
     unsigned int num_total_obs = assim.num_steps * assim.num_obs;
-    double t_b = 0.0, obs_time_step = assim.obs_time_step;
+    double t_b = 0.0;
     double t_f = Asynch_Get_Total_Simulation_Duration(asynch);
     unsigned int allstates = assim_dim * N;
     //double x_b[allstates];
@@ -423,6 +424,7 @@ int main(int argc, char* argv[])
         }
         free(links_needed);
     */
+
 
     //Prep PetSC
     if (my_rank == 0)
@@ -533,7 +535,7 @@ int main(int argc, char* argv[])
     ws.allstates_needed = allstates_needed;
     ws.vareq_shift = vareq_shift;
     ws.inv_vareq_shift = inv_vareq_shift;
-    ws.obs_time_step = obs_time_step;
+    ws.obs_time_step = assim.obs_time_step;
     ws.num_steps = assim.num_steps;
     ws.obs_locs = assim.obs_locs;
     ws.num_obs = assim.num_obs;
@@ -757,9 +759,9 @@ int main(int argc, char* argv[])
             {
                 //TODO Add test for negative discharge
                 analysis[i] = x_start[i] > 1.e-14 ? x_start[i] : 1.e-14;
-                analysis[i] = x_start[i + 1] > 0. ? x_start[i + 1] : 0.;
-                analysis[i] = x_start[i + 2] > 0. ? x_start[i + 2] : 0.;
-                analysis[i] = x_start[i + 3] > 0. ? x_start[i + 3] : 0.;
+                analysis[i + 1] = x_start[i + 1] > 0. ? x_start[i + 1] : 0.;
+                analysis[i + 2] = x_start[i + 2] > 0. ? x_start[i + 2] : 0.;
+                analysis[i + 3] = x_start[i + 3] > 0. ? x_start[i + 3] : 0.;
             }
         }
         if (my_rank == 0)
@@ -896,7 +898,6 @@ int LinearLeastSquares(Workspace* ws, double* q)
     //KSP *ksp = ws->ksp;
     Vec d;
     unsigned int *obs_locs = ws->obs_locs, assim_dim = ws->assim_dim;
-    double obs_time_step = ws->obs_time_step;
     unsigned int problem_dim = ws->problem_dim, allstates = ws->allstates;
     //unsigned int steps_to_use = ws->steps_to_use, num_obs = ws->num_obs;
     int *HM_col_indices = ws->HM_col_indices, *d_indices = ws->d_indices;
@@ -934,6 +935,98 @@ int LinearLeastSquares(Workspace* ws, double* q)
         if (assignments[i] == my_rank || getting[i])
             custom_model->initialize_eqs(globals->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, globals->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
             //ReadInitData(globals->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,globals->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);	//!!!! Very inefficient. Too many checks. !!!!
+
+    ////Initialize the variational equations
+    //unsigned int stack_size = 0;
+    //Link **stack = (Link**)calloc(N, sizeof(Link*));
+    //for (i = 0; i < N; i++)
+    //    if (sys[i].num_parents == 0)
+    //        stack[stack_size++] = &sys[i];
+
+    //// Visit from source to outlet
+    //unsigned int *visits = (unsigned int *)calloc(N, sizeof(unsigned int));
+    //while (stack_size > 0)
+    //{
+    //    Link *current = stack[stack_size - 1];
+    //    UpstreamData* updata = (UpstreamData*)current->user;
+
+    //    // Pop from the stack
+    //    stack_size--;
+
+    //    // Increment visit counter of child
+    //    if (current->child)
+    //        visits[current->child->location]++;
+
+    //    double lambda_1 = globals->global_params.ve[1];
+    //    double k_3 = globals->global_params.ve[4];	//[1/min]
+    //    double h_b = globals->global_params.ve[6];	//[m]
+    //    double S_L = globals->global_params.ve[7];	//[m]
+    //    double A = globals->global_params.ve[8];
+    //    double B = globals->global_params.ve[9];
+    //    double exponent = globals->global_params.ve[10];
+
+    //    double L = current->params.ve[1];	//[m]
+    //    double A_h = current->params.ve[2];	//[m^2]
+    //    double invtau = current->params.ve[3];	//[1/min]
+    //    double k_2 = current->params.ve[4];	//[1/min]
+    //    double k_i = current->params.ve[5];	//[1/min]
+    //    double c_1 = current->params.ve[6];
+    //    double c_2 = current->params.ve[7];
+
+    //    VEC y_0 = current->list->head->y_approx;
+    //    double q = y_0.ve[0];		//[m^3/s]
+    //    double s_p = y_0.ve[1];	//[m]
+    //    double s_t = y_0.ve[2];	//[m]
+    //    double s_s = y_0.ve[3];	//[m]
+
+    //    //unsigned int i;
+    //    unsigned int offset = 4;
+
+    //    y_0.ve[offset] = 1.;  //dq/dq_0
+
+    //    //A few calculations...
+    //    double q_to_lambda_1 = pow(q, lambda_1);
+    //    double q_to_lambda_1_m1 = pow(q, lambda_1 - 1.0);// (q > 1e-12) ? q_to_lambda_1 / q : pow(1e-12, lambda_1 - 1.0);
+
+    //    //Discharge
+    //    double inflow = 0.0;
+    //    for (unsigned int i = 0; i < updata->num_parents; i++)
+    //        inflow += updata->parents[i]->list->head->y_approx.ve[0];
+
+    //    //Compute partial derivatives (local variables)
+    //    double dfq_dq = lambda_1 * invtau * q_to_lambda_1_m1 * (-q + c_2*(k_2*s_p + k_3*s_s) + inflow) - invtau * q_to_lambda_1;
+
+    //    //Compute partial derivatives (upstreams variables)
+    //    double dfq_dupq = invtau*q_to_lambda_1;
+
+    //    //y_0.ve[offset] = dfq_dq * y_0.ve[offset]; //dq/dq_0
+
+    //    unsigned int j = 0, p = 0;
+    //    // For every upstream links
+    //    for (unsigned int i = 0, j = 0; i < updata->num_upstreams; i++, j++)
+    //    {
+    //        unsigned int np = p + 1;
+
+    //        // If switch to next parent
+    //        if (np < updata->num_parents && updata->upstreams[i] == updata->parents[np])
+    //        {
+    //            p++;
+    //            j = 0;
+    //        }
+
+    //        unsigned int current_idx = offset + i + 1;
+    //        unsigned int parent_idx = offset + j;
+    //        VEC y_p = updata->parents[p]->list->head->y_approx;
+
+    //        assert(current_idx < y_0.dim);
+    //        assert(parent_idx < y_p.dim);
+    //        y_0.ve[current_idx] = dfq_dupq * y_p.ve[parent_idx] + dfq_dq * y_0.ve[current_idx]; //q, upq
+    //    }
+
+    //    if (current->child && visits[current->child->location] == current->child->num_parents)
+    //        stack[stack_size++] = current->child;
+    //}
+
     for (i = 0; i < asynch->globals->num_forcings; i++)
     {
         if (asynch->forcings[i].flag == 3)	//!!!! Recurring and binary files need this too !!!!
@@ -946,9 +1039,11 @@ int LinearLeastSquares(Workspace* ws, double* q)
     //Advance the system and extract the HM matrix
     for (i = 0; i < ws->num_steps; i++)	//!!!! Start at i=1? For i = 0, I don't think we need to set anything... !!!!		//HM here holds the values of M that are needed
     {
-        globals->maxtime = t_b + i * obs_time_step;
-        if (i)
+        if (i > 0)
         {
+            // Adjust the end of the simulation
+            globals->maxtime = t_b + i * ws->obs_time_step;
+
             MPI_Barrier(MPI_COMM_WORLD);
             double start = MPI_Wtime();
 
@@ -983,12 +1078,13 @@ int LinearLeastSquares(Workspace* ws, double* q)
                 for (n = 0; n < updata->num_fit_states; n++)
                 {
                     if (verbose)
-                    printf("ID = %u | Loading %e (from %u) into spot %u\n",
-                        current->ID,
-                        current->list->tail->y_approx.ve[updata->fit_states[n]],
-                        updata->fit_states[n],
-                        vareq_shift[updata->fit_to_universal[n]]);
-                    //ASYNCH_SLEEP(1);
+                        printf("ID = %u | Loading %e (from %u) into spot %u\n",
+                            current->ID,
+                            current->list->tail->y_approx.ve[updata->fit_states[n]],
+                            updata->fit_states[n],
+                            vareq_shift[updata->fit_to_universal[n]]);
+
+                    assert(updata->fit_states[n] < current->list->tail->y_approx.dim);
                     HM_buffer[vareq_shift[updata->fit_to_universal[n]]] = current->list->tail->y_approx.ve[updata->fit_states[n]];
                 }
 
@@ -1000,6 +1096,15 @@ int LinearLeastSquares(Workspace* ws, double* q)
             if (my_rank == 0)
             {
                 MPI_Reduce(MPI_IN_PLACE, HM_buffer, allstates_needed, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+#if !defined(NDEBUG)
+                unsigned int k;
+                for (k = 0; k < allstates_needed; k++)
+                    if (HM_buffer[k] != 0.)
+                        break;
+
+                assert(k < allstates_needed);
+#endif
 
                 unsigned int row_idx = i * ws->num_obs + j;
                 MatSetValues(ws->HM, 1, &row_idx, allstates_needed, HM_col_indices, HM_buffer, INSERT_VALUES);
@@ -1019,7 +1124,10 @@ int LinearLeastSquares(Workspace* ws, double* q)
         }
     }
 
+    double stop = MPI_Wtime();
 
+    if (my_rank == 0)
+        printf("Time for advance to time %f: %.0f\n", globals->maxtime, stop - start);
 
 
     /*
@@ -1235,7 +1343,7 @@ int LinearLeastSquares(Workspace* ws, double* q)
     VecDestroy(&d);	//!!!! Blah !!!!
 
     MPI_Barrier(MPI_COMM_WORLD);
-    double stop = MPI_Wtime();
+    stop = MPI_Wtime();
     if (my_rank == 0)	printf("Total time for linear least squares fit: %.0f\n", stop - start);
 
     return 0;
@@ -1302,214 +1410,3 @@ void Print_VECTOR(double* v, unsigned int dim)
         printf("[%d]: %.2e\n", i, v[i]);
     printf(";\n");
 }
-
-
-////Read into memory the times and discharges stored in the DB.
-//double*** DownloadGaugeReadings(unsigned int start_time, unsigned int stop_time, unsigned int** id_to_loc, unsigned int N, unsigned int* numlinks, unsigned int** ids, unsigned int** locs, unsigned int** numsteps)
-//{
-//    unsigned int i, j/*,k*/;
-//    double ***data = NULL;
-//    char query[1028];
-//
-//    if (my_rank == 0)
-//    {
-//        printf("Downloading gauge data...\n");
-//        PGresult *res;
-//
-//        //Hard coding!
-//        //unsigned int outlet = 434478;  //Turkey River above French Hollow
-//        unsigned int outlet = 434514;	//Turkey River at Garber
-//        //unsigned int outlet = 307864;  //Half Squaw Creek
-//        //unsigned int outlet = 292254;	//Squaw Creek at Ames
-//        //ConnData* conninfo = CreateConnData("dbname=model_ifc host=s-iihr51.iihr.uiowa.edu port=5432 user=automated_solver password=C5.pfest0");
-//        ConnData* conninfo = CreateConnData("dbname=arch_usgs host=s-iihr51.iihr.uiowa.edu port=5432 user=automated_solver password=C5.pfest0");
-//        ConnectPGDB(conninfo);
-//
-//        //Get link ids of gauges
-//        //sprintf(query,"WITH subbasin AS (SELECT nodeX.link_id FROM env_master_km AS nodeX, env_master_km AS parentX WHERE (nodeX.left BETWEEN parentX.left AND parentX.right) AND parentX.link_id = %u) \
-//		//  SELECT DISTINCT A.link_id FROM env_pois_adv AS A, subbasin AS B, sensor_data AS C \
-//		//  WHERE A.type = 4 AND C.bridge_id = (A.foreign_id1)::integer AND B.link_id = A.link_id AND B.link_id != 311903 ORDER BY A.link_id;",outlet);
-//        //sprintf(query,"WITH subbasin AS (SELECT nodeX.link_id FROM env_master_km AS nodeX, env_master_km AS parentX WHERE (nodeX.left BETWEEN parentX.left AND parentX.right) AND parentX.link_id = %u) \
-//		//	SELECT DISTINCT A.link_id FROM env_pois_adv AS A, subbasin AS B, sensor_data AS C \
-//		//	WHERE A.type = 4 AND C.bridge_id = (A.foreign_id1)::integer AND B.link_id = A.link_id AND B.link_id != 311903 AND B.link_id != 301218 AND B.link_id != 305680 ORDER BY A.link_id;",outlet);
-//        sprintf(query, "WITH subbasin AS (SELECT nodeX.link_id FROM env_master_km AS nodeX, env_master_km AS parentX WHERE (nodeX.left BETWEEN parentX.left AND parentX.right) AND parentX.link_id = %u) \
-//			SELECT DISTINCT A.link_id FROM env_pois_adv AS A, subbasin AS B, master_usgs_gauges AS C \
-//			WHERE B.link_id = A.link_id AND A.id = C.ifis_id AND A.link_id != 421097 AND A.link_id != 434582 ORDER BY link_id;", outlet);
-//        res = PQexec(conninfo->conn, query);
-//        CheckResError(res, "getting list of bridge sensor link ids");
-//        *numlinks = PQntuples(res);
-//
-//        //Allocate space
-//        *ids = (unsigned int*)malloc(*numlinks * sizeof(unsigned int));
-//        *locs = (unsigned int*)malloc(*numlinks * sizeof(unsigned int));
-//        *numsteps = (unsigned int*)malloc(*numlinks * sizeof(unsigned int));
-//        data = (double***)malloc(*numlinks * sizeof(double**));
-//
-//        //Store the ids
-//        for (i = 0; i < *numlinks; i++)
-//            (*ids)[i] = atoi(PQgetvalue(res, i, 0));
-//
-//        //Download data
-//        for (i = 0; i < *numlinks; i++)
-//        {
-//            //sprintf(query,"SELECT (extract('epoch' FROM date_trunc('minute', C.time2)) - %u)/60 AS unix_time, getdischarges((dist_bottom - measured_dist)*0.0328084::real,A.id)*0.0283168 AS q \
-//			//	FROM env_pois_adv AS A, sensor_data AS C \
-//			//	WHERE A.type = 4 AND C.bridge_id = (A.foreign_id1)::integer AND A.link_id = %u AND to_timestamp(%u) <= C.time2 AND C.time2 <= to_timestamp(%u) \
-//			//	ORDER BY unix_time;",start_time,(*ids)[i],start_time,stop_time);
-//            sprintf(query, "SELECT (unix_timestamp-%u)/60 AS t,discharge*0.0283168 AS q FROM env_pois_adv AS A, master_usgs_gauges AS B \
-//				WHERE A.id = B.ifis_id AND A.link_id = %u AND %u <= B.unix_timestamp AND B.unix_timestamp <= %u ORDER BY t;", start_time, (*ids)[i], start_time, stop_time);
-//            res = PQexec(conninfo->conn, query);
-//            CheckResError(res, "downloading bridge sensor data");
-//            (*numsteps)[i] = PQntuples(res);
-//            data[i] = (double**)malloc((*numsteps)[i] * sizeof(double*));
-//
-//            for (j = 0; j < (*numsteps)[i]; j++)
-//            {
-//                data[i][j] = (double*)malloc(2 * sizeof(double));
-//                data[i][j][0] = atof(PQgetvalue(res, j, 0));
-//                data[i][j][1] = atof(PQgetvalue(res, j, 1));
-//            }
-//        }
-//
-//        //Find locations from ids
-//        for (i = 0; i < *numlinks; i++)
-//            (*locs)[i] = find_link_by_idtoloc((*ids)[i], id_to_loc, N);
-//
-//        //Cleanup
-//        PQclear(res);
-//        DisconnectPGDB(conninfo);
-//        ConnData_Free(conninfo);
-//    }
-//
-//    /*
-//        //Send data to all procs
-//        //!!!! Would be better if only data for links assigned to this proc were available !!!!
-//        //!!!! Only keep data for links here !!!!
-//        MPI_Bcast(numlinks,1,MPI_UNSIGNED,0,MPI_COMM_WORLD);
-//        if(my_rank != 0)
-//        {
-//            *ids = (unsigned int*) malloc(*numlinks*sizeof(unsigned int));
-//            *locs = (unsigned int*) malloc(*numlinks*sizeof(unsigned int));
-//            *numsteps = (unsigned int*) malloc(*numlinks*sizeof(unsigned int));
-//            data = (double***) malloc(*numlinks*sizeof(double**));
-//        }
-//        MPI_Bcast(*ids,*numlinks,MPI_UNSIGNED,0,MPI_COMM_WORLD);
-//        MPI_Bcast(*locs,*numlinks,MPI_UNSIGNED,0,MPI_COMM_WORLD);
-//        MPI_Bcast(*numsteps,*numlinks,MPI_UNSIGNED,0,MPI_COMM_WORLD);
-//
-//        for(i=0;i<*numlinks;i++)
-//        {
-//            if(my_rank != 0)
-//                data[i] = (double**) malloc((*numsteps)[i]*sizeof(double*));
-//            for(j=0;j<(*numsteps)[i];j++)
-//            {
-//                if(my_rank != 0)	data[i][j] = (double*) malloc(2*sizeof(double));
-//                MPI_Bcast(data[i][j],2,MPI_DOUBLE,0,MPI_COMM_WORLD);
-//            }
-//        }
-//    */
-//
-//    MPI_Bcast(numlinks, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-//    if (my_rank != 0)
-//    {
-//        *numsteps = NULL;
-//        *ids = (unsigned int*)malloc(*numlinks * sizeof(unsigned int));
-//        *locs = (unsigned int*)malloc(*numlinks * sizeof(unsigned int));
-//    }
-//    MPI_Bcast(*ids, *numlinks, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-//    MPI_Bcast(*locs, *numlinks, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-//
-//    return data;
-//}
-
-
-
-//int Output_Linkid(double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
-//{
-//    return ((Link*)user)->ID;
-//}
-//
-//void Set_Output_User_LinkID(asynchsolver* asynch)
-//{
-//    unsigned int i, my_N = asynch->my_N, *my_sys = asynch->my_sys;
-//    Link** sys = asynch->sys;
-//
-//    for (i = 0; i<my_N; i++)
-//        sys[my_sys[i]].output_user = (void*)sys[my_sys[i]];
-//}
-//
-//int Output_Timestamp(double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
-//{
-//    CustomParams* forecastparams = (CustomParams*)user;
-//    return (int)(round(t * 60.0 + forecastparams->offset - forecastparams->simulation_time_with_data) + 0.1);
-//}
-
-
-////Custom parameters for forecasting ***********************************************************
-//void Init_Output_User_forecastparams(asynchsolver* asynch)
-//{
-//    unsigned int i, my_N = asynch->my_N, *my_sys = asynch->my_sys;
-//    Link** sys = asynch->sys;
-//
-//    for (i = 0; i < my_N; i++)
-//        sys[my_sys[i]].output_user = malloc(sizeof(CustomParams));
-//}
-//
-//void Free_Output_User_forecastparams(asynchsolver* asynch)
-//{
-//    unsigned int i, my_N = asynch->my_N, *my_sys = asynch->my_sys;
-//    Link** sys = asynch->sys;
-//
-//    for (i = 0; i < my_N; i++)
-//    {
-//        free(sys[my_sys[i]].output_user);
-//        sys[my_sys[i]].output_user = NULL;
-//    }
-//}
-//
-//void Set_Output_User_forecastparams(asynchsolver* asynch, unsigned int offset, unsigned int time_with_data)
-//{
-//    unsigned int i, my_N = asynch->my_N, *my_sys = asynch->my_sys;
-//    Link** sys = asynch->sys;
-//    CustomParams* forecastparams;
-//
-//    for (i = 0; i < my_N; i++)
-//    {
-//        forecastparams = (CustomParams*)sys[my_sys[i]].output_user;
-//        forecastparams->ID = sys[my_sys[i]].ID;
-//        forecastparams->offset = offset;
-//        forecastparams->simulation_time_with_data = time_with_data;
-//    }
-//}
-//
-//void Init_Output_PeakflowUser_Offset(asynchsolver* asynch)
-//{
-//    unsigned int i, my_N = asynch->my_N, *my_sys = asynch->my_sys;
-//    Link** sys = asynch->sys;
-//
-//    for (i = 0; i < my_N; i++)
-//        sys[my_sys[i]].peakoutput_user = malloc(sizeof(unsigned int));
-//}
-//
-//void Free_Output_PeakflowUser_Offset(asynchsolver* asynch)
-//{
-//    unsigned int i, my_N = asynch->my_N, *my_sys = asynch->my_sys;
-//    Link** sys = asynch->sys;
-//
-//    for (i = 0; i < my_N; i++)
-//    {
-//        free(sys[my_sys[i]].peakoutput_user);
-//        sys[my_sys[i]].peakoutput_user = NULL;
-//    }
-//}
-//
-//void Set_Output_PeakflowUser_Offset(asynchsolver* asynch, unsigned int offset)
-//{
-//    unsigned int i, my_N = asynch->my_N, *my_sys = asynch->my_sys;
-//    Link** sys = asynch->sys;
-//
-//    for (i = 0; i < my_N; i++)
-//        *(unsigned int*)(sys[my_sys[i]].peakoutput_user) = offset;
-//}
-//
-

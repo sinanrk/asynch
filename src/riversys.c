@@ -1501,7 +1501,7 @@ static int Load_Initial_Conditions_H5(Link* system, unsigned int N, int* assignm
             if (my_need)
             {
                 unsigned int dim = system[loc].dim;
-
+                
                 if (assignments[loc] == my_rank)
                     MPI_Send(&dim, 1, MPI_UNSIGNED, 0, 1, MPI_COMM_WORLD);
 

@@ -328,6 +328,9 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
 //			printf("%i: Going to next set of forcing data, k is %i/%i\n",my_rank,k,passes-1);
     }
 
+    if (my_rank == 0)
+        printf("\n");
+
     //Cleanup
     free(done);
 }

@@ -49,9 +49,9 @@ void Forcing_Free(Forcing* forcing)
 //!!!! Added maxtime on 02/17/15. I think this is needed for when calls to Asynch_Set_Total_Simulation_Time occur. !!!!
 unsigned int PassesOther(Forcing* forcing,double maxtime,ConnData* conninfo)
 {
-	if(forcing->maxtime < maxtime)	return 2;
-	else				return 1;
-	//return 1;
+	//if(forcing->maxtime < maxtime)	return 2;
+	//else				return 1;
+	return 1;
 }
 
 //For flag = 2,6,8
@@ -68,7 +68,7 @@ unsigned int PassesBinaryFiles(Forcing* forcing,double maxtime,ConnData* conninf
 //For flag = 3
 unsigned int PassesDatabase(Forcing* forcing,double maxtime,ConnData* conninfo)
 {
-	return (unsigned int) ((forcing->last_file - forcing->first_file + 1)/(60.0*forcing->increment*forcing->file_time)) + 1;
+	return max(1, (unsigned int) ((forcing->last_file - forcing->first_file + 1)/(60.0*forcing->increment*forcing->file_time)));
 }
 
 

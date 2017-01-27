@@ -77,19 +77,19 @@
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>
       </PrecompiledHeader>
-      <Optimization>MaxSpeed</Optimization>
+      <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(RootDir);$(RootDir)\src;$(MSMPI_INC);$(MSMPI_INC)\x64;$(RootDir)\third_party\postgresql-8.4.22-1\include;$(RootDir)\third_party\metis-5.1.0\include;$(RootDir)\third_party\petsc-3.7.3\include;$(RootDir)\third_party\petsc-3.7.3\arch-mswin-c-debug\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(RootDir);$(RootDir)\src;$(MSMPI_INC);$(MSMPI_INC)\x64;$(RootDir)\third_party\postgresql-8.4.22-1\include;$(RootDir)\third_party\metis-5.1.0\include;$(RootDir)\third_party\petsc-3.7.3\include;$(RootDir)\third_party\petsc-3.7.3\arch-mswin-c-opt\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(MSMPI_LIB64);$(RootDir)\third_party\zlib-1.2.8;$(RootDir)\third_party\postgresql-9.1.20-1-x64\lib;$(RootDir)\third_party\hdf5-1.8.16-win64\lib;$(RootDir)\third_party\metis-5.1.0\build\libmetis\Release;$(RootDir)\third_party\petsc-3.7.3\arch-mswin-c-debug\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(MSMPI_LIB64);$(RootDir)\third_party\zlib-1.2.8;$(RootDir)\third_party\postgresql-9.1.20-1-x64\lib;$(RootDir)\third_party\hdf5-1.8.16-win64\lib;$(RootDir)\third_party\metis-5.1.0\build\libmetis\Release;$(RootDir)\third_party\petsc-3.7.3\arch-mswin-c-opt\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>msmpi.lib;libpq.lib;libhdf5.lib;libhdf5_hl.lib;libszip.lib;libzlib.lib;metis.lib;libpetsc.lib;libf2cblas.lib;libf2clapack.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LargeAddressAware>true</LargeAddressAware>
     </Link>

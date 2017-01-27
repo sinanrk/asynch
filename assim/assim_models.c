@@ -862,12 +862,12 @@ void InitRoutines_Assim_254_q(Link* link, unsigned int type, unsigned int exp_im
     unsigned int i, problem_dim = 4;	//Number of model eqs
 
     //For q only
-    link->dim = problem_dim + 1;	//Model eqs + variational eqs from this link
-    //    + updata->num_upstreams;
+    link->dim = problem_dim + 1 	//Model eqs + variational eqs from this link
+        + updata->num_upstreams;
     
     //Variational eqs from upstreams
-    for(i=0;i<link->num_parents;i++)
-        link->dim += ((UpstreamData *)updata->parents[i]->user)->num_upstreams;
+    //for(i=0;i<link->num_parents;i++)
+    //    link->dim += ((UpstreamData *)updata->parents[i]->user)->num_upstreams;
     //	link->dim += updata->num_upstreams[i];	//Variational eqs from upstreams
     
     link->no_ini_start = 4;
@@ -909,14 +909,55 @@ void InitRoutines_Model_252(Link* link, unsigned int type, unsigned int exp_imp,
 
 int ReadInitData_Assim_254_q(VEC global_params, VEC params, QVSData* qvs, unsigned short int dam, VEC y_0, unsigned int type, unsigned int diff_start, unsigned int no_init_start, void* user, void* external)
 {
+    //UpstreamData *updata = (UpstreamData*)user;
+
+    //double lambda_1 = global_params.ve[1];
+    //double k_3 = global_params.ve[4];	//[1/min]
+    //double h_b = global_params.ve[6];	//[m]
+    //double S_L = global_params.ve[7];	//[m]
+    //double A = global_params.ve[8];
+    //double B = global_params.ve[9];
+    //double exponent = global_params.ve[10];
+
+    //double L = params.ve[1];	//[m]
+    //double A_h = params.ve[2];	//[m^2]
+    //double invtau = params.ve[3];	//[1/min]
+    //double k_2 = params.ve[4];	//[1/min]
+    //double k_i = params.ve[5];	//[1/min]
+    //double c_1 = params.ve[6];
+    //double c_2 = params.ve[7];
+
+    //double q = y_0.ve[0];		//[m^3/s]
+    //double s_p = y_0.ve[1];	//[m]
+    //double s_t = y_0.ve[2];	//[m]
+    //double s_s = y_0.ve[3];	//[m]
+
     //For this type, all initial conditions for variational equation must be set here.
     unsigned int i;
     unsigned int offset = 4;
 
     y_0.ve[offset++] = 1.0;  //dq/dq_0
 
-    for (i = offset; i < y_0.dim; i++)
-        y_0.ve[i] = 0.0;	//From upstreams
+    ////A few calculations...
+    //double q_to_lambda_1 = pow(q, lambda_1);
+    //double q_to_lambda_1_m1 = (q > 1e-12) ? q_to_lambda_1 / q : pow(1e-12, lambda_1 - 1.0);
+
+    ////Discharge
+    //double inflow = 0.0;
+    //for (unsigned int i = 0; i < updata->num_parents; i++)
+    //    inflow += updata->parents[i]->list->head->y_approx.ve[0];
+
+    ////Compute partial derivatives (local variables)
+    //double dfq_dq = lambda_1 * invtau * q_to_lambda_1_m1 * (-q + c_2*(k_2*s_p + k_3*s_s) + inflow) - invtau * q_to_lambda_1;
+
+    ////Compute partial derivatives (upstreams variables)
+    //double dfq_dupq = invtau*q_to_lambda_1;
+
+    //if (updata->num_upstreams)
+    //    y_0.ve[offset++] = dfq_dupq + dfq_dq;
+
+    for (i = offset ; i < y_0.dim ; i++)
+        y_0.ve[i] = 0.0;
 
     return 0;
 }
@@ -940,8 +981,6 @@ void CheckConsistency_Nonzero_Model252(VEC y, VEC params, VEC global_params)
 //y_i[0] = q, y_i[1] = s, followed by N entries for the variational equation
 void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int num_parents, VEC global_params, double* forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans)
 {
-    unsigned int i;
-
     UpstreamData *updata = (UpstreamData*)user;
 
     double lambda_1 = global_params.ve[1];
@@ -999,7 +1038,7 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
     //Discharge
     double inflow = 0.0;
     ans.ve[0] = -q + (q_pl + q_sl) * c_2;
-    for (i = 0; i < num_parents; i++)
+    for (unsigned int i = 0; i < num_parents; i++)
         inflow += y_p[i].ve[0];
     ans.ve[0] = invtau * q_to_lambda_1 * (inflow + ans.ve[0]);
 
@@ -1008,21 +1047,21 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
     ans.ve[2] = q_pt - q_ts - e_t;
     ans.ve[3] = q_ts - q_sl - e_s;
 
-
     //Init for variational equations
     unsigned int offset = 4, dim = ans.dim, problem_dim = 4;
-    for (i = offset; i < dim; i++)	ans.ve[i] = 0.0;	//!!!! Is this needed? !!!!
+    //for (unsigned int i = offset; i < dim; i++)
+    //    ans.ve[i] = 0.0;	//!!!! Is this needed? !!!!
 
     //Compute partial derivatives (local variables)
     double dfq_dq = lambda_1 * invtau * q_to_lambda_1_m1 * (-q + c_2*(k_2*s_p + k_3*s_s) + inflow) - invtau * q_to_lambda_1;
-    double dfq_dsp = invtau*q_to_lambda_1*c_2*k_2;
-    double dfq_dss = invtau*q_to_lambda_1*c_2*k_3;
-    double dfsp_dsp = -k_2 - k_t;
-    double dfsp_dst = k_2 / S_L*B*exponent*pow_term_m1*s_p;
-    double dfst_dsp = k_t;
-    double dfst_dst = -dfsp_dst - k_i;
-    double dfss_dst = k_i;
-    double dfss_dss = -k_3;
+    //double dfq_dsp = invtau*q_to_lambda_1*c_2*k_2;
+    //double dfq_dss = invtau*q_to_lambda_1*c_2*k_3;
+    //double dfsp_dsp = -k_2 - k_t;
+    //double dfsp_dst = k_2 / S_L*B*exponent*pow_term_m1*s_p;
+    //double dfst_dsp = k_t;
+    //double dfst_dst = -dfsp_dst - k_i;
+    //double dfss_dst = k_i;
+    //double dfss_dss = -k_3;
 
     //Compute partial derivatives (upstreams variables)
     double dfq_dupq = invtau*q_to_lambda_1;
@@ -1033,19 +1072,48 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
     //Discharge variational eqs from parent links
     unsigned int current_idx = offset + 1;
 
-    for (i = 0; i < num_parents; i++)
-    {
-        unsigned int num_upstreams = ((UpstreamData *)updata->parents[i]->user)->num_upstreams;
-        for (unsigned int j = 0; j < num_upstreams; j++)
-        {
-            unsigned int parent_idx = j + offset;
+    //if (updata->num_upstreams)
+    //{
+    //    for (unsigned int i = 0; i < num_parents; i++)
+    //    {
+    //        unsigned int num_upstreams = ((UpstreamData *)updata->parents[i]->user)->num_upstreams;
+    //        ans.ve[current_idx++] = dfq_dupq * y_p[i].ve[offset] + dfq_dq * y_i.ve[current_idx]; //q, upq
 
-            assert(current_idx < ans.dim);
-            assert(parent_idx < y_p[i].dim);
-            assert(current_idx < y_i.dim);
-            ans.ve[current_idx] = dfq_dupq * y_p[i].ve[parent_idx] + dfq_dq * y_i.ve[current_idx]; //q, upq
-            current_idx += 1;
+    //        for (unsigned int j = 0; j < num_upstreams; j++)
+    //        {
+    //            unsigned int parent_idx = j + offset + 1;
+
+    //            assert(current_idx < ans.dim);
+    //            assert(parent_idx < y_p[i].dim);
+    //            assert(current_idx < y_i.dim);
+    //            ans.ve[current_idx++] = dfq_dupq * y_p[i].ve[parent_idx] + dfq_dq * y_i.ve[current_idx]; //q, upq
+    //        }
+    //    }
+
+    //    assert(current_idx == ans.dim);
+    //}
+
+
+    unsigned int j = 0, p = 0;
+    // For every upstream links
+    for (unsigned int i = 0, j = 0; i < updata->num_upstreams; i++, j++)
+    {
+        unsigned int np = p + 1;
+
+        // If switch to next parent
+        if (np < updata->num_parents && updata->upstreams[i] == updata->parents[np])
+        {        
+            p++;
+            j = 0;
         }
+
+        unsigned int current_idx = offset + i + 1;
+        unsigned int parent_idx = offset + j;
+
+        assert(current_idx < ans.dim);
+        assert(parent_idx < y_p[p].dim);
+        assert(current_idx < y_i.dim);
+        ans.ve[current_idx] = dfq_dupq * y_p[p].ve[parent_idx] + dfq_dq * y_i.ve[current_idx]; //q, upq
     }
 }
 
