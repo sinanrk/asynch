@@ -1,5 +1,5 @@
-#if !defined(CONFIG_GBL_H)
-#define CONFIG_GBL_H
+#if !defined(CONFIG_JSON_H)
+#define CONFIG_JSON_H
 
 #if _MSC_VER > 1000
 #pragma once
@@ -18,8 +18,8 @@
 /// \param rkdfilename (set by this method) Will be the filename of the .rkd file, if the error data is not global.
 /// \param model Pointer to a custom model
 /// \return Configuration data read in from the file globalfilename.
-GlobalVars* Read_Config_GBL(
-    const char * const filename,
+GlobalVars* Read_Config_JSON(
+    const char * const globalfilename,
     ErrorData *errors,
     Forcing *forcings,
     ConnData *db_connections,
@@ -28,5 +28,4 @@ GlobalVars* Read_Config_GBL(
     void *external);
 
 
-#endif //CONFIG_GBL_H
-
+#endif //CONFIG_JSON_H

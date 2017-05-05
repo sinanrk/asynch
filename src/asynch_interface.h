@@ -95,7 +95,7 @@ int Asynch_Custom_Partitioning(
 /// \pre asynch should be initialized with Asynch_Init before calling Asynch_Parse_GBL.
 /// \param asynch A pointer to a AsynchSolver object to use.
 /// \param filename  Path of a global file.
-void Asynch_Parse_GBL(AsynchSolver* asynch, char* filename);
+void Asynch_Parse_Config(AsynchSolver* asynch, const char * const filename);
 
 /// This routine processes topology inputs for the AsynchSolver object as set in the global file read
 /// by Asynch_Parse_GBL. This initializes each Link object and sets their parent and child information.

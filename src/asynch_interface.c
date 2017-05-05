@@ -26,6 +26,7 @@
 
 #include <structs.h>
 #include <config_gbl.h>
+#include <config_json.h>
 #include <db.h>
 #include <comm.h>
 #include <riversys.h>
@@ -53,7 +54,7 @@ AsynchSolver* Asynch_Init(MPI_Comm comm)
         memset(res, 0, sizeof(AsynchSolver));
 
         res->comm = comm;
-        if (comm != MPI_COMM_WORLD)	printf("Warning: asynchsolver object my not work fully with in a comm other than MPI_COMM_WORLD.\n");
+        if (comm != MPI_COMM_WORLD)	printf("Warning: AsynchSolver object my not work fully with in a comm other than MPI_COMM_WORLD.\n");
 
         //Initialize MPI stuff
         MPI_Initialized(&init_flag);
@@ -112,11 +113,38 @@ int Asynch_Custom_Partitioning(AsynchSolver* asynch, PartitionFunc *partition)
 
 // Start network setup ******************************************************************************************************
 
-//Reads a .gbl file.
-void Asynch_Parse_GBL(AsynchSolver* asynch, char* filename)
+//Getting file extension in C
+static const char *get_filename_ext(const char *filename) {
+    const char *dot = strrchr(filename, '.');
+    if (!dot || dot == filename) return "";
+    return dot + 1;
+}
+
+/// Reads a .gbl config file.
+void Asynch_Parse_Config(AsynchSolver* asynch, const char * const filename)
+{
+    const char *ext = get_filename_ext(filename);
+    if (strcmp(ext, "json") == 0)
+        asynch->globals = Read_Config_JSON(filename, &(asynch->errors_tol), asynch->forcings, asynch->db_connections, asynch->rkdfilename, asynch->model, asynch->ExternalInterface);
+    else if (strcmp(ext, "gbl") == 0)
+        //Read in .gbl file
+        asynch->globals = Read_Config_GBL(filename, &(asynch->errors_tol), asynch->forcings, asynch->db_connections, asynch->rkdfilename, asynch->model, asynch->ExternalInterface);
+    
+    if (!asynch->globals)
+    {
+        if (my_rank == 0)
+            printf("[%i]: An error occurred reading the config file %s. See above messages for details.\n", my_rank, filename);
+        MPI_Abort(asynch->comm, 1);
+    }
+
+    asynch->setup_gbl = 1;
+}
+
+/// Reads a .json config file.
+void Asynch_Parse_JSON(AsynchSolver* asynch, char* filename)
 {
     //Read in .gbl file
-    asynch->globals = Read_Global_Data(filename, &(asynch->errors_tol), asynch->forcings, asynch->db_connections, asynch->rkdfilename, asynch->model, asynch->ExternalInterface);
+    asynch->globals = Read_Config_GBL(filename, &(asynch->errors_tol), asynch->forcings, asynch->db_connections, asynch->rkdfilename, asynch->model, asynch->ExternalInterface);
     if (!asynch->globals)
     {
         if (my_rank == 0)
@@ -126,6 +154,7 @@ void Asynch_Parse_GBL(AsynchSolver* asynch, char* filename)
 
     asynch->setup_gbl = 1;
 }
+
 
 void Asynch_Load_Network(AsynchSolver* asynch)
 {

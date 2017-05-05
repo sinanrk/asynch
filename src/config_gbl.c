@@ -38,7 +38,7 @@ int AttachParameters(
     unsigned int string_size);
 
 int CheckWinFormat(FILE* file);
-int CheckFilenameExtension(char *filename, char *extension);
+int CheckFilenameExtension(const char * const filename, char *extension);
 
 void ReadLineFromTextFile(FILE* globalfile, char *line_buffer, unsigned int size);
 
@@ -49,8 +49,8 @@ void ReadDBC(char* filename, ConnData* const conninfo);
 int RemoveSuffix(char *filename, const char *suffix);
 
 
-GlobalVars* Read_Global_Data(
-    char *globalfilename,
+GlobalVars* Read_Config_GBL(
+    const char * const filename,
     ErrorData *errors,
     Forcing *forcings,
     ConnData *db_connections,
@@ -75,21 +75,19 @@ GlobalVars* Read_Global_Data(
 
     if (my_rank == 0)
     {
-        globalfile = fopen(globalfilename, "r");
+        globalfile = fopen(filename, "r");
         if (globalfile == NULL)
         {
-            printf("Error: Global file %s was not found.\n", globalfilename);
+            printf("Error: Global file %s was not found.\n", filename);
             return NULL;
         }
 
         if (CheckWinFormat(globalfile))
         {
-            printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", globalfilename);
+            printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", filename);
             return NULL;
         }
     }
-
-    globals->rain_filename = NULL;
 
     //Grab the model uid
     unsigned short uid;
@@ -154,8 +152,10 @@ GlobalVars* Read_Global_Data(
 
     //Grab the output filename info
     ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
-    valsread = sscanf(line_buffer, "%hu", &(globals->print_par_flag));
+    unsigned short buf;
+    valsread = sscanf(line_buffer, "%hu", &buf);
     if (ReadLineError(valsread, 1, "to print filename parameters"))	return NULL;
+    globals->with_output_postfix_param = buf;
 
     //Grab components to print
     ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
@@ -281,7 +281,7 @@ GlobalVars* Read_Global_Data(
     unsigned int got_forcings;
     ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
     valsread = sscanf(line_buffer, "%u", &got_forcings);
-    if (ReadLineError(valsread, 1, "rainfall flag"))	return NULL;
+    if (ReadLineError(valsread, 1, "number of forcings"))	return NULL;
     if (got_forcings < globals->num_forcings && my_rank == 0)
     {
         printf("[%i]: Error: Got %u forcings in the .gbl file. Expected %u for model %u.\n", my_rank, got_forcings, globals->num_forcings, globals->model_uid);
@@ -369,7 +369,7 @@ GlobalVars* Read_Global_Data(
         }
         else
         {
-            printf("[%i]: Error reading %s: Invalid forcing flag %i.\n", my_rank, globalfilename, forcings[i].flag);
+            printf("[%i]: Error reading %s: Invalid forcing flag %i.\n", my_rank, filename, forcings[i].flag);
             return NULL;
         }
     }
@@ -590,7 +590,7 @@ GlobalVars* Read_Global_Data(
     valsread = sscanf(line_buffer, "%s", globals->temp_filename);
     if (ReadLineError(valsread, 1, "scratch work folder"))	return NULL;
 
-    if (globals->print_par_flag)	//!!!! Is this needed? Why bother? !!!!
+    if (globals->with_output_postfix_param)	//!!!! Is this needed? Why bother? !!!!
     {
         if (AttachParameters(globals->temp_filename, ASYNCH_MAX_PATH_LENGTH, globals->global_params, globals->num_global_params, ASYNCH_MAX_PATH_LENGTH))
         {
@@ -704,7 +704,7 @@ GlobalVars* Read_Global_Data(
     sscanf(line_buffer, "%c", &endmark);
     if (endmark != '#')
     {
-        printf("Error: an ending # not seen in %s file. Got %c.\n", globalfilename, endmark);
+        printf("Error: an ending # not seen in %s file. Got %c.\n", filename, endmark);
         return NULL;
     }
 
@@ -904,7 +904,7 @@ void ReadDBC(char *filename, ConnData* const conninfo)
 
 //Checks that the filename ends with the approriate extension.
 //Returns 1 if the extension is correct, 0 if not.
-int CheckFilenameExtension(char *filename, char *extension)
+int CheckFilenameExtension(const char * const filename, char *extension)
 {
     size_t l_filename, l_extension, i;
 

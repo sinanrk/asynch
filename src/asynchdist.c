@@ -30,7 +30,7 @@ int my_rank = 0;
 int np = 0;
 
 //Print to stdout only for process of rank 0
-int print_out(const char* format, ...)
+static int print_out(const char* format, ...)
 {
     int res = 0;
     if (my_rank == 0)
@@ -45,7 +45,7 @@ int print_out(const char* format, ...)
 }
 
 //Print to stderr only for process of rank 0
-int print_err(const char* format, ...)
+static int print_err(const char* format, ...)
 {
     int res = 0;
     if (my_rank == 0)
@@ -135,10 +135,10 @@ int main(int argc, char* argv[])
     if (version || help) exit(EXIT_SUCCESS);
 
     //Parse remaining arguments
-    char *global_filename = optparse_arg(&options);
-    if (global_filename == NULL && my_rank == 0)
+    char *config_filename = optparse_arg(&options);
+    if (config_filename == NULL && my_rank == 0)
     {
-        print_err("Command line parameter required:  A universal variable file (.gbl).\n");
+        print_err("Command line parameter required:  A config file (.gbl/.json).\n");
         exit(EXIT_FAILURE);
     }
 
@@ -174,8 +174,9 @@ int main(int argc, char* argv[])
 
     //Init asynch object and the river network
     AsynchSolver *asynch = Asynch_Init(MPI_COMM_WORLD);
-    print_out("Reading global file...\n");
-    Asynch_Parse_GBL(asynch, global_filename);
+
+    print_out("Reading config file...\n");
+    Asynch_Parse_Config(asynch, config_filename);
     print_out("Loading network...\n");
     Asynch_Load_Network(asynch);
     print_out("Partitioning network...\n");
