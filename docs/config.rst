@@ -3,15 +3,18 @@ Configuration File
 
 Configuration files are used to specify ALL inputs for the solvers. This includes river network topology files, model parameters, initial conditions, forcings, what information is printed to output files, etc...
 
+Although each setting in a configuration file modifies values for the ASYNCH solvers, their exact use can be modified by the user altering the underlying source code. This can be done with calls to routines described in :ref:`C API`.
+
 Global File Format
 ------------------
 
 .. warning::
-  As of version 1.4, the global file format is deprecated and may be removed in future releases. We encourage user to switch to the more robust and versatil :ref:`JSON File Format`.
+  As of version 1.4, the global file format is deprecated and may be removed in future releases. We encourage user to switch to the more robust and versatile :ref:`JSON File Format`.
 
 Global files  (.gbl) are always ASCII files, assumed to be in UNIX format. Global files have a very rigid structure, unlike XML files, and information must be specified in a particular order. **The description of each input of the global files below are given in the order in which they are to be specified in the actual file**. The percent sign ``%`` is used for single line comments As described below, certain inputs are expected to be given within a single line Other than this restriction, white space is ignored Arguments surrounded by ``{ }`` below are mandatory, while those surrounded by the square brackets ``[ ]`` are dependent upon values specified by other parameters.
 
-Although each setting in a global file modifies values for the ASYNCH solvers, their exact use can be modified by the user altering the underlying source code. This can be done with calls to routines described in :ref:`C API`.
+Overview
+~~~~~~~~
 
 Here is a typical global file taken from the examples folder:
 
@@ -492,3 +495,80 @@ This section specifies error tolerances for the numerical integrators. A solver 
 
 JSON File Format
 ----------------
+
+JavaScript Object Notation or JSON (/ˈdʒeɪsən/ jay-sən),[1] is an open-standard format that uses human-readable text to transmit data objects consisting of attribute–value pairs and array data types (or any other serializable value).
+
+Overview
+~~~~~~~~
+
+Here is a typical JSON file taken from the examples folder:
+
+::
+
+  {
+    "model": 190,
+    "begin": "2017-01-01 00:00",
+    "end": 1483336800,
+    "outputs": {
+      "postfix_with_global_params": false,
+      "variables": [
+        "Time",
+        "LinkID",
+        "State0"
+      ],
+      "timeseries": {
+        "filename": "outputs.h5",
+        "locations": "hydrographs.sav",
+        "interval": 60
+      },
+      "peaks": {
+        "filename": "peaks.pea",
+        "locations": "peaks.sav",
+        "function": "Classic"
+      }
+    },
+    "global_params": [ 0.33, 0.20, -0.1, 0.33, 0.1, 2.2917e-5 ],
+    "buffers": {
+      "num_step": 30,
+      "num_transfer": 10,
+      "num_discont": 30
+    },
+    "topology": "test.rvr",
+    "local_params": "test.prm",
+    "initial_state": "test.uini",
+    "forcings": [
+      "test.str",
+      {
+        "filename": "evap.mon",
+        "begin": 1398902400,
+        "end": 1588291200
+      }
+    ],
+    "solver": {
+      "id": 2,
+      "facmin": 0.1,
+      "facmax": 10.0,
+      "fac": 0.9,
+      "tolerances": [
+        [ 1e-3, 1e-3, 1e-3 ],
+        [ 1e-6, 1e-6, 1e-6 ],
+        [ 1e-3, 1e-3, 1e-3 ],
+        [ 1e-6, 1e-6, 1e-6 ]
+      ]
+    }
+  }
+
+Top-level properties
+~~~~~~~~~~~~~~~~~~~~
+
++----------+--------------------+----------+-----------+---------------------------------------------------------+
+| Property |  Type              |  Default |  Optional |  Description                                            |
++==========+====================+==========+===========+=========================================================+
+| model    |  Integer           |  None    |  False    |  Model Unique Identifier                                |
++----------+--------------------+----------+-----------+---------------------------------------------------------+
+| begin    |  Integer or String |  None    |  False    |  The begin datetime is given in YYYY-MM-DD HH:MM format |
+|          |                    |          |           |  using the UTC timezone or in unix_time_ format.        |
++----------+--------------------+----------+-----------+---------------------------------------------------------+
+| end      |  Integer or String |  None    |  False    | The end datetime is given in YYYY-MM-DD HH:MM format    |
+|          |                    |          |           | using the UTC timezone or in unix_time_ format.         |
++----------+--------------------+----------+-----------+---------------------------------------------------------+
