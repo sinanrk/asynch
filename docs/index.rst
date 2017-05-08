@@ -34,6 +34,7 @@ The main documentation for Asynch is organized into a couple of sections:
 
   terminology
   getting_started
+  config
   input_output
   builtin_options
   builtin_models
