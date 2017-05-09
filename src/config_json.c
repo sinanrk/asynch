@@ -195,10 +195,10 @@ GlobalVars* Read_Config_JSON(
         if (v && cson_value_is_bool(v))
             globals->with_output_postfix_param = cson_value_get_bool(v);
 
-        cson_value *variables = cson_object_get(obj, "variables");
-        if (cson_value_is_array(variables))
+        cson_value *functions = cson_object_get(obj, "functions");
+        if (cson_value_is_array(functions))
         {
-            cson_array *ar = cson_value_get_array(variables);
+            cson_array *ar = cson_value_get_array(functions);
             assert(ar != NULL);
 
             globals->num_outputs = cson_array_length_get(ar);
@@ -215,7 +215,7 @@ GlobalVars* Read_Config_JSON(
         }
         else
         {
-            print_err("Error: Invalid outputs.variables (expected array)");
+            print_err("Error: Invalid outputs.functions (expected array)");
             return NULL;
         }
 

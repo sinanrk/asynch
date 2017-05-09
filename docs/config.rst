@@ -134,9 +134,7 @@ Format:
   {begin datetime}
   {end datetime}
 
-The begin and end datetimes are given in ``YYYY-MM-DD HH:MM`` format using the UTC timezone or in unix_time_ format.
-
-.. _unix_time: https://en.wikipedia.org/wiki/Unix_time
+The begin and end datetimes are given in ``YYYY-MM-DD HH:MM`` format using the UTC timezone or in `Unix Time`_ format.
 
 Parameters on Filenames
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -496,22 +494,21 @@ This section specifies error tolerances for the numerical integrators. A solver 
 JSON File Format
 ----------------
 
-JavaScript Object Notation or JSON (/ˈdʒeɪsən/ jay-sən),[1] is an open-standard format that uses human-readable text to transmit data objects consisting of attribute–value pairs and array data types (or any other serializable value).
+JavaScript Object Notation or JSON is an open-standard format that uses human-readable text to transmit data objects consisting of attribute–value pairs and array data types (or any other serializable value).
 
 Overview
 ~~~~~~~~
 
-Here is a typical JSON file taken from the examples folder:
+Here is a typical JSON file for the :ref:`Constant Runoff Hydrological Model` taken from the examples folder:
 
-::
+.. code-block:: javascript
 
   {
-    "model": 190,
-    "begin": "2017-01-01 00:00",
-    "end": 1483336800,
+    "model": 190,                 //Model UID
+    "begin": "2017-01-01 00:00",  //Can be either YYYY-MM-DD HH:MM
+    "end": 1483336800,            //or Unix Time
     "outputs": {
-      "postfix_with_global_params": false,
-      "variables": [
+      "functions": [
         "Time",
         "LinkID",
         "State0"
@@ -525,14 +522,10 @@ Here is a typical JSON file taken from the examples folder:
         "filename": "peaks.pea",
         "locations": "peaks.sav",
         "function": "Classic"
-      }
+      },
+      "postfix": false,
     },
     "global_params": [ 0.33, 0.20, -0.1, 0.33, 0.1, 2.2917e-5 ],
-    "buffers": {
-      "num_step": 30,
-      "num_transfer": 10,
-      "num_discont": 30
-    },
     "topology": "test.rvr",
     "local_params": "test.prm",
     "initial_state": "test.uini",
@@ -545,30 +538,204 @@ Here is a typical JSON file taken from the examples folder:
       }
     ],
     "solver": {
-      "id": 2,
-      "facmin": 0.1,
-      "facmax": 10.0,
-      "fac": 0.9,
+      "method": 2,
+        "error_ctl" {
+        "facmin": 0.1,
+        "facmax": 10.0,
+        "fac": 0.9
+      },
       "tolerances": [
-        [ 1e-3, 1e-3, 1e-3 ],
-        [ 1e-6, 1e-6, 1e-6 ],
-        [ 1e-3, 1e-3, 1e-3 ],
-        [ 1e-6, 1e-6, 1e-6 ]
-      ]
+        [ 1e-3, 1e-6, 1e-3, 1e-6 ],
+        [ 1e-3, 1e-6, 1e-3, 1e-6 ],
+        [ 1e-3, 1e-6, 1e-3, 1e-6 ]
+      ],
+      "buffers": {
+        "num_step": 30,
+        "num_transfer": 10,
+        "num_discont": 30
+      }
     }
   }
+
+.. note::  Comments are not allowed by the `JSON standard <http://www.json.org>`_.
 
 Top-level properties
 ~~~~~~~~~~~~~~~~~~~~
 
-+----------+--------------------+----------+-----------+---------------------------------------------------------+
-| Property |  Type              |  Default |  Optional |  Description                                            |
-+==========+====================+==========+===========+=========================================================+
-| model    |  Integer           |  None    |  False    |  Model Unique Identifier                                |
-+----------+--------------------+----------+-----------+---------------------------------------------------------+
-| begin    |  Integer or String |  None    |  False    |  The begin datetime is given in YYYY-MM-DD HH:MM format |
-|          |                    |          |           |  using the UTC timezone or in unix_time_ format.        |
-+----------+--------------------+----------+-----------+---------------------------------------------------------+
-| end      |  Integer or String |  None    |  False    | The end datetime is given in YYYY-MM-DD HH:MM format    |
-|          |                    |          |           | using the UTC timezone or in unix_time_ format.         |
-+----------+--------------------+----------+-----------+---------------------------------------------------------+
+Properties are required unless otherwise designated.
+
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| Property      | Type                                          | Required? | Description                                                                                                      |
++===============+===============================================+===========+==================================================================================================================+
+| model         | Integer                                       | Yes       | Model Unique Identifier                                                                                          |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| begin         | Integer or String                             | Yes       | The begin datetime is given in YYYY-MM-DD HH:MM format using the UTC timezone or in `Unix Time`_ format.         |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| end           | Integer or String                             | Yes       | The end datetime is given in YYYY-MM-DD HH:MM format using the UTC timezone or in `Unix Time`_ format.           |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| outputs       | :ref:`Object <Output properties>`             | No        | The outputs configuration. If omitted, no output is generated.                                                   |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| global_params | Array                                         | Yes       | The global parameters.                                                                                           |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| topology      | String                                        | Yes       | Path of the the river network topology file (.rvr or .dbc).                                                      |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| local_params  | String                                        | Yes       | Path of the local parameters file (.prm or .dbc).                                                                |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| initial_state | String                                        | Yes       | Path of the initial state of the system file (.ini, .uini, .rec, .dbc or .h5).                                   |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| forcings      | :ref:`Array <Forcing properties>`             | No        | The forcings configuration. If omitted, the model runs without forcing.                                          |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| snaphosts     | String or :ref:`Object <Snapshot properties>` | No        | Path of the snapshots file (.rec, .dbc or .h5) or snapshots configuration. If omitted, no snapshot is generated. |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+| solver        | :ref:`Object <Solver properties>`             | No        | The solver configuration. If omitted, the :ref:`Default <Solver properties>` configuration is used.              |
++---------------+-----------------------------------------------+-----------+------------------------------------------------------------------------------------------------------------------+
+
+
+Output properties
+~~~~~~~~~~~~~~~~~
+
++------------+--------------------------------------+-----------+-----------+---------------------------------------------------------------------------+
+| Property   | Type                                 | Required? | Default   | Description                                                               |
++============+======================================+===========+===========+===========================================================================+
+| functions  | Array                                | Yes       | None      | The names of all outputs from the solvers.                                |
++------------+--------------------------------------+-----------+-----------+---------------------------------------------------------------------------+
+| timeseries | :ref:`Object <Timeserie properties>` | No        | None      | The timeserie configuration. If omitted no timeserie output is generated. |
++------------+--------------------------------------+-----------+-----------+---------------------------------------------------------------------------+
+| peaks      | :ref:`Object <Peak properties>`      | No        | None      | The peak configuration. If omitted no peak outut is generated.            |
++------------+--------------------------------------+-----------+-----------+---------------------------------------------------------------------------+
+| postfix    | Boolean                              | No        | ``false`` | Postfix output filenames with the global parameters.                      |
++------------+--------------------------------------+-----------+-----------+---------------------------------------------------------------------------+
+
+Timeserie properties
+^^^^^^^^^^^^^^^^^^^^
+
++-----------+---------+-----------+-----------------------------------------------------------------------------------+
+| Property  | Type    | Required? | Description                                                                       |
++===========+=========+===========+===================================================================================+
+| filename  | String  | Yes       | The path of the timeserie output file.                                            |
++-----------+---------+-----------+-----------------------------------------------------------------------------------+
+| locations | String  | No        | The path of the list of link ids to save file. If omitted, every links are saved. |
++-----------+---------+-----------+-----------------------------------------------------------------------------------+
+| interval  | Integer | Yes       | The interval between two consecutive outputs.                                     |
++-----------+---------+-----------+-----------------------------------------------------------------------------------+
+
+Peak properties
+^^^^^^^^^^^^^^^
+
++-----------+---------+-----------+-------------+-----------------------------------------------------------------------------------+
+| Property  | Type    | Required? | Default     | Description                                                                       |
++===========+=========+===========+=============+===================================================================================+
+| filename  | String  | Yes       | None        | The path of the peak output file.                                                 |
++-----------+---------+-----------+-------------+-----------------------------------------------------------------------------------+
+| locations | String  | Yes       | None        | The path of the list of link ids to save file. If omitted, every links are saved. |
++-----------+---------+-----------+-------------+-----------------------------------------------------------------------------------+
+| function  | String  | No        | ``Classic`` |  The peakflow function name (see `Built-In Peakflow Functions`_)                  |
++-----------+---------+-----------+-------------+-----------------------------------------------------------------------------------+
+
+Forcing properties
+~~~~~~~~~~~~~~~~~~
+
++------------+---------+-----------+---------+------------------------------------------------------+
+| Property   | Type    | Required? | Default | Description                                          |
++============+=========+===========+=========+======================================================+
+| filename   | String  | Yes       | None    |                                                      |
++------------+---------+-----------+---------+------------------------------------------------------+
+| chunk_size | Integer | Yes       | ``10``  | The number of forcing values kept in memory at once. |
++------------+---------+-----------+---------+------------------------------------------------------+
+| time_step  | Number  | Yes       | None    | The time resolution.                                 |
++------------+---------+-----------+---------+------------------------------------------------------+
+
+Snapshot properties
+~~~~~~~~~~~~~~~~~~~
+
++----------+--------+-------------------------------------------------+
+| Property | Type   | Description                                     |
++==========+========+=================================================+
+| filename | String | The path of the snapshot file (.h5).            |
++----------+--------+-------------------------------------------------+
+| interval | Number | The interval between two consecutive snapshots. |
++----------+--------+-------------------------------------------------+
+
+Solver properties
+~~~~~~~~~~~~~~~~~
+
+The default configuration is:
+
+.. code-block:: javascript
+
+  {
+    "method": 2,
+    "error_ctl": {
+      "facmin": 0.1,
+      "facmax": 10.0,
+      "fac": 0.9
+    },
+    "tolerances": [
+      [ 1e-3, 1e-6, 1e-3, 1e-6 ],
+      ...
+    ],
+    "buffers": {
+      "num_step": 30,
+      "num_transfer": 10,
+      "num_discont": 30
+    }
+  }
+
+All properties are optionals and have default values.
+
++----------------+------------------------------------------+----------------------------------------------+--------------------------------------------------------------------------------+
+| Property       | Type                                     | Default                                      | Description                                                                    |
++================+==========================================+==============================================+================================================================================+
+| method         | Integer                                  | ``2``                                        | A Runge-Kutta method (see :ref:`Built-In Runge-Kutta Methods`).                |
++----------------+------------------------------------------+----------------------------------------------+--------------------------------------------------------------------------------+
+| error_ctl      | :ref:`Object <Error Control properties>` | :ref:`Default <Error Control properties>`    | Parameters related to the error control strategy of the numerical integrators. |
++----------------+------------------------------------------+----------------------------------------------+--------------------------------------------------------------------------------+
+| tolerances     | :ref:`Array <Error Tolerance array>`     | :ref:`Default <Error Tolerance array>`       | Error tolerances for the numerical integrators for every state variable.       |
++----------------+------------------------------------------+----------------------------------------------+--------------------------------------------------------------------------------+
+| buffers        | :ref:`Object <Buffer properties>`        | :ref:`Default <Buffer properties>`           | The sizes of internal buffers.                                                 |
++----------------+------------------------------------------+----------------------------------------------+--------------------------------------------------------------------------------+
+| scratch_folder | String                                   | ``/tmp/``                                    | The location of temporary files.                                               |
++----------------+------------------------------------------+----------------------------------------------+--------------------------------------------------------------------------------+
+
+Error Control properties
+^^^^^^^^^^^^^^^^^^^^^^^^
+
++----------+--------+----------+---------------------------------------------------------------------------------------------------+
+| Property | Type   | Default  | Description                                                                                       |
++==========+========+==========+===================================================================================================+
+| facmin   | Number | ``0.1``  | The largest allowed decrease in the stepsize of the integrators as a percent of the current step. |
++----------+--------+----------+---------------------------------------------------------------------------------------------------+
+| facmax   | Number | ``10.0`` | The largest allowed increase in the stepsize of the integrators as a percent of the current step. |
++----------+--------+----------+---------------------------------------------------------------------------------------------------+
+| fac      | Number | ``0.9``  | The safety factor of the integrators.                                                             |
++----------+--------+----------+---------------------------------------------------------------------------------------------------+
+
+Error Tolerance array
+^^^^^^^^^^^^^^^^^^^^^
+
++-------+--------+----------+-------------------------------------------------------+
+| Index | Type   | Default  | Description                                           |
++=======+========+==========+=======================================================+
+| [0]   | Number | ``1e-3`` | The absolute error tolerance used for RK methods.     |
++-------+--------+----------+-------------------------------------------------------+
+| [1]   | Number | ``1e-6`` | The relative error tolerance used for RK methods.     |
++-------+--------+----------+-------------------------------------------------------+
+| [2]   | Number | ``1e-3`` | The absolute tolerances used by dense output methods. |
++-------+--------+----------+-------------------------------------------------------+
+| [3]   | Number | ``1e-6`` | The relative tolerances used by dense output methods. |
++-------+--------+----------+-------------------------------------------------------+
+
+Buffer properties
+^^^^^^^^^^^^^^^^^
+
++--------------+---------+---------+----------------------------------------------------+
+| Property     | Type    | Default | Description                                        |
++==============+=========+=========+====================================================+
+| num_step     | Integer | ``30``  | Number of dense outputs steps stored at each link. |
++--------------+---------+---------+----------------------------------------------------+
+| num_transfer | Integer | ``10``  | Number of dense outputs transferred at once.       |
++--------------+---------+---------+----------------------------------------------------+
+| num_discont  | Integer | ``30``  | Number of discontinuity buffers at each link.      |
++--------------+---------+---------+----------------------------------------------------+
+
+.. _`Unix Time`: https://en.wikipedia.org/wiki/Unix_time
