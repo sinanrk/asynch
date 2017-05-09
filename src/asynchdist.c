@@ -86,6 +86,7 @@ int main(int argc, char* argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &np);
 
     //Command line options
+    bool check_only = false;
     bool stdout_nobuf = false;
     bool debug = false;    
     bool help = false;
@@ -95,8 +96,9 @@ int main(int argc, char* argv[])
     struct optparse options;
     optparse_init(&options, argv);
     struct optparse_long longopts[] = {
-        { "stdout-nobuf", 'b', OPTPARSE_NONE },
-        { "debug", 'd', OPTPARSE_NONE },        
+        { "nobuf", 'b', OPTPARSE_NONE },
+        { "debug", 'd', OPTPARSE_NONE },
+        { "check", 'c', OPTPARSE_NONE },
         { "help", 'h', OPTPARSE_NONE },
         { "version", 'v', OPTPARSE_NONE },
         { 0 }
@@ -106,6 +108,9 @@ int main(int argc, char* argv[])
         switch (option) {
         case 'b':
             stdout_nobuf = true;
+            break;
+        case 'c':
+            check_only = true;
             break;
         case 'd':
             debug = true;
@@ -127,8 +132,10 @@ int main(int argc, char* argv[])
     {
         print_out("Usage: asynch <global file>\n", PACKAGE_STRING);
         print_out(
-            "  -d [--debug]   : Wait for the user input at the begining of the program (useful" \
-            "                   for attaching a debugger)\n" \
+            "  -b [--nobuf]   : Disable stdout buffering" \
+            "  -c [--check]   : Read and check the configuration only" \
+            "  -d [--debug]   : Wait for the user input at the begining of the program" \
+            "                   (useful for attaching a debugger)\n" \
             "  -v [--version] : Print the current version of ASYNCH\n");
         exit(EXIT_SUCCESS);
     }
@@ -201,6 +208,12 @@ int main(int argc, char* argv[])
     Asynch_Calculate_Step_Sizes(asynch);
 
     print_out("\nModel type is %u.\n", Asynch_Get_Model_Type(asynch));
+
+    if (check_only)
+    {
+        print_out("Everything looks good.\n");
+        exit(EXIT_SUCCESS);
+    }
 
     //Prepare output files
     Asynch_Prepare_Temp_Files(asynch);
