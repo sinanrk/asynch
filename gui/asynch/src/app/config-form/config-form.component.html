@@ -1,0 +1,215 @@
+<!--<form #configForm="ngForm">-->
+<div fxLayout="row" fxLayout.xs="column" fxLayout.sm="column" fxLayoutGap="10px">
+  <div fxFlex>
+    <md-card>
+      <md-card-content fxLayout="row">
+        <md-select placeholder="Model" [(ngModel)]="config.model" (change)="onModelChange(config.model)" name="model" required fxFlex>
+          <md-option *ngFor="let model of models" [value]="model.uid">[{{ model.uid }}] {{ model.name }}</md-option>
+        </md-select>
+      </md-card-content>
+    </md-card>
+
+    <div *ngIf="selectedModel">
+      <md-card>
+        <md-card-title>Model</md-card-title>
+        <md-card-subtitle>The main parameters of the model.</md-card-subtitle>
+        <md-card-content>
+          <form #simForm="ngForm">
+            <fieldset>
+              <legend>Topology</legend>
+              <p class="caption">Path of the the river network topology file (.rvr or .dbc).</p>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+                <md-input-container fxFlex>
+                  <input mdInput type="text" [(ngModel)]="config.topology" #topology="ngModel" placeholder="Topology file" name="topology" fileExt="rvr,dbc" required>
+                  <md-error *ngIf="topology.errors?.fileExt && topology.dirty">Invalid file extension (expected .rvr or .dbc)</md-error>
+                </md-input-container>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Global Params</legend>
+              <p class="caption">Model parameters which are constant in space and time.</p>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px" fxLayoutWrap>
+                <md-input-container *ngFor="let param of selectedModel.globalParams" fxFlex>
+                  <input mdInput type="number" [placeholder]="param" [name]="'param_' + $index" required>
+                </md-input-container>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Local parameters</legend>
+              <p class="caption">Path of the local parameters file (.prm or .dbc).</p>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+                <md-input-container fxFlex>
+                  <input mdInput type="text" [(ngModel)]="config.local_params" #localParams="ngModel" placeholder="Local parameters file" name="local_params" fileExt="prm,dbc" required>
+                  <md-error *ngIf="localParams.errors?.fileExt && (localParams.dirty || localParams.touched)">Invalid file extension (expected .prm or .dbc)</md-error>
+                </md-input-container>
+              </div>
+            </fieldset>
+          </form>
+        </md-card-content>
+      </md-card>
+
+      <!--    <p *ngIf="selectedModel">Form valid: {{ simForm.valid }}</p>-->
+
+      <md-card *ngIf="selectedModel">
+        <md-card-title>Forcings</md-card-title>
+        <md-card-subtitle>The forcings configuration.</md-card-subtitle>
+        <md-card-content>
+          <fieldset>
+            <div *ngFor="let forcing of selectedModel.forcings">
+              <legend>{{forcing}}</legend>
+              <p class="caption">{{forcing}}</p>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+                <md-input-container fxFlex>
+                  <input mdInput type="text" [(ngModel)]="config.forcings[$index]" [placeholder]="forcing + ' file'" [name]="'forcing_' + $index" required>
+                </md-input-container>
+              </div>
+            </div>
+          </fieldset>
+          <p *ngIf="selectedModel">Form valid: {{ simForm.valid }}</p>
+        </md-card-content>
+      </md-card>
+
+      <md-card *ngIf="selectedModel">
+        <md-card-title>Outputs</md-card-title>
+        <md-card-subtitle>Timseries, peak and snapshots configuration.</md-card-subtitle>
+        <md-card-content>
+          <fieldset>
+            <legend>Outputs</legend>
+            <p class="caption">Model parameters which are constant in space and time.</p>
+            <md-input-container fxFlex>
+              <input mdInput type="text" [(ngModel)]="config.output" placeholder="Snapshots file" name="snaphosts">
+            </md-input-container>
+          </fieldset>
+          <fieldset>
+            <legend>Snapshots</legend>
+            <p class="caption">Path of the snapshots file (.rec, .dbc or .h5).</p>
+            <md-input-container fxFlex>
+              <input mdInput type="text" [(ngModel)]="config.snaphosts" #snaphosts="ngModel" placeholder="Snapshots file" name="snaphosts" fileExt="rec,dbc,h5">
+              <md-error *ngIf="snaphosts.errors?.fileExt && (snaphosts.dirty || snaphosts.touched)">Invalid file extension (expected .rec, .dbc or .h5)</md-error>
+            </md-input-container>
+          </fieldset>
+        </md-card-content>
+      </md-card>
+
+      <md-card>
+        <md-card-title>Simulation</md-card-title>
+        <md-card-subtitle>The main parameters of the simulation.</md-card-subtitle>
+        <md-card-content>
+          <form #simForm="ngForm">
+            <fieldset>
+              <legend>Simulation period</legend>
+              <p class="caption">The begin and end datetimes of the simulation.</p>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+                <md-input-container fxFlex>
+                  <!--            <i mdPrefix class="material-icons">today</i>-->
+                  <input mdInput type="date" [(ngModel)]="config.begin" placeholder="Begin" name="begin" required>
+                </md-input-container>
+                <md-input-container fxFlex>
+                  <!--            <i mdPrefix class="material-icons">today</i>-->
+                  <input mdInput type="date" [(ngModel)]="config.end" placeholder="End" name="end" required>
+                </md-input-container>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Initial state</legend>
+              <p class="caption">Path of the initial state of the system file (.ini, .uini, .rec, .dbc or .h5).</p>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+                <md-input-container fxFlex>
+                  <input mdInput type="text" [(ngModel)]="config.initial_state" placeholder="Initial state file" name="initial_state" required>
+                </md-input-container>
+              </div>
+            </fieldset>
+          </form>
+        </md-card-content>
+      </md-card>
+
+      <md-card>
+        <md-card-title>Solver</md-card-title>
+        <md-card-subtitle>Advanced setting of the solver that affect performance or precision of the results.</md-card-subtitle>
+        <md-card-content>
+
+          <md-checkbox #solverDefault [checked]="!config.solver" (change)="useDefaultSolverConfig(solverDefault.checked)">Use Default Configuration</md-checkbox>
+
+          <div *ngIf="!solverDefault.checked">
+            <fieldset>
+              <legend>Buffers</legend>
+              <p class="caption">The sizes of internal buffers. In general, as these numbers are increased, the solvers run faster, but more memory is required.</p>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.buffers.num_step" placeholder="Number of steps stored" name="num_step">
+                  <md-hint></md-hint>
+                </md-input-container>
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.buffers.num_transfer" placeholder="Number of steps transferred" name="num_transfer">
+                </md-input-container>
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.buffers.num_discont" placeholder="Number of discontinuity buffer" name="num_discont">
+                </md-input-container>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Error Control</legend>
+              <p class="caption">Parameters related to the error control strategy of the numerical integrators.</p>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.error_ctl.facmin" placeholder="Allowed decrease in the stepsize" name="facmin">
+                  <md-hint></md-hint>
+                </md-input-container>
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.error_ctl.facmax" placeholder="Allowed increase in the stepsize" name="facmax">
+                </md-input-container>
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.error_ctl.fac" placeholder="Safety factor" name="fac">
+                </md-input-container>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Error Tolerance</legend>
+              <p class="caption">Parameters related to the error control strategy of the numerical integrators.</p>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.tolerances[0]" placeholder="RK Absolute error tolerance" name="rk_abs_error_tol">
+                  <md-hint></md-hint>
+                </md-input-container>
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.tolerances[1]" placeholder="RK Relative error tolerance" name="rk_rel_error_tol">
+                </md-input-container>
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.tolerances[2]" placeholder="Dense Absolute error tolerance" name="dense_abs_error_tol">
+                </md-input-container>
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.solver.tolerances[4]" placeholder="Dense Relative error tolerance" name="dense_rel_error_tol">
+                </md-input-container>
+              </div>
+            </fieldset>
+          </div>
+          <fieldset>
+            <legend>Scratch Folder</legend>
+            <p class="caption">The location of temporary files.</p>
+            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+              <md-input-container>
+                <input mdInput type="text" [(ngModel)]="config.scratch_folder" placeholder="Path to the scratch folder" name="scratch_folder" required>
+              </md-input-container>
+            </div>
+          </fieldset>
+
+        </md-card-content>
+      </md-card>
+    </div>
+  </div>
+
+  <div fxFlex>
+    <md-card>
+      <md-card-title>JSON Configuration</md-card-title>
+      <md-card-subtitle>Advanced setting of the solver that affect performance or precision of the results.</md-card-subtitle>
+      <md-card-content>
+        <pre #configJSON>{{config | json}}</pre>
+      </md-card-content>
+      <md-card-actions>
+        <span fxFlex></span>
+        <button md-button color="accent" (click)="copyToClipboard(configJSON)">COPY JSON</button>
+      </md-card-actions>
+    </md-card>
+  </div>
+</div>
+<!--</form>-->

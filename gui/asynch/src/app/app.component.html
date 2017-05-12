@@ -1,0 +1,26 @@
+<md-toolbar color="primary" class="mat-elevation-z6">
+  <button class="app-icon-button" (click)="sidenav.toggle()">
+    <i class="material-icons app-toolbar-menu">menu</i>
+  </button>
+  <span>ASYNCH</span>
+</md-toolbar>
+
+<md-sidenav-container>
+  <md-sidenav #sidenav mode="side" class="app-sidenav">
+    <md-list>
+      <md-list-item>
+        <button md-button><i class="material-icons">create_new_folder</i> New...</button>
+      </md-list-item>
+      <md-list-item>
+        <button md-button><i class="material-icons">folder_open</i> Load....</button>
+      </md-list-item>
+      <md-list-item>
+        <button md-button><i class="material-icons">save</i> Save.</button>
+      </md-list-item>
+    </md-list>
+  </md-sidenav>
+
+  <div class="app-content">
+    <app-config-form></app-config-form>
+  </div>
+</md-sidenav-container>
