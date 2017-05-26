@@ -1,0 +1,10 @@
+<h1 md-dialog-title>Save As...</h1>
+<md-dialog-content>
+  <md-input-container>
+    <input #fileName mdInput placeholder="Filename" value="config.json">
+  </md-input-container>
+</md-dialog-content>
+<md-dialog-actions>
+  <button md-button (click)="dialogRef.close(fileName.value)">Save</button>
+  <button md-button (click)="dialogRef.close('')">Cancel</button>
+</md-dialog-actions>

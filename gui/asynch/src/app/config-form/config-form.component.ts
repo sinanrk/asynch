@@ -1,5 +1,7 @@
-import { Component, OnInit } from '@angular/core';
-import { ModelConfig, AsynchConfig } from '../config';
+import { Input, Component, OnInit } from '@angular/core';
+import { ForcingStateConfig, TimeserieConfig, AsynchConfig } from '../config';
+import { ModelMeta,  models } from '../models';
+
 
 @Component({
   selector: 'app-config-form',
@@ -8,42 +10,54 @@ import { ModelConfig, AsynchConfig } from '../config';
 })
 export class ConfigFormComponent implements OnInit {
 
-  models: ModelConfig[] = [{
-    uid: 190,
-    name: 'Constant runoff',
-    states: ['q', 'sp', 'ss'],
-    globalParams: ['v_r', 'lambda_1', 'lambda_2', 'RC', 'v_h', 'v_g'],
-    forcings: ['Precipitation', 'Evaporation']
-  }, {
-    uid: 254,
-    name: 'Top Layer Hillsope',
-    states: ['q', 'sp', 'st', 'ss'],
-    globalParams: ['v_0', 'lambda_1', 'lambda_2', 'v_h', 'k_3', 'k_I_factor', 'h_b', 'S_L', 'A', 'B', 'exponent', 'v_B'],
-    forcings: ['Precipitation', 'Evaporation', 'Reservoirs']
-  }];
-  
-  config: AsynchConfig;
-  selectedModel: ModelConfig;
+  models: ModelMeta[] = models;
+
+  private _config: AsynchConfig;  
+  private _selectedModel: ModelMeta;
   
   constructor() {
-    this.config = new AsynchConfig();
+    //this._config = new AsynchConfig();
   }
 
   ngOnInit() {
   }
   
-  onModelChange(uid): void {
-    this.selectedModel = this.models.find((model) => {return model.uid === uid;})
+  @Input()
+  set selectedModel(model: ModelMeta) {
+    if (model) {
+      this._selectedModel = model;
+      this._config.init(model);
+    }
   }
   
-  copyToClipboard(element) {
-    var selection = window.getSelection();            
-    var range = document.createRange();
-    range.selectNodeContents(element);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    
-    document.execCommand('copy');
+  get selectedModel(): ModelMeta { return this._selectedModel; }
+  
+  @Input()
+  set config(config: AsynchConfig) {
+    if (config) {
+      this._config = config;
+      this._selectedModel = models.find((model) => {return model.uid === config.model;})
+    } else {
+      this._selectedModel = null;
+    }
+  }
+  
+  get config(): AsynchConfig { return this._config; }
+  
+  toggleForcing(i: number) {
+    if (this._config.forcings.timeseries[i]) {
+      this._config.forcings.timeseries[i] = null;
+    } else {
+      this._config.forcings.timeseries[i] = new TimeserieConfig();
+    }
+  }
+  
+  toggleState() {
+    if (this._config.forcings.state) {
+      this._config.forcings.state = null;
+    } else {
+      this._config.forcings.state = new ForcingStateConfig();
+    }
   }
   
   useDefaultSolverConfig(useDefault: boolean) {

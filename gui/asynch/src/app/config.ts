@@ -1,10 +1,4 @@
-export class ModelConfig {
-  uid: number;
-  name: string;
-  states: string[];
-  globalParams: string[];
-  forcings: string[];  
-}
+import { ModelMeta } from 'app/models';
 
 export class ErrorCtlConfig {
   facmin: number;
@@ -37,22 +31,53 @@ export class SolverConfig {
   }
 }
 
+export class TimeserieConfig {
+  filename: string;
+}
+
+export class DbTimeserieConfig extends TimeserieConfig {
+  step: number;
+}
+
+export class ForcingStateConfig {
+  filename: string;
+  index: number;
+}
+
+export class ForcingsConfig {
+  timeseries: Array<TimeserieConfig>;
+  state: ForcingStateConfig;
+}
+
 export class AsynchConfig {
   model: number;
   topology: string;
   begin: Date;
   end: Date;
-  forcings: Array<string>;
+  globalParams: Array<number>;
+  dams: string;
+  forcings: ForcingsConfig;
   solver: SolverConfig;  
   scratch_folder: string;
+  outputs: any;
   
   constructor() {
-    //this.solver = new SolverConfig();
-    
-    this.forcings = new Array<string>();
-    
     this.scratch_folder = '/tmp';
+    this.outputs = {
+      timeseries: {},
+      peaks: {},
+      snaphosts: {}
+    };
   } 
+  
+  init(meta: ModelMeta) {
+    this.model = meta.uid;
+    
+    //Init forcings
+    this.forcings = new ForcingsConfig();
+    this.forcings.timeseries = new Array<TimeserieConfig>(meta.forcings.length);
+    this.globalParams = meta.globalParamsDefault;
+  }
   
   addSolver() {
     this.solver = new SolverConfig();

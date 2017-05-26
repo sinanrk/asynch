@@ -1,26 +1,47 @@
 <md-toolbar color="primary" class="mat-elevation-z6">
   <button class="app-icon-button" (click)="sidenav.toggle()">
-    <i class="material-icons app-toolbar-menu">menu</i>
-  </button>
+      <i class="material-icons app-toolbar-menu">menu</i>
+    </button>
   <span>ASYNCH</span>
 </md-toolbar>
 
-<md-sidenav-container>
-  <md-sidenav #sidenav mode="side" class="app-sidenav">
+<md-sidenav-container >
+  <md-sidenav #sidenav mode="over" class="app-sidenav">
     <md-list>
       <md-list-item>
-        <button md-button><i class="material-icons">create_new_folder</i> New...</button>
+        <button md-button (click)="onNew()"><i class="material-icons">clear</i> Clear</button>
       </md-list-item>
       <md-list-item>
-        <button md-button><i class="material-icons">folder_open</i> Load....</button>
+        <input #inputFile type="file" name="file" (change)="onLoad($event.target.files[0])" hidden="true">
+        <button md-button (click)="inputFile.click()"><i class="material-icons">folder_open</i> Load</button>
       </md-list-item>
       <md-list-item>
-        <button md-button><i class="material-icons">save</i> Save.</button>
+        <button md-button (click)="onSave('test.json')"><i class="material-icons">save</i> Save</button>
       </md-list-item>
     </md-list>
   </md-sidenav>
 
-  <div class="app-content">
-    <app-config-form></app-config-form>
+  <div class="app-content" fxFlex>
+    <app-filedrop (dragFileAccepted)="onLoad($event.file)">
+      <div fxLayout="row" fxLayout.xs="column" fxLayout.sm="column" fxLayoutGap="10px">
+        <div fxFlex>
+          <app-config-form #configForm [config]="config"></app-config-form>
+        </div>
+        <div fxFlex>
+          <md-card>
+            <md-card-title>JSON Configuration</md-card-title>
+            <md-card-subtitle>Configuration file used to specify inputs and outputs of the solver.</md-card-subtitle>
+            <md-card-content>
+              <pre #configJSON>{{config | json}}</pre>
+            </md-card-content>
+            <md-card-actions>
+              <span fxFlex></span>
+              <button md-button color="accent" (click)="copyToClipboard(configJSON)">COPY JSON</button>
+              <button md-button color="accent" (click)="copyToClipboard(configJSON)" disabled>RUN ON ARGON</button>
+            </md-card-actions>
+          </md-card>
+        </div>
+      </div>
+    </app-filedrop>
   </div>
 </md-sidenav-container>
