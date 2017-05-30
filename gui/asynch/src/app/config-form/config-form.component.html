@@ -22,6 +22,8 @@
                 <input mdInput type="text" [(ngModel)]="config.topology" #topology="ngModel" placeholder="Topology file" name="topology" fileExt="rvr,dbc" required>
                 <md-error>Invalid file extension (expected .rvr or .dbc)</md-error>
               </md-input-container>
+              <input #inputFileTopology type="file" name="file" (change)="config.topology = $event.target.files[0].name" hidden="true">
+              <button md-icon-button md-suffix (click)="inputFileTopology.click()"><i class="material-icons">attachment</i></button>
             </div>
             <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px" *ngIf="config.topology | fileExt:'dbc'">
               <md-input-container fxFlex>
@@ -46,6 +48,8 @@
                 <input mdInput type="text" [(ngModel)]="config.local_params" #localParams="ngModel" placeholder="Local parameters file" name="local_params" fileExt="prm,dbc" required>
                 <md-error>Invalid file extension (expected .prm or .dbc)</md-error>
               </md-input-container>
+              <input #inputFileLocalParam type="file" name="file" (change)="config.local_params = $event.target.files[0].name" hidden="true">
+              <button md-icon-button md-suffix (click)="inputFileLocalParam.click()"><i class="material-icons">attachment</i></button>
             </div>
           </fieldset>
           <fieldset *ngIf="selectedModel.hasDam">
@@ -173,6 +177,8 @@
                 <input mdInput type="text" [(ngModel)]="config.initial_state" #initialState placeholder="Initial state file" name="initialState" fileExt="ini,uini,rec,dbc,h5" required>
                 <md-error>Invalid file extension (.ini, .uini, .rec, .dbc or .h5)</md-error>
               </md-input-container>
+              <input #inputFileInitial type="file" name="file" (change)="config.initial_state = $event.target.files[0].name" hidden="true">
+              <button md-icon-button md-suffix (click)="inputFileInitial.click()"><i class="material-icons">attachment</i></button>
             </div>
             <div fxLayout="row" *ngIf="config.initialState | fileExt:'dbc'">
               <md-input-container fxFlex>

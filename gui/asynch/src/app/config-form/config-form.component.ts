@@ -44,6 +44,10 @@ export class ConfigFormComponent implements OnInit {
   
   get config(): AsynchConfig { return this._config; }
   
+  setFilename(file: File, filename: string) {
+    filename = file.name;
+  }
+  
   toggleForcing(i: number) {
     if (this._config.forcings.timeseries[i]) {
       this._config.forcings.timeseries[i] = null;

@@ -5,18 +5,18 @@
   <span>ASYNCH</span>
 </md-toolbar>
 
-<md-sidenav-container >
+<md-sidenav-container fxFlex>
   <md-sidenav #sidenav mode="over" class="app-sidenav">
     <md-list>
       <md-list-item>
-        <button md-button (click)="onNew()"><i class="material-icons">clear</i> Clear</button>
+        <button md-button (click)="onNew()">New</button>
       </md-list-item>
       <md-list-item>
         <input #inputFile type="file" name="file" (change)="onLoad($event.target.files[0])" hidden="true">
-        <button md-button (click)="inputFile.click()"><i class="material-icons">folder_open</i> Load</button>
+        <button md-button (click)="inputFile.click()">Load</button>
       </md-list-item>
       <md-list-item>
-        <button md-button (click)="onSave('test.json')"><i class="material-icons">save</i> Save</button>
+        <button md-button (click)="onSave('config.json')">Save</button>
       </md-list-item>
     </md-list>
   </md-sidenav>
