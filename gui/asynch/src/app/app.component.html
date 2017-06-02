@@ -1,11 +1,11 @@
 <md-toolbar color="primary" class="mat-elevation-z6">
   <button class="app-icon-button" (click)="sidenav.toggle()">
-      <i class="material-icons app-toolbar-menu">menu</i>
-    </button>
+        <i class="material-icons app-toolbar-menu">menu</i>
+      </button>
   <span>ASYNCH</span>
 </md-toolbar>
 
-<md-sidenav-container fxFlex>
+<md-sidenav-container filedrop (dragFileAccepted)="onLoad($event.file)">
   <md-sidenav #sidenav mode="over" class="app-sidenav">
     <md-list>
       <md-list-item>
@@ -16,32 +16,32 @@
         <button md-button (click)="inputFile.click()">Load</button>
       </md-list-item>
       <md-list-item>
-        <button md-button (click)="onSave('config.json')">Save</button>
+        <button md-button (click)="onSave()">Save</button>
       </md-list-item>
     </md-list>
   </md-sidenav>
 
-  <div class="app-content" fxFlex>
-    <app-filedrop (dragFileAccepted)="onLoad($event.file)">
-      <div fxLayout="row" fxLayout.xs="column" fxLayout.sm="column" fxLayoutGap="10px">
-        <div fxFlex>
-          <app-config-form #configForm [config]="config"></app-config-form>
-        </div>
-        <div fxFlex>
-          <md-card>
-            <md-card-title>JSON Configuration</md-card-title>
-            <md-card-subtitle>Configuration file used to specify inputs and outputs of the solver.</md-card-subtitle>
-            <md-card-content>
-              <pre #configJSON>{{config | json}}</pre>
-            </md-card-content>
-            <md-card-actions>
-              <span fxFlex></span>
-              <button md-button color="accent" (click)="copyToClipboard(configJSON)">COPY JSON</button>
-              <button md-button color="accent" (click)="copyToClipboard(configJSON)" disabled>RUN ON ARGON</button>
-            </md-card-actions>
-          </md-card>
-        </div>
+  <div class="app-content" fxLayout="column">
+    <!--      <app-filedrop (dragFileAccepted)="onLoad($event.file)" fxLayout="column">-->
+    <div fxLayout="row" fxLayout.xs="column" fxLayout.sm="column" fxLayoutGap="10px" fxFlex>
+      <div fxFlex>
+        <app-config-form #configForm [config]="config"></app-config-form>
       </div>
-    </app-filedrop>
+      <div fxFlex>
+        <md-card class.gt-xs="sticky">
+          <md-card-title>JSON Configuration</md-card-title>
+          <md-card-subtitle>Configuration file used to specify inputs and outputs of the solver.</md-card-subtitle>
+          <md-card-content>
+            <pre #configJSON>{{config | json}}</pre>
+          </md-card-content>
+          <md-card-actions>
+            <span fxFlex></span>
+            <button md-button color="accent" (click)="copyToClipboard(configJSON)">COPY JSON</button>
+            <button md-button color="accent" (click)="copyToClipboard(configJSON)" disabled>RUN ON ARGON</button>
+          </md-card-actions>
+        </md-card>
+      </div>
+    </div>
+    <!--      </app-filedrop>-->
   </div>
 </md-sidenav-container>

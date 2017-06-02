@@ -1,5 +1,5 @@
 import { Input, Component, OnInit } from '@angular/core';
-import { ForcingStateConfig, TimeserieConfig, AsynchConfig } from '../config';
+import { ForcingStateConfig, ForcingConfig, AsynchConfig } from '../config';
 import { ModelMeta,  models } from '../models';
 
 
@@ -11,6 +11,12 @@ import { ModelMeta,  models } from '../models';
 export class ConfigFormComponent implements OnInit {
 
   models: ModelMeta[] = models;
+  outputFunctions: string[] = [
+    'Time', 'TimeI', 'State0', 'State1', 'State2', 'State3', 'State4'
+  ]
+  peakFunctions: string[] = [
+    'Classic', 'Forecast'
+  ]
 
   private _config: AsynchConfig;  
   private _selectedModel: ModelMeta;
@@ -52,7 +58,7 @@ export class ConfigFormComponent implements OnInit {
     if (this._config.forcings.timeseries[i]) {
       this._config.forcings.timeseries[i] = null;
     } else {
-      this._config.forcings.timeseries[i] = new TimeserieConfig();
+      this._config.forcings.timeseries[i] = new ForcingConfig();
     }
   }
   

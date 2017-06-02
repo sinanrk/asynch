@@ -11,10 +11,11 @@ import { MdToolbarModule, MdButtonModule, MdCheckboxModule, MdInputModule, MdSel
 
 import { AppComponent } from './app.component';
 import { ConfigFormComponent } from './config-form/config-form.component';
-import { FileExtValidatorDirective } from './file-ext-valid.directive';
-import { FileExtPipe } from './file-ext.pipe';
 import { SaveAsDialogComponent } from './saveas-dialog/saveas-dialog.component';
-import { FileDropComponent } from './filedrop/filedrop.component';
+import { FileExtValidatorDirective } from './file-ext-valid.directive';
+import { FileDropDirective } from './filedrop.directive';
+import { FileExtPipe } from './file-ext.pipe';
+
 
 @NgModule({
   declarations: [
@@ -23,7 +24,7 @@ import { FileDropComponent } from './filedrop/filedrop.component';
     FileExtValidatorDirective,
     FileExtPipe,
     SaveAsDialogComponent,
-    FileDropComponent
+    FileDropDirective
   ],
   entryComponents: [
     SaveAsDialogComponent

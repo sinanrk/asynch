@@ -15,8 +15,8 @@ time, mark, audio, video {
 	margin: 0;
 	padding: 0;
 	border: 0;
-	font-size: 100%;
-	font: inherit;
+	//font-size: 100%;
+	//font: inherit;
 	vertical-align: baseline;
 }
 
@@ -63,4 +63,9 @@ body {
 
 body {
   font-family: Roboto, Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, Lucida Grande, sans-serif;
+}
+
+app-root {
+  display: flex;
+  flex-direction: column;
 }

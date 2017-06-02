@@ -1,5 +1,5 @@
 <!--<div fxLayout="row" fxLayout.xs="column" fxLayout.sm="column" fxLayoutGap="10px">-->
-<div fxFlex>
+<div fxLayout="column" fxLayoutGap="6px">
   <md-card>
     <md-card-content fxLayout="row">
       <md-select #selectModel placeholder="Model" [(ngModel)]="selectedModel" name="model" required fxFlex>
@@ -8,122 +8,176 @@
     </md-card-content>
   </md-card>
 
-  <div *ngIf="selectedModel">
-    <md-card>
-      <md-card-title>Model</md-card-title>
-      <md-card-subtitle>The main parameters of the model.</md-card-subtitle>
-      <md-card-content>
-        <form #simForm="ngForm">
-          <fieldset>
-            <legend>Topology</legend>
-            <p class="caption">Path of the the river network topology file (.rvr or .dbc).</p>
-            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
-              <md-input-container fxFlex>
-                <input mdInput type="text" [(ngModel)]="config.topology" #topology="ngModel" placeholder="Topology file" name="topology" fileExt="rvr,dbc" required>
-                <md-error>Invalid file extension (expected .rvr or .dbc)</md-error>
-              </md-input-container>
-              <input #inputFileTopology type="file" name="file" (change)="config.topology = $event.target.files[0].name" hidden="true">
-              <button md-icon-button md-suffix (click)="inputFileTopology.click()"><i class="material-icons">attachment</i></button>
-            </div>
-            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px" *ngIf="config.topology | fileExt:'dbc'">
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.outlet" placeholder="Outlet" min="0" name="outlet" required>
-              </md-input-container>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Global Params</legend>
-            <p class="caption">Model parameters which are constant in space and time.</p>
-            <div fxLayout="row wrap" fxLayout.xs="column" fxLayoutGap="10px" fxLayoutWrap>
-              <md-input-container *ngFor="let param of selectedModel.globalParams; let i = index;" fxFlex="20">
-                <input mdInput type="number" [(ngModel)]="config.globalParams[i]" [placeholder]="param" [name]="'param_' + i" required>
-              </md-input-container>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Local parameters</legend>
-            <p class="caption">Path of the local parameters file (.prm or .dbc).</p>
-            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
-              <md-input-container fxFlex>
-                <input mdInput type="text" [(ngModel)]="config.local_params" #localParams="ngModel" placeholder="Local parameters file" name="local_params" fileExt="prm,dbc" required>
-                <md-error>Invalid file extension (expected .prm or .dbc)</md-error>
-              </md-input-container>
-              <input #inputFileLocalParam type="file" name="file" (change)="config.local_params = $event.target.files[0].name" hidden="true">
-              <button md-icon-button md-suffix (click)="inputFileLocalParam.click()"><i class="material-icons">attachment</i></button>
-            </div>
-          </fieldset>
-          <fieldset *ngIf="selectedModel.hasDam">
-            <legend>Dam params</legend>
-            <p class="caption">Dams</p>
-            <md-checkbox [value]="config.dams" (change)="toggleDams(i)">Enable</md-checkbox>
-            <ng-container *ngIf="config.dams">
-              <md-input-container fxFlex>
-                <input mdInput type="text" [(ngModel)]="config.dams" placeholder="Time step" min="0" [name]="'forcing_' + i" fileExt="dam,qvs" required>
-                <md-error>Invalid file extension (expected .dam or .qvs)</md-error>
-              </md-input-container>
-            </ng-container>
-          </fieldset>
-        </form>
-      </md-card-content>
-    </md-card>
+  <md-card *ngIf="selectedModel">
+    <md-card-title>Model</md-card-title>
+    <md-card-subtitle>The main parameters of the model.</md-card-subtitle>
+    <md-card-content>
+      <form #simForm="ngForm">
+        <fieldset>
+          <legend>Topology</legend>
+          <p class="caption">Path of the the river network topology file (.rvr or .dbc).</p>
+          <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+            <md-input-container fxFlex>
+              <input mdInput type="text" [(ngModel)]="config.topology" #topology="ngModel" placeholder="Topology file" name="topology" fileExt="rvr,dbc" required>
+              <md-error>Invalid file extension (expected .rvr or .dbc)</md-error>
+              <button md-suffix class="mat-filepicker-toggle" (click)="inputFileTopology.click()" type="button" aria-label="Open file"></button>
+            </md-input-container>
+            <input #inputFileTopology type="file" name="topology" (change)="config.topology = $event.target.files[0].name || config.topology" hidden="true" accept=".rvr,.dbc">
+          </div>
+          <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px" *ngIf="config.topology | fileExt:'dbc'">
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.outlet" placeholder="Outlet" min="0" name="outlet" required>
+            </md-input-container>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Global Params</legend>
+          <p class="caption">Model parameters which are constant in space and time.</p>
+          <div fxLayout="row wrap" fxLayout.xs="column" fxLayoutGap="10px" fxLayoutWrap>
+            <md-input-container *ngFor="let param of selectedModel.globalParams; let i = index;" fxFlex="20">
+              <input mdInput type="number" [(ngModel)]="config.globalParams[i]" [placeholder]="param" [name]="'param_' + i" required>
+            </md-input-container>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Local parameters</legend>
+          <p class="caption">Path of the local parameters file (.prm or .dbc).</p>
+          <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+            <md-input-container fxFlex>
+              <input mdInput type="text" [(ngModel)]="config.local_params" #localParams="ngModel" placeholder="Local parameters file" name="local_params" fileExt="prm,dbc" required>
+              <button md-suffix class="mat-filepicker-toggle" (click)="inputFileLocalParam.click()" type="button" aria-label="Open file"></button>
+              <md-error>Invalid file extension (expected .prm or .dbc)</md-error>
+            </md-input-container>
+            <input #inputFileLocalParam type="file" name="local_params" (change)="config.local_params = $event.target.files[0].name || config.local_params" hidden="true" accept=".prm,.dbc">
+          </div>
+        </fieldset>
+        <fieldset *ngIf="selectedModel.hasDam">
+          <legend>Dam params</legend>
+          <p class="caption">Dams</p>
+          <md-checkbox [value]="config.dams" (change)="toggleDams(i)">Enable</md-checkbox>
+          <ng-container *ngIf="config.dams">
+            <md-input-container fxFlex>
+              <input mdInput type="text" [(ngModel)]="config.dams" placeholder="Time step" min="0" [name]="'forcing_' + i" fileExt="dam,qvs" required>
+              <md-error>Invalid file extension (expected .dam or .qvs)</md-error>
+            </md-input-container>
+          </ng-container>
+        </fieldset>
+      </form>
+    </md-card-content>
+  </md-card>
 
-    <!--    <p *ngIf="selectedModel">Form valid: {{ simForm.valid }}</p>-->
+  <md-card *ngIf="selectedModel">
+    <md-card-title>Simulation</md-card-title>
+    <md-card-subtitle>The main parameters of the simulation.</md-card-subtitle>
+    <md-card-content>
+      <form #simForm="ngForm">
+        <fieldset>
+          <legend>Simulation period</legend>
+          <p class="caption">The begin and end datetimes of the simulation.</p>
+          <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+            <md-input-container fxFlex>
+              <input mdInput [mdDatepicker]="beginDatepicker" [(ngModel)]="config.begin" placeholder="Begin" name="begin" required>
+              <button mdSuffix [mdDatepickerToggle]="beginDatepicker"></button>
+            </md-input-container>
+            <md-datepicker #beginDatepicker startView="year"></md-datepicker>
+            <md-input-container fxFlex>
+              <input mdInput [mdDatepicker]="endDatepicker" [(ngModel)]="config.end" placeholder="End" name="end" required>
+              <button mdSuffix [mdDatepickerToggle]="endDatepicker"></button>
+            </md-input-container>
+            <md-datepicker #endDatepicker startView="year"></md-datepicker>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Initial state</legend>
+          <p class="caption">Path of the initial state of the system file (.ini, .uini, .rec, .dbc or .h5).</p>
+          <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+            <md-input-container fxFlex>
+              <input mdInput type="text" [(ngModel)]="config.initial_state" #initialState placeholder="Initial state file" name="initialState" fileExt="ini,uini,rec,dbc,h5" required>
+              <button md-suffix class="mat-filepicker-toggle" (click)="inputFileInitial.click()" type="button" aria-label="Open file"></button>
+              <md-error>Invalid file extension (.ini, .uini, .rec, .dbc or .h5)</md-error>
+            </md-input-container>
+            <input #inputFileInitial type="file" name="file" (change)="config.initial_state = $event.target.files[0].name" hidden="true">
+          </div>
+          <div fxLayout="row" *ngIf="config.initialState | fileExt:'dbc'">
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.initialTime" [value]="config.begin" placeholder="Initial time" min="0" name="outlet" required>
+            </md-input-container>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Scratch Folder</legend>
+          <p class="caption">The location of temporary files.</p>
+          <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+            <md-input-container fxFlex>
+              <input mdInput type="text" [(ngModel)]="config.scratch_folder" placeholder="Path to the scratch folder" name="scratch_folder" required>
+            </md-input-container>
+          </div>
+        </fieldset>
+      </form>
+    </md-card-content>
+  </md-card>
 
-    <md-card *ngIf="config.forcings">
-      <md-card-title>Forcings</md-card-title>
-      <md-card-subtitle>The forcings configuration.</md-card-subtitle>
-      <md-card-content>
-        <form #forcingForm="ngForm">
-          <fieldset>
-            <legend>Timeseries</legend>
-            <ng-container *ngFor="let forcing of selectedModel.forcings; let i = index">
-              <p class="caption">{{forcing}}</p>
-              <md-checkbox [value]="config.forcings.timeseries[i]" (change)="toggleForcing(i)">Enable</md-checkbox>
-              <ng-container *ngIf="config.forcings.timeseries[i]">
-                <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
-                  <md-input-container fxFlex>
-                    <input mdInput type="text" [(ngModel)]="config.forcings.timeseries[i].filename" [placeholder]="forcing + ' file'" [name]="'forcing_' + i" fileExt="str,ustr,mon,dbc" required>
-                    <md-error>Invalid file extension (expected .str, .ustr, .mon or .dbc)</md-error>
-                  </md-input-container>
-                </div>
-                <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px" *ngIf="config.forcings.timeseries[i].filename | fileExt:'dbc'">
-                  <md-input-container fxFlex>
-                    <input mdInput type="number" [(ngModel)]="config.forcings.timeseries[i].chunk_size" placeholder="Chunk size" value="10" min="0" [name]="'forcing_' + i" required>
-                  </md-input-container>
-                  <md-input-container fxFlex>
-                    <input mdInput type="number" [(ngModel)]="config.forcings.timeseries[i].time_step" placeholder="Time step" min="0" [name]="'forcing_' + i" required>
-                  </md-input-container>
-                </div>
-              </ng-container>
-            </ng-container>
-          </fieldset>
-          <fieldset>
-            <legend>State</legend>
-            <p class="caption">Forcing of the states of differential or algebraic equations at some links.</p>
-            <md-checkbox [value]="config.forcings.state" (change)="toggleState()">Enable</md-checkbox>
-            <ng-container *ngIf="config.forcings.state">
+  <md-card *ngIf="selectedModel">
+    <md-card-title>Forcings</md-card-title>
+    <md-card-subtitle>The forcings configuration.</md-card-subtitle>
+    <md-card-content>
+      <form #forcingForm="ngForm">
+        <fieldset>
+          <legend>Timeseries</legend>
+          <ng-container *ngFor="let forcing of selectedModel.forcings; let i = index">
+            <p class="caption">{{forcing}}</p>
+            <md-checkbox [value]="config.forcings.timeseries[i]" (change)="toggleForcing(i)">Enable</md-checkbox>
+            <ng-container *ngIf="config.forcings.timeseries[i]">
               <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
                 <md-input-container fxFlex>
-                  <input mdInput type="text" [(ngModel)]="config.forcings.state.filename" placeholder="State forcing file" name="forcingState" fileExt="rsv,dbc" required>
-                  <md-error>Invalid file extension (expected .rsv or .dbc)</md-error>
+                  <input mdInput type="text" [(ngModel)]="config.forcings.timeseries[i].filename" [placeholder]="forcing + ' file'" [name]="'forcing_' + i" fileExt="str,ustr,mon,dbc" required>
+                  <md-error>Invalid file extension (expected .str, .ustr, .mon or .dbc)</md-error>
+                </md-input-container>
+              </div>
+              <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px" *ngIf="config.forcings.timeseries[i].filename | fileExt:'dbc'">
+                <md-input-container fxFlex>
+                  <input mdInput type="number" [(ngModel)]="config.forcings.timeseries[i].chunk_size" placeholder="Chunk size" value="10" min="0" [name]="'forcing_' + i" required>
                 </md-input-container>
                 <md-input-container fxFlex>
-                  <input mdInput type="number" [(ngModel)]="config.forcings.state.index" placeholder="Forcing index" min="0" name="forcingIndex" required>
+                  <input mdInput type="number" [(ngModel)]="config.forcings.timeseries[i].time_step" placeholder="Time step" min="0" [name]="'forcing_' + i" required>
                 </md-input-container>
               </div>
             </ng-container>
-          </fieldset>
-        </form>
-      </md-card-content>
-    </md-card>
-
-    <md-card *ngIf="config">
-      <md-card-title>Outputs</md-card-title>
-      <md-card-subtitle>Timseries, peak and snapshots configuration.</md-card-subtitle>
-      <md-card-content>
+          </ng-container>
+        </fieldset>
         <fieldset>
-          <legend>Outputs</legend>
-          <p class="caption">Model outputs.</p>
+          <legend>State</legend>
+          <p class="caption">Forcing of the states of differential or algebraic equations at some links, i.e. forcing the discharge dowstream a reservoir.</p>
+          <md-checkbox [value]="config.forcings.state" (change)="toggleState()">Enable</md-checkbox>
+          <ng-container *ngIf="config.forcings.state">
+            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+              <md-input-container fxFlex>
+                <input mdInput type="text" [(ngModel)]="config.forcings.state.filename" placeholder="State forcing file" name="forcingState" fileExt="rsv,dbc" required>
+                <button md-suffix class="mat-filepicker-toggle" (click)="inputFileStateForcing.click()" type="button" aria-label="Open file"></button>
+                <md-error>Invalid file extension (expected .rsv or .dbc)</md-error>
+              </md-input-container>
+              <input #inputFileStateForcing type="file" name="local_params" (change)="config.forcings.state.filename = $event.target.files[0].name || config.forcings.state.filename" hidden="true" accept=".rsv,.dbc">
+              <md-input-container fxFlex>
+                <input mdInput type="number" [(ngModel)]="config.forcings.state.index" placeholder="Forcing index" min="0" name="forcingIndex" required>
+              </md-input-container>
+            </div>
+          </ng-container>
+        </fieldset>
+      </form>
+    </md-card-content>
+  </md-card>
+
+  <md-card *ngIf="selectedModel">
+    <md-card-title>Outputs</md-card-title>
+    <md-card-subtitle>Timseries, peak and snapshots configuration.</md-card-subtitle>
+    <md-card-content>
+      <fieldset>
+        <legend>Outputs</legend>
+        <p class="caption">Model outputs.</p>
+        <div fxLayout="column">
+          <md-select placeholder="Outputs" [(ngModel)]="config.outputs.functions" multiple="true" fxFlex>
+            <md-option *ngFor="let function of outputFunctions" [value]="function">{{ function }}</md-option>
+          </md-select>
           <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
             <md-input-container fxFlex>
               <input mdInput type="text" [(ngModel)]="config.outputs.timeseries.filename" placeholder="Timeseries file" name="timeseries" fileExt="dat,csv,h5,dbc" required>
@@ -134,136 +188,84 @@
               <md-error>Invalid file extension (expected .pea or .dbc)</md-error>
             </md-input-container>
           </div>
-        </fieldset>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Snapshots</legend>
+        <p class="caption">Path of the snapshots file (.rec, .dbc or .h5).</p>
+        <div fxLayout="column">
+          <md-input-container fxFlex>
+            <input mdInput type="text" [(ngModel)]="config.outputs.snapshots.filename" #snaphosts="ngModel" placeholder="Snapshots file" name="snapshots" fileExt="rec,dbc,h5">
+            <button md-suffix class="mat-filepicker-toggle" (click)="inputFileStateForcing.click()" type="button" aria-label="Open file"></button>
+            <md-error>Invalid file extension (expected .rec, .dbc or .h5)</md-error>
+          </md-input-container>
+        </div>
+      </fieldset>
+    </md-card-content>
+  </md-card>
+
+  <md-card *ngIf="selectedModel">
+    <md-card-title>Solver</md-card-title>
+    <md-card-subtitle>Advanced setting of the solver that affect performance or precision of the results.</md-card-subtitle>
+    <md-card-content>
+
+      <md-checkbox #solverDefault [checked]="!config.solver" (change)="useDefaultSolverConfig(solverDefault.checked)">Use Default Configuration</md-checkbox>
+
+      <div *ngIf="!solverDefault.checked">
         <fieldset>
-          <legend>Snapshots</legend>
-          <p class="caption">Path of the snapshots file (.rec, .dbc or .h5).</p>
-          <div fxLayout="column">
+          <legend>Buffers</legend>
+          <p class="caption">The sizes of internal buffers. In general, as these numbers are increased, the solvers run faster, but more memory is required.</p>
+          <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
             <md-input-container fxFlex>
-              <input mdInput type="text" [(ngModel)]="config.outputs.snaphosts.filename" #snaphosts="ngModel" placeholder="Snapshots file" name="snaphosts" fileExt="rec,dbc,h5">
-              <md-error>Invalid file extension (expected .rec, .dbc or .h5)</md-error>
+              <input mdInput type="number" [(ngModel)]="config.solver.buffers.num_step" placeholder="Number of steps stored" name="num_step">
+              <md-hint></md-hint>
+            </md-input-container>
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.solver.buffers.num_transfer" placeholder="Number of steps transferred" name="num_transfer">
+            </md-input-container>
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.solver.buffers.num_discont" placeholder="Number of discontinuity buffer" name="num_discont">
             </md-input-container>
           </div>
         </fieldset>
-      </md-card-content>
-    </md-card>
-
-    <md-card>
-      <md-card-title>Simulation</md-card-title>
-      <md-card-subtitle>The main parameters of the simulation.</md-card-subtitle>
-      <md-card-content>
-        <form #simForm="ngForm">
-          <fieldset>
-            <legend>Simulation period</legend>
-            <p class="caption">The begin and end datetimes of the simulation.</p>
-            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
-              <md-input-container fxFlex>
-                <input mdInput [mdDatepicker]="beginDatepicker" [(ngModel)]="config.begin" placeholder="Begin" name="begin" required>
-                <button mdSuffix [mdDatepickerToggle]="beginDatepicker"></button>
-              </md-input-container>
-              <md-datepicker #beginDatepicker startView="year"></md-datepicker>
-              <md-input-container fxFlex>
-                <input mdInput [mdDatepicker]="endDatepicker" [(ngModel)]="config.end" placeholder="End" name="end" required>
-                <button mdSuffix [mdDatepickerToggle]="endDatepicker"></button>
-              </md-input-container>
-              <md-datepicker #endDatepicker startView="year"></md-datepicker>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Initial state</legend>
-            <p class="caption">Path of the initial state of the system file (.ini, .uini, .rec, .dbc or .h5).</p>
-            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
-              <md-input-container fxFlex>
-                <input mdInput type="text" [(ngModel)]="config.initial_state" #initialState placeholder="Initial state file" name="initialState" fileExt="ini,uini,rec,dbc,h5" required>
-                <md-error>Invalid file extension (.ini, .uini, .rec, .dbc or .h5)</md-error>
-              </md-input-container>
-              <input #inputFileInitial type="file" name="file" (change)="config.initial_state = $event.target.files[0].name" hidden="true">
-              <button md-icon-button md-suffix (click)="inputFileInitial.click()"><i class="material-icons">attachment</i></button>
-            </div>
-            <div fxLayout="row" *ngIf="config.initialState | fileExt:'dbc'">
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.initialTime" [value]="config.begin" placeholder="Initial time" min="0" name="outlet" required>
-              </md-input-container>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Scratch Folder</legend>
-            <p class="caption">The location of temporary files.</p>
-            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
-              <md-input-container fxFlex>
-                <input mdInput type="text" [(ngModel)]="config.scratch_folder" placeholder="Path to the scratch folder" name="scratch_folder" required>
-              </md-input-container>
-            </div>
-          </fieldset>
-        </form>
-      </md-card-content>
-    </md-card>
-
-    <md-card>
-      <md-card-title>Solver</md-card-title>
-      <md-card-subtitle>Advanced setting of the solver that affect performance or precision of the results.</md-card-subtitle>
-      <md-card-content>
-
-        <md-checkbox #solverDefault [checked]="!config.solver" (change)="useDefaultSolverConfig(solverDefault.checked)">Use Default Configuration</md-checkbox>
-
-        <div *ngIf="!solverDefault.checked">
-          <fieldset>
-            <legend>Buffers</legend>
-            <p class="caption">The sizes of internal buffers. In general, as these numbers are increased, the solvers run faster, but more memory is required.</p>
-            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.buffers.num_step" placeholder="Number of steps stored" name="num_step">
-                <md-hint></md-hint>
-              </md-input-container>
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.buffers.num_transfer" placeholder="Number of steps transferred" name="num_transfer">
-              </md-input-container>
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.buffers.num_discont" placeholder="Number of discontinuity buffer" name="num_discont">
-              </md-input-container>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Error Control</legend>
-            <p class="caption">Parameters related to the error control strategy of the numerical integrators.</p>
-            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.error_ctl.facmin" placeholder="Allowed decrease in the stepsize" name="facmin">
-                <md-hint></md-hint>
-              </md-input-container>
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.error_ctl.facmax" placeholder="Allowed increase in the stepsize" name="facmax">
-              </md-input-container>
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.error_ctl.fac" placeholder="Safety factor" name="fac">
-              </md-input-container>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Error Tolerance</legend>
-            <p class="caption">Parameters related to the error control strategy of the numerical integrators.</p>
-            <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.tolerances[0]" placeholder="RK Absolute error tolerance" name="rk_abs_error_tol">
-                <md-hint></md-hint>
-              </md-input-container>
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.tolerances[1]" placeholder="RK Relative error tolerance" name="rk_rel_error_tol">
-              </md-input-container>
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.tolerances[2]" placeholder="Dense Absolute error tolerance" name="dense_abs_error_tol">
-              </md-input-container>
-              <md-input-container fxFlex>
-                <input mdInput type="number" [(ngModel)]="config.solver.tolerances[4]" placeholder="Dense Relative error tolerance" name="dense_rel_error_tol">
-              </md-input-container>
-            </div>
-          </fieldset>
-        </div>
-      </md-card-content>
-    </md-card>
-
-    <button></button>
-  </div>
+        <fieldset>
+          <legend>Error Control</legend>
+          <p class="caption">Parameters related to the error control strategy of the numerical integrators.</p>
+          <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.solver.error_ctl.facmin" placeholder="Allowed decrease in the stepsize" name="facmin">
+              <md-hint></md-hint>
+            </md-input-container>
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.solver.error_ctl.facmax" placeholder="Allowed increase in the stepsize" name="facmax">
+            </md-input-container>
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.solver.error_ctl.fac" placeholder="Safety factor" name="fac">
+            </md-input-container>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Error Tolerance</legend>
+          <p class="caption">Parameters related to the error control strategy of the numerical integrators.</p>
+          <div fxLayout="row" fxLayout.xs="column" fxLayoutGap="10px">
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.solver.tolerances[0]" placeholder="RK Absolute error tolerance" name="rk_abs_error_tol">
+              <md-hint></md-hint>
+            </md-input-container>
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.solver.tolerances[1]" placeholder="RK Relative error tolerance" name="rk_rel_error_tol">
+            </md-input-container>
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.solver.tolerances[2]" placeholder="Dense Absolute error tolerance" name="dense_abs_error_tol">
+            </md-input-container>
+            <md-input-container fxFlex>
+              <input mdInput type="number" [(ngModel)]="config.solver.tolerances[4]" placeholder="Dense Relative error tolerance" name="dense_rel_error_tol">
+            </md-input-container>
+          </div>
+        </fieldset>
+      </div>
+    </md-card-content>
+  </md-card>
 </div>
 
 <!--

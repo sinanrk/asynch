@@ -1,4 +1,4 @@
-import { FileExtValidatorDirective } from './ext.directive';
+import { FileExtValidatorDirective } from './file-ext-valid.directive';
 
 describe('FileExtValidatorDirective', () => {
   it('should create an instance', () => {

@@ -1,4 +1,4 @@
-import { ModelMeta } from 'app/models';
+import { ModelMeta } from './models';
 
 export class ErrorCtlConfig {
   facmin: number;
@@ -31,13 +31,15 @@ export class SolverConfig {
   }
 }
 
-export class TimeserieConfig {
+export class ForcingConfig {
   filename: string;
-}
-
-export class DbTimeserieConfig extends TimeserieConfig {
   step: number;
 }
+
+//export class DbTimeserieConfig extends TimeserieConfig {
+//  filename: string;
+//  step: number;
+//}
 
 export class ForcingStateConfig {
   filename: string;
@@ -45,9 +47,30 @@ export class ForcingStateConfig {
 }
 
 export class ForcingsConfig {
-  timeseries: Array<TimeserieConfig>;
+  timeseries: Array<string | ForcingConfig>;
   state: ForcingStateConfig;
+  dams: string;
 }
+
+
+export class TimeserieConfig {
+  
+}
+
+interface PeakConfig {
+  
+}
+
+interface SnapshotConfig {
+  
+}
+
+interface OutputsConfig {
+  timeseries?: TimeserieConfig;
+  peaks?: PeakConfig;
+  snapshots?: SnapshotConfig;
+}
+
 
 export class AsynchConfig {
   model: number;
@@ -55,18 +78,17 @@ export class AsynchConfig {
   begin: Date;
   end: Date;
   globalParams: Array<number>;
-  dams: string;
-  forcings: ForcingsConfig;
-  solver: SolverConfig;  
   scratch_folder: string;
-  outputs: any;
+  forcings?: ForcingsConfig;
+  solver?: SolverConfig;  
+  outputs?: OutputsConfig;
   
   constructor() {
     this.scratch_folder = '/tmp';
     this.outputs = {
       timeseries: {},
       peaks: {},
-      snaphosts: {}
+      snapshots: {}
     };
   } 
   
@@ -75,7 +97,7 @@ export class AsynchConfig {
     
     //Init forcings
     this.forcings = new ForcingsConfig();
-    this.forcings.timeseries = new Array<TimeserieConfig>(meta.forcings.length);
+    this.forcings.timeseries = new Array<ForcingConfig>(meta.forcings.length);
     this.globalParams = meta.globalParamsDefault;
   }
   

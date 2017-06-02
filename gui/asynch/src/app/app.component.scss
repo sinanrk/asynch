@@ -1,5 +1,9 @@
+md-toolbar {
+  z-index: 10;
+}
+
 .app-content {
-  padding: 20px;
+  padding: 6px;
   overflow: auto;  
 }
 
@@ -30,3 +34,7 @@
   min-width: 120px;
 }
 
+.sticky {
+  position: fixed;
+  width: 40%
+}
