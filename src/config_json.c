@@ -189,11 +189,11 @@ GlobalVars* Read_Config_JSON(
         cson_object *obj = cson_value_get_object(outputs_obj);
 
         // Default to false
-        globals->with_output_postfix_param = false;
+        globals->print_par_flag = false;
 
         v = cson_object_get(obj, "postfix_with_global_params");
         if (v && cson_value_is_bool(v))
-            globals->with_output_postfix_param = cson_value_get_bool(v);
+            globals->print_par_flag = cson_value_get_bool(v);
 
         cson_value *functions = cson_object_get(obj, "functions");
         if (cson_value_is_array(functions))

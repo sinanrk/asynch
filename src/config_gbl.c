@@ -155,7 +155,7 @@ GlobalVars* Read_Config_GBL(
     unsigned short buf;
     valsread = sscanf(line_buffer, "%hu", &buf);
     if (ReadLineError(valsread, 1, "to print filename parameters"))	return NULL;
-    globals->with_output_postfix_param = buf;
+    globals->print_par_flag = buf;
 
     //Grab components to print
     ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
@@ -590,7 +590,7 @@ GlobalVars* Read_Config_GBL(
     valsread = sscanf(line_buffer, "%s", globals->temp_filename);
     if (ReadLineError(valsread, 1, "scratch work folder"))	return NULL;
 
-    if (globals->with_output_postfix_param)	//!!!! Is this needed? Why bother? !!!!
+    if (globals->print_par_flag)	//!!!! Is this needed? Why bother? !!!!
     {
         if (AttachParameters(globals->temp_filename, ASYNCH_MAX_PATH_LENGTH, globals->global_params, globals->num_global_params, ASYNCH_MAX_PATH_LENGTH))
         {
