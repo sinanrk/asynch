@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "data_types.h"
+#include <data_types.h>
 
 
 typedef int IsEqualFunc(void* a, void* b);
@@ -32,7 +32,7 @@ int IsEqualDouble(void* a, void* b)
 
 int IsEqualFloat(void* a, void* b)
 {
-    return (fabs(*(float*)a == *(float*)b) < 1e-10);
+    return (fabsf(*(float*)a - *(float*)b) < 1e-10f);
 }
 
 int IsEqualChar(void* a, void* b)

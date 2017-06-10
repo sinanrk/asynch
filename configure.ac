@@ -1,11 +1,13 @@
-AC_INIT([asynch], [1.1.0], [samuel-debionne@uiowa.edu])
+AC_INIT([asynch], [1.3.2], [samuel-debionne@uiowa.edu])
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([tar-ustar foreign -Wall -Werror])
+AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 
 # Check for programms
 AX_PROG_CC_MPI([], [], [AC_MSG_FAILURE([MPI compiler requested, but couldn't find MPI.])] )
 AC_PROG_CC_STDC #C99
+AM_PROG_CC_C_O  #automake < 1.14
+AM_PROG_AR
 AC_PROG_RANLIB
 
 # Checks for libraries

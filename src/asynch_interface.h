@@ -1,4 +1,4 @@
-#ifndef ASYNCH_INTERFACE_H
+#if !defined(ASYNCH_INTERFACE_H)
 #define ASYNCH_INTERFACE_H
 
 #if _MSC_VER > 1000
@@ -12,88 +12,50 @@
 #include <mpi.h>
 #endif 
 
-//#include "comm.h"
-//#include "riversys.h"
-//#include "processdata.h"
-//#include "structs.h"
-//#include "solvers.h"
-//#include "io.h"
-#include "data_types.h"
-#include "mathmethods.h"
+#include <structs_fwd.h>
+#include <data_types.h>
 
-
-//#define ASYNCH_MAX_DB_CONNECTIONS 20
-
-// Forward definitions
-typedef struct ErrorData ErrorData;
-typedef struct GlobalVars GlobalVars;
-typedef struct Link Link;
-typedef struct RKMethod RKMethod;
-typedef struct TransData TransData;
-typedef struct TempStorage TempStorage;
-typedef struct ConnData ConnData;
-typedef struct QVSData QVSData;
-typedef struct Forcing Forcing;
-typedef struct AsynchSolver AsynchSolver;
-
-typedef struct VEC VEC;
-typedef struct MAT MAT;
-
+#include <models/model.h>
 
 //Callback signatures
 
 /// 
 ///
+/// \param id The link id.
 /// \param t The current time.
 /// \param y The current state vector at time *t* for the link.
-/// \param global_params The vector of parameters uniform amongst all links.
-/// \param params The vector of parameters for the link.
-/// \param state : The current state of the state vector.
-/// \param user: User defined data.
+/// \param num_dof: Number of degree of freedom.
 /// \return Returns the data to be written as output.
-typedef int (OutputIntCallback)(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
+typedef int (OutputIntCallback)(unsigned int id, double t, double *y, unsigned int num_dof);
 
 /// 
 ///
+/// \param id The link id.
 /// \param t The current time.
 /// \param y The current state vector at time *t* for the link.
-/// \param global_params The vector of parameters uniform amongst all links.
-/// \param params The vector of parameters for the link.
-/// \param state : The current state of the state vector.
-/// \param user: User defined data.
+/// \param num_dof: Number of degree of freedom.
 /// \return Returns the data to be written as output.
-typedef double (OutputDoubleCallback)(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
+typedef double (OutputDoubleCallback)(unsigned int id, double t, double *y, unsigned int num_dof);
 
-typedef void (PeakflowOutputCallback)(unsigned int, double, VEC, VEC, VEC, double, unsigned int, void*, char*);
-
-//Function signatures
-
-/// These are the right-hand side functions for the ODEs.
+/// 
 ///
-/// \param t The current time
-/// \param y_i The approximate value of the solution to the ODEs at the current link at time t
-/// \param y_p y_p[j] has the approximate values for the immediately upstream link j to the current link at time t
-/// \param num_parents The number of upstream links (parents) to link i
-/// \param global_params The global parameters
-/// \param forcings The rain fall values for link i
-/// \param params The parameters for link i
-/// \param state The current state of the system
-/// \param user A pointer to user specified data
-/// \param ans (set by method, assumed that space is allocated): The value returned by the right-hand side function
-typedef void (DifferentialFunc)(double t, VEC y_i, VEC* y_p, unsigned short int num_parents, VEC global_params, double* forcings, QVSData*, VEC params, int state, void* user, VEC ans);                    //!< Right-hand side function for ODE                                            
-typedef void (AlgebraicFunc)(VEC, VEC, VEC, QVSData*, int, void*, VEC);                                                                  //!< Function for algebraic variables
-typedef int (CheckStateFunc)(VEC, VEC, VEC, QVSData*, unsigned int);                                                                     //!< Function to check what "state" the state variables are in (for discontinuities)
-typedef void (JacobianFunc)(double, VEC, VEC*, unsigned short int, VEC, double*, VEC, MAT*);                                                    //!< Jacobian of right-hand side function
-typedef int (RKSolverFunc)(Link*, GlobalVars*, int*, bool, FILE*, ConnData*, Forcing*, TempStorage*);   //!< RK solver to use
-typedef void (CheckConsistencyFunc)(VEC y, VEC, VEC);                                                                                           //!< Function to check state variables
+/// \param id The link id.
+/// \param t The current time.
+/// \param y The current state vector at time *t* for the link.
+/// \param num_dof: Number of degree of freedom.
+/// \return Returns the data to be written as output.
+typedef float (OutputFloatCallback)(unsigned int id, double t, double *y, unsigned int num_dof);
 
-// Custom models signatures
-typedef void (SetParamSizesFunc)(GlobalVars*, void*);
-typedef void (ConvertFunc)(VEC, unsigned int, void*);
-typedef void (RoutinesFunc)(Link*, unsigned int, unsigned int, unsigned short int, void*);
-typedef void (PrecalculationsFunc)(Link*, VEC, VEC, unsigned int, unsigned int, unsigned short int, unsigned int, void*);
-typedef int (InitializeEqsFunc)(VEC, VEC, QVSData*, unsigned short int, VEC, unsigned int, unsigned int, unsigned int, void*, void*);
-typedef int* (PartitionFunc)(Link*, unsigned int, Link**, unsigned int, unsigned int**, unsigned int*, TransData*, short int*);
+
+/// Output formating callback 
+typedef union OutputCallback {
+    OutputIntCallback *out_int;         //!< The callback for an integer
+    OutputDoubleCallback *out_double;   //!< The callback for a double
+    OutputFloatCallback *out_float;     //!< The callback for a float
+} OutputCallback;
+
+
+typedef void (PeakflowOutputCallback)(unsigned int ID, double peak_time, double *peak_value, double *params, double *global_params, double conversion, unsigned int area_idx, void* user, char* buffer);
 
 //Constructor / Destructor related routings
 
@@ -117,14 +79,12 @@ void Asynch_Free(AsynchSolver* asynch);
 //Customization related routings
 
 int Asynch_Custom_Model(
-    AsynchSolver* asynch,
-    SetParamSizesFunc *set_param_sizes,
-    ConvertFunc *convert,
-    RoutinesFunc *routines,
-    PrecalculationsFunc *precalculations,
-    InitializeEqsFunc *initialize_eqs);
+    AsynchSolver *asynch,
+    AsynchModel *model);
 
-int Asynch_Custom_Partitioning(AsynchSolver* asynch, PartitionFunc *partition);
+int Asynch_Custom_Partitioning(
+    AsynchSolver *asynch,
+    PartitionFunc *partition);
 
 //Routines to intialize network and model
 
@@ -145,6 +105,13 @@ void Asynch_Parse_GBL(AsynchSolver* asynch, char* filename);
 /// \param asynch A pointer to a AsynchSolver object to use.
 void Asynch_Load_Network(AsynchSolver* asynch);
 
+/// This routine save the network tolpolgy as a graphviz .dot file.
+///
+/// \pre This routine must be called after *Asynch_Load_Network*.
+/// \param asynch A pointer to a AsynchSolver object to use.
+/// \param filename The path to the output .dot file.
+void Asynch_Save_Network_Dot(const AsynchSolver * const asynch, const char *filename);
+
 /// This routine assigns the Links of the *asynchsolver* object to the MPI processes.
 ///
 /// \pre This routine must be called after *Asynch_Load_Network*.
@@ -156,10 +123,9 @@ void Asynch_Partition_Network(AsynchSolver* asynch);
 /// 
 /// \pre This routine can be called before *Asynch_Partition_Network* only if *load_all* is set to true.
 /// \param asynch A pointer to a AsynchSolver object to use.
-/// \param load_all  Setting load_all to false causes the MPI processes to only store parameters for Links assigned to them.
-void Asynch_Load_Network_Parameters(AsynchSolver* asynch, short int load_all);
+void Asynch_Load_Network_Parameters(AsynchSolver* asynch);
 
-/// This routine processes the dam inputs for the AsynchSolver object as set in the global file read by
+/// This routine processes the is_dam inputs for the AsynchSolver object as set in the global file read by
 // *Asynch_Parse_GBL*.
 /// 
 /// \pre This routine should be called after *Asynch_Partition_Network* and *Asynch_Load_Network_Parameters* have been called.
@@ -340,6 +306,21 @@ int Asynch_Set_Output_Int(AsynchSolver* asynch, char* name, OutputIntCallback* c
 /// \see Asynch_Set_Output_Int
 int Asynch_Set_Output_Double(AsynchSolver* asynch, char* name, OutputDoubleCallback* callback, unsigned int* used_states, unsigned int num_states);
 
+/// This routine sets a custom output time series. A function is required that will be called every time
+/// output data is to be written for a link. The function set in this routine should have the
+/// specification
+/// Asynch_Set_Output_Double must also be given an array *used_states*. This array contains the indices of
+/// the states in the state vectors which are needed by the user specified routine *callback*. All states
+/// listed in this array are guaranteed to be available for the routine *callback*.
+///
+/// \param asynch A pointer to a AsynchSolver object to use.
+/// \param name Name of the custom time series.
+/// \param callback Routine to call when writing data for the custom output.
+/// \param  used_states Array of the all indices in the state vector used by *callback*.
+/// \param num_states Numver of indiciced in used_states.
+/// \see Asynch_Set_Output_Int
+int Asynch_Set_Output_Float(AsynchSolver* asynch, char* name, OutputFloatCallback* callback, unsigned int* used_states, unsigned int num_states);
+
 /// This routine sets the filename of the output peakflow file. If a database connection is used, then
 /// no changes are made.
 ///
@@ -463,7 +444,7 @@ Link* Asynch_Get_Links(AsynchSolver* asynch);
 ///
 /// \param asynch A pointer to a AsynchSolver object to use.
 /// \return Number of links assigned to the current MPI process
-unsigned short Asynch_Get_Num_Links_Proc(AsynchSolver* asynch);
+unsigned int Asynch_Get_Num_Links_Proc(AsynchSolver* asynch);
 
 Link* Asynch_Get_Links_Proc(AsynchSolver* asynch);
 
@@ -558,7 +539,7 @@ void Asynch_Set_Init_File(AsynchSolver* asynch, char* filename);
 /// \param asynch A pointer to a AsynchSolver object to use.
 /// \param unix_time The timestamp to set at each link.
 /// \param states The vector of the current state of each link.
-void Asynch_Set_System_State(AsynchSolver* asynch, double unix_time, VEC* states);
+void Asynch_Set_System_State(AsynchSolver* asynch, double unix_time, double* states);
 
 
 /// This routine clears all peakflow data for each link. The time to peak is set to the current local
@@ -612,8 +593,7 @@ unsigned int Asynch_Get_Size_Global_Parameters(AsynchSolver* asynch);
 /// 
 /// \param asynch A pointer to a AsynchSolver object to use.
 /// \param params Vector of global parameter values to retrieve.
-/// \return Vector of the global parameters.
-void Asynch_Get_Global_Parameters(AsynchSolver* asynch, VEC params);
+void Asynch_Get_Global_Parameters(AsynchSolver* asynch, double *params);
 
 /// This routine sets the values of the global parameters. The number of global parameters may be
 /// different from the number previously stored by Asynch. However, if the new global parameters should
@@ -626,9 +606,6 @@ void Asynch_Get_Global_Parameters(AsynchSolver* asynch, VEC params);
 /// \param params Vector of global parameter values to set.
 /// \param num_params The number of global parameters in params.
 /// \return Returns 1 if an error occurred, 0 otherwise.
-int Asynch_Set_Global_Parameters(AsynchSolver* asynch, VEC params, unsigned int num_params);
+int Asynch_Set_Global_Parameters(AsynchSolver* asynch, double *params, unsigned int num_params);
 
-
-
-#endif
-
+#endif //!defined(ASYNCH_INTERFACE_H)
