@@ -61,11 +61,11 @@
 struct Workspace
 {
     //Memory for all Solvers
-    double *sum, *temp, *temp2, *temp3;    //!< Vectors for summations and temp workspace. size = dim of problem at each link.
+    double *sum, *temp, *temp2, *temp3;    //!< Vectors for summations and temp workspace. [max_dim]
 
-    double *stages_parents_approx;      //!< Matrix of vectors to hold temporary work from parent links. [num_stages][max_parents][dim]
-    double *parents_approx;             //!< Matrix of vectors to hold temporary work from parent links. [max_parents][dim]
-    double *temp_k;                     //!< Vector of vectors to hold temporary internal stage values.[num_stages][dim]    
+    double *stages_parents_approx;      //!< Matrix of vectors to hold temporary work from parent links. [num_stages][max_parents][max_dim]
+    double *parents_approx;             //!< Matrix of vectors to hold temporary work from parent links. [max_parents][max_dim]
+    double *temp_k;                     //!< Vector of vectors to hold temporary internal stage values.[num_stages][max_dim]    
 
     double *temp_k_slices[ASYNCH_MAX_SOLVER_STAGES];
 
@@ -285,7 +285,7 @@ struct GlobalVars
     char* peaksave_filename;
     char* peakfilename;             //!< Filename for .pea file
     //char* identifier;
-    unsigned int max_dim;
+    unsigned int max_dim;           //!< Maximum num of degree of freedom in the system (assim uses variable dimensions)
     unsigned int outletlink;        //!< For database: holds the link id of the outlet. Use 0 if reading entire database.
     //unsigned int num_dense;       //!< Number of states where dense output is calculated
     //unsigned int* dense_indices;  //!< List of indices in solution where dense output is needed
@@ -310,7 +310,7 @@ struct GlobalVars
     char* peaks_loc_filename;
     char* dump_loc_filename;
     char* rsv_filename;
-    unsigned int init_timestamp;
+    unsigned int init_timestamp;        //!< The timestamp of the initial state (only used to get initial condition from the DB)
     short int res_forcing_idx;
 
 
@@ -355,7 +355,7 @@ struct GlobalVars
 typedef struct LinkData
 {
     RKSolutionList list;            //!< The list for the calculated numerical solution
-    ErrorData error_data;           //!< Error estimiation information for this link
+    ErrorData *error_data;          //!< Error estimation information for this link
 
     //Forcings data
     //TODO merge into one struct

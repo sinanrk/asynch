@@ -13,186 +13,188 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <math.h>
 
 #include <metis.h>
 
 // Internal Asynch stuffs
-#include "sort.h"
-#include "rkmethods.h"
+#include <sort.h>
+#include <rkmethods.h>
+#include <rksteppers.h>
+#include <models/check_consistency.h>
+#include <models/check_state.h>
+#include <models/equations.h>
 
 #include "assim_models.h"
 
 
-
-
-int* Partition_METIS_ByEqs(Link* sys, unsigned int N, Link** leaves, unsigned int numleaves, unsigned int** my_sys, unsigned int* my_N, TransData* my_data, short int *getting)
-{
-    unsigned int i, j, start_index, end_index, loc, retval;
-    unsigned int nodes_per_proc = numleaves / np;	//Number of leaves assigned to each process (except the last)
-    Link* current;
-
-    start_index = nodes_per_proc * my_rank;
-    if (my_rank == np - 1)		end_index = numleaves;
-    else				end_index = nodes_per_proc * (my_rank + 1);
-    //	*my_N = end_index - start_index;
-    *my_N = 0;
-    unsigned int my_max_nodes = N - numleaves + nodes_per_proc;
-    *my_sys = (unsigned int*)malloc(my_max_nodes * sizeof(unsigned int));	//The indices of this processes links (in sys)
-    for (i = 0; i < my_max_nodes; i++)	(*my_sys)[i] = -1;
-    for (i = start_index; i < end_index; i++)	(*my_sys)[i - start_index] = leaves[i]->location;
-    for (i = 0; i < N; i++)	getting[i] = 0;
-
-    //Initialize assignments
-    int* assignments = (int*)malloc(N * sizeof(int));
-    for (i = 0; i < N; i++)	assignments[i] = -1;
-
-    //Form the graph to partition
-    idx_t* xadj = malloc((N + 1) * sizeof(idx_t));
-    idx_t* adjncy = malloc(2 * (N - 1) * sizeof(idx_t));
-    idx_t index = 0;
-
-    for (i = 0; i < N; i++)
-    {
-        xadj[i] = index;
-        current = &sys[i];
-        if (current->child != NULL)
-        {
-            adjncy[index] = current->child->location;
-            index++;
-        }
-        for (j = 0; j < current->num_parents; j++)
-        {
-            adjncy[index] = current->parents[j]->location;
-            index++;
-        }
-    }
-    xadj[N] = 2 * (N - 1);
-
-    //Partition the system
-    idx_t nverts = N;
-    idx_t parts = np;
-    idx_t ncon = 1;
-    idx_t objval;
-    idx_t* partitions = (idx_t*)calloc(N, sizeof(idx_t));
-    idx_t* vwgt = (idx_t*)malloc(N * sizeof(idx_t));
-
-    for (i = 0; i < N; i++)
-        vwgt[i] = ((UpstreamData*)(sys[i].user))->dim;
-    if (np != 1)
-    {
-        retval = METIS_PartGraphKway(&nverts, &ncon, xadj, adjncy, vwgt, vwgt, NULL, &parts, NULL, NULL, NULL, &objval, partitions);
-        //retval = METIS_PartGraphKway(&nverts,&ncon,xadj,adjncy,NULL,NULL,NULL,&parts,NULL,NULL,NULL,&objval,partitions);
-        if (retval != METIS_OK)
-        {
-            printf("Error: METIS returned error code %i.\n", retval);
-            return NULL;
-        }
-    }
-
-    *my_N = 0;
-    for (i = 0; i < N; i++)
-    {
-        assignments[i] = partitions[i];	//!!!! Just use assignments? !!!!
-        if (partitions[i] == my_rank)
-        {
-            (*my_sys)[*my_N] = i;
-            (*my_N)++;
-        }
-    }
-
-    //Set the getting array and determine number of sending and receiving links
-    for (i = 0; i < *my_N; i++)
-    {
-        //Receiving
-        for (j = 0; j < sys[(*my_sys)[i]].num_parents; j++)
-        {
-            loc = sys[(*my_sys)[i]].parents[j]->location;
-            if (assignments[loc] != my_rank)
-            {
-                getting[loc] = 1;
-                my_data->receive_size[assignments[loc]]++;
-            }
-        }
-
-        //Sending
-        if (sys[(*my_sys)[i]].child != NULL)
-        {
-            loc = sys[(*my_sys)[i]].child->location;
-            if (assignments[loc] != my_rank)
-                my_data->send_size[assignments[loc]]++;
-        }
-    }
-
-    //Reorder my_sys so that the links with lower numbering are towards the beginning
-    merge_sort_distance(sys, *my_sys, *my_N);
-
-    //Allocate space in my_data for recieving and sending
-    for (j = 0; j < np; j++)
-    {
-        my_data->receive_data[j] = (Link**)malloc(my_data->receive_size[j] * sizeof(Link*));
-        my_data->send_data[j] = (Link**)malloc(my_data->send_size[j] * sizeof(Link*));
-    }
-
-    //Set the receive_data and send_data arrays
-    int* current_receive_size = (int*)calloc(np, sizeof(int));
-    int* current_send_size = (int*)calloc(np, sizeof(int));
-    for (i = 0; i < *my_N; i++)
-    {
-        //Receiving
-        for (j = 0; j < sys[(*my_sys)[i]].num_parents; j++)
-        {
-            loc = sys[(*my_sys)[i]].parents[j]->location;
-            if (assignments[loc] != my_rank)
-            {
-                my_data->receive_data[assignments[loc]][current_receive_size[assignments[loc]]] = &sys[loc];
-                current_receive_size[assignments[loc]]++;
-            }
-        }
-
-        //Sending
-        if (sys[(*my_sys)[i]].child != NULL)
-        {
-            loc = sys[(*my_sys)[i]].child->location;
-            if (assignments[loc] != my_rank)
-            {
-                my_data->send_data[assignments[loc]][current_send_size[assignments[loc]]] = &sys[(*my_sys)[i]];
-                current_send_size[assignments[loc]]++;
-            }
-        }
-    }
-
-    //Clean up
-    free(current_receive_size);
-    free(current_send_size);
-    free(xadj);
-    free(adjncy);
-    free(partitions);
-    free(vwgt);
-    (*my_sys) = (unsigned int*)realloc(*my_sys, *my_N * sizeof(unsigned int));
-
-    return assignments;
-}
+//int* Partition_METIS_ByEqs(Link* sys, unsigned int N, Link** leaves, unsigned int numleaves, Link** my_sys, unsigned int* my_N, TransData* my_data, short int *getting)
+//{
+//    unsigned int i, j, start_index, end_index, loc, retval;
+//    unsigned int nodes_per_proc = numleaves / np;	//Number of leaves assigned to each process (except the last)
+//    Link* current;
+//
+//    start_index = nodes_per_proc * my_rank;
+//    if (my_rank == np - 1)		end_index = numleaves;
+//    else				end_index = nodes_per_proc * (my_rank + 1);
+//    //	*my_N = end_index - start_index;
+//    *my_N = 0;
+//    unsigned int my_max_nodes = N - numleaves + nodes_per_proc;
+//    *my_sys = (unsigned int*)malloc(my_max_nodes * sizeof(unsigned int));	//The indices of this processes links (in sys)
+//    for (i = 0; i < my_max_nodes; i++)	(*my_sys)[i] = -1;
+//    for (i = start_index; i < end_index; i++)	(*my_sys)[i - start_index] = leaves[i]->location;
+//    for (i = 0; i < N; i++)	getting[i] = 0;
+//
+//    //Initialize assignments
+//    int* assignments = (int*)malloc(N * sizeof(int));
+//    for (i = 0; i < N; i++)	assignments[i] = -1;
+//
+//    //Form the graph to partition
+//    idx_t* xadj = malloc((N + 1) * sizeof(idx_t));
+//    idx_t* adjncy = malloc(2 * (N - 1) * sizeof(idx_t));
+//    idx_t index = 0;
+//
+//    for (i = 0; i < N; i++)
+//    {
+//        xadj[i] = index;
+//        current = &sys[i];
+//        if (current->child != NULL)
+//        {
+//            adjncy[index] = current->child->location;
+//            index++;
+//        }
+//        for (j = 0; j < current->num_parents; j++)
+//        {
+//            adjncy[index] = current->parents[j]->location;
+//            index++;
+//        }
+//    }
+//    xadj[N] = 2 * (N - 1);
+//
+//    //Partition the system
+//    idx_t nverts = N;
+//    idx_t parts = np;
+//    idx_t ncon = 1;
+//    idx_t objval;
+//    idx_t* partitions = (idx_t*)calloc(N, sizeof(idx_t));
+//    idx_t* vwgt = (idx_t*)malloc(N * sizeof(idx_t));
+//
+//    for (i = 0; i < N; i++)
+//        vwgt[i] = ((UpstreamData*)(sys[i].user))->dim;
+//    if (np != 1)
+//    {
+//        retval = METIS_PartGraphKway(&nverts, &ncon, xadj, adjncy, vwgt, vwgt, NULL, &parts, NULL, NULL, NULL, &objval, partitions);
+//        //retval = METIS_PartGraphKway(&nverts,&ncon,xadj,adjncy,NULL,NULL,NULL,&parts,NULL,NULL,NULL,&objval,partitions);
+//        if (retval != METIS_OK)
+//        {
+//            printf("Error: METIS returned error code %i.\n", retval);
+//            return NULL;
+//        }
+//    }
+//
+//    *my_N = 0;
+//    for (i = 0; i < N; i++)
+//    {
+//        assignments[i] = partitions[i];	//!!!! Just use assignments? !!!!
+//        if (partitions[i] == my_rank)
+//        {
+//            (*my_sys)[*my_N] = i;
+//            (*my_N)++;
+//        }
+//    }
+//
+//    //Set the getting array and determine number of sending and receiving links
+//    for (i = 0; i < *my_N; i++)
+//    {
+//        //Receiving
+//        for (j = 0; j < sys[(*my_sys)[i]].num_parents; j++)
+//        {
+//            loc = sys[(*my_sys)[i]].parents[j]->location;
+//            if (assignments[loc] != my_rank)
+//            {
+//                getting[loc] = 1;
+//                my_data->receive_size[assignments[loc]]++;
+//            }
+//        }
+//
+//        //Sending
+//        if (sys[(*my_sys)[i]].child != NULL)
+//        {
+//            loc = sys[(*my_sys)[i]].child->location;
+//            if (assignments[loc] != my_rank)
+//                my_data->send_size[assignments[loc]]++;
+//        }
+//    }
+//
+//    //Reorder my_sys so that the links with lower numbering are towards the beginning
+//    merge_sort_by_distance(my_sys, *my_N);
+//
+//    //Allocate space in my_data for recieving and sending
+//    for (j = 0; j < np; j++)
+//    {
+//        my_data->receive_data[j] = (Link**)malloc(my_data->receive_size[j] * sizeof(Link*));
+//        my_data->send_data[j] = (Link**)malloc(my_data->send_size[j] * sizeof(Link*));
+//    }
+//
+//    //Set the receive_data and send_data arrays
+//    int* current_receive_size = (int*)calloc(np, sizeof(int));
+//    int* current_send_size = (int*)calloc(np, sizeof(int));
+//    for (i = 0; i < *my_N; i++)
+//    {
+//        //Receiving
+//        for (j = 0; j < sys[(*my_sys)[i]].num_parents; j++)
+//        {
+//            loc = sys[(*my_sys)[i]].parents[j]->location;
+//            if (assignments[loc] != my_rank)
+//            {
+//                my_data->receive_data[assignments[loc]][current_receive_size[assignments[loc]]] = &sys[loc];
+//                current_receive_size[assignments[loc]]++;
+//            }
+//        }
+//
+//        //Sending
+//        if (sys[(*my_sys)[i]].child != NULL)
+//        {
+//            loc = sys[(*my_sys)[i]].child->location;
+//            if (assignments[loc] != my_rank)
+//            {
+//                my_data->send_data[assignments[loc]][current_send_size[assignments[loc]]] = &sys[(*my_sys)[i]];
+//                current_send_size[assignments[loc]]++;
+//            }
+//        }
+//    }
+//
+//    //Clean up
+//    free(current_receive_size);
+//    free(current_send_size);
+//    free(xadj);
+//    free(adjncy);
+//    free(partitions);
+//    free(vwgt);
+//    (*my_sys) = (unsigned int*)realloc(*my_sys, *my_N * sizeof(unsigned int));
+//
+//    return assignments;
+//}
 
 
 void Setup_Errors(AsynchSolver* asynch, unsigned int problem_dim)
 {
     GlobalVars* globals = asynch->globals;
-    ErrorData* errors_tol = asynch->errors_tol;
-    unsigned int i, max_dim = globals->max_dim;
+    ErrorData* errors_tol = &asynch->errors_tol;
+    unsigned int max_dim = globals->max_dim;
 
-    errors_tol->abstol.ve = realloc(errors_tol->abstol.ve, max_dim * sizeof(double));
-    errors_tol->reltol.ve = realloc(errors_tol->reltol.ve, max_dim * sizeof(double));
-    errors_tol->abstol_dense.ve = realloc(errors_tol->abstol_dense.ve, max_dim * sizeof(double));
-    errors_tol->reltol_dense.ve = realloc(errors_tol->reltol_dense.ve, max_dim * sizeof(double));
-    errors_tol->abstol.dim = errors_tol->reltol.dim = errors_tol->reltol_dense.dim = errors_tol->reltol_dense.dim = max_dim;
+    errors_tol->abstol = realloc(errors_tol->abstol, max_dim * sizeof(double));
+    errors_tol->reltol = realloc(errors_tol->reltol, max_dim * sizeof(double));
+    errors_tol->abstol_dense = realloc(errors_tol->abstol_dense, max_dim * sizeof(double));
+    errors_tol->reltol_dense = realloc(errors_tol->reltol_dense, max_dim * sizeof(double));
 
     //Setup error
-    for (i = problem_dim + 1; i < max_dim; i++)
+    for (unsigned int i = problem_dim + 1; i < max_dim; i++)
     {
-        errors_tol->abstol.ve[i] = errors_tol->abstol.ve[problem_dim];
-        errors_tol->reltol.ve[i] = errors_tol->reltol.ve[problem_dim];
-        errors_tol->abstol_dense.ve[i] = errors_tol->abstol_dense.ve[problem_dim];
-        errors_tol->reltol_dense.ve[i] = errors_tol->reltol_dense.ve[problem_dim];
+        errors_tol->abstol[i] = errors_tol->abstol[problem_dim];
+        errors_tol->reltol[i] = errors_tol->reltol[problem_dim];
+        errors_tol->abstol_dense[i] = errors_tol->abstol_dense[problem_dim];
+        errors_tol->reltol_dense[i] = errors_tol->reltol_dense[problem_dim];
     }
 }
 
@@ -252,222 +254,229 @@ unsigned int BuildStateShift(AsynchSolver* asynch, unsigned int allstates, unsig
 //Data assimilation model (Old Model 315) ************************************************************************************
 
 
-void SetParamSizes_Assim(GlobalVars* GlobalVars, void* external)
-{
-    GlobalVars->uses_dam = 0;
-    GlobalVars->params_size = 20;
-    GlobalVars->dam_params_size = 0;
-    GlobalVars->area_idx = 2;
-    GlobalVars->areah_idx = 1;
-    GlobalVars->disk_params = 12;
-    GlobalVars->convertarea_flag = 0;
-    GlobalVars->num_forcings = 1;
-    GlobalVars->min_error_tolerances = 4;
-}
+//void SetParamSizes_Assim(GlobalVars* GlobalVars, void* external)
+//{
+//    GlobalVars->uses_dam = 0;
+//    GlobalVars->num_params = 20;
+//    GlobalVars->dam_params_size = 0;
+//    GlobalVars->area_idx = 2;
+//    GlobalVars->areah_idx = 1;
+//    GlobalVars->num_disk_params = 12;
+//    GlobalVars->convertarea_flag = 0;
+//    GlobalVars->num_forcings = 1;
+//    GlobalVars->min_error_tolerances = 4;
+//}
+//
+//
+//void ConvertParams_Assim(double *params, unsigned int type, void* external)
+//{
+//    params[0] *= 1000;	//L: km -> m
+//    params[3] *= .001;	//h_b: mm -> m
+//    params[4] *= .001;	//h_H: mm -> m
+//}
+//
+//void InitRoutines_Assim(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
+//{
+//    UpstreamData* updata = (UpstreamData*)(link->user);
+//    unsigned int i, problem_dim = 2;	//Number of model eqs
+//
+//    link->dim = problem_dim + problem_dim + (problem_dim - 1)*(problem_dim - 1) //Model eqs + variational eqs from this link
+//        + updata->num_upstreams * problem_dim;	                                //Variational eqs from upstreams !!!! Too high? !!!!
+//    //for(i=0;i<link->num_parents;i++)
+//    //	link->dim += updata->num_upstreams[i] * problem_dim;	//Variational eqs from upstreams !!!! Too high? !!!!
+//
+//    if (link->dim != updata->dim)
+//        printf("[%i]: Warning: calculated the number of equations at link %u twice and got %u and %u.\n", my_rank, link->ID, link->dim, updata->dim);
+//    link->no_ini_start = 2;
+//    link->diff_start = 0;
+//
+//    link->num_dense = link->dim - 1;	//Take out s_p
+//    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+//    link->dense_indices[0] = 0;
+//    for (i = 1; i < link->num_dense; i++)	link->dense_indices[i] = i + 1;
+//
+//    link->differential = &assim_river_rainfall_adjusted_custom;
+//    link->algebraic = NULL;
+//    link->check_state = NULL;
+//    link->check_consistency = &CheckConsistency_Nonzero_2States;
+//    link->solver = &ExplicitRKSolver;
+//}
+//
+//
+//void InitRoutines_Model(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
+//{
+//    UpstreamData* updata = (UpstreamData*)(link->user);
+//    unsigned int problem_dim = 2;	//Number of model eqs
+//
+//    link->dim = 2;
+//    link->no_ini_start = 2;
+//    link->diff_start = 0;
+//
+//    link->num_dense = 1;
+//    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+//    link->dense_indices[0] = 0;
+//
+//    link->differential = &river_rainfall_adjusted;
+//    link->algebraic = NULL;
+//    link->check_state = NULL;
+//    link->check_consistency = &CheckConsistency_Nonzero_2States;
+//    link->solver = &ExplicitRKSolver;
+//}
+//
+//void Precalculations_Assim(Link* link_i, const double * const global_params, double * const params, unsigned short has_dam, void *user)
+//{
+//    //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
+//    //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
+//    //Order of global_params: v_r,lambda_1,lambda_2,v_h,A_r,RC
+//    //The numbering is:        0      1        2     3   4   5
+//    //Need to set entries 12-19 of params.
+//    double K_T = 1.0;
+//    double s_r = 1.0;
+//    double rootS_h = pow(params[7], .5);
+//    double L = params[0];
+//    double A_h = params[1] * 1e6;	//Put into m^2
+//    double eta = params[8];
+//    double v_r = global_params[0];
+//    double lambda_1 = global_params[1];
+//    double lambda_2 = global_params[2];
+//    double v_h = global_params[3];
+//    double A_r = global_params[4];
+//    double RC = global_params[5];
+//
+//    //!!!! Clean this model. You don't really need 20 parameters... !!!!
+//    params[12] = 60.0*v_r*pow(params[2] / A_r, lambda_2) / ((1.0 - lambda_1)*params[0]);	//invtau [1/min]
+//    params[13] = params[3] / s_r; //epsilon
+//    params[14] = v_h*L;	//c_1 [m^2/s]
+//    params[15] = params[6] * params[0] * params[3] / 3600.0; //c_2
+//    params[16] = (1e-3 / 60.0) * RC;	//c_3
+//    params[17] = 60.0*v_h*L / A_h;	//c_4 [1/min], A_h converted above
+//    params[18] = K_T / 60.0;
+//    params[19] = params[6] / (60.0*s_r);
+//
+//    //iparams[0] = link_i->location; //!!!! Is this even needed anywhere? !!!!
+//}
+//
+//int ReadInitData_Assim(
+//    const double * const global_params, unsigned int num_global_params,
+//    const double * const params, unsigned int num_params,
+//    double *y_0, unsigned int dim,
+//    void *user)
+//{
+//    //For this type, all initial conditions for variational equation must be set here.
+//    //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
+//    //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
+//    //Order of global_params: v_r,lambda_1,lambda_2,Q_r,A_r,RC
+//    //The numbering is:        0      1        2     3   4   5
+//    unsigned int i;
+//    unsigned int offset = 2;
+//
+//    y_0[offset] = 1.0;
+//    y_0[offset + 1] = 1.0;
+//    y_0[offset + 2] = 0.0;
+//    for (i = offset + 3; i < dim; i++)
+//        y_0[i] = 0.0;
+//
+//    return 0;
+//}
 
-
-void ConvertParams_Assim(VEC params, unsigned int type, void* external)
-{
-    params.ve[0] *= 1000;	//L: km -> m
-    params.ve[3] *= .001;	//h_b: mm -> m
-    params.ve[4] *= .001;	//h_H: mm -> m
-}
-
-void InitRoutines_Assim(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
-{
-    UpstreamData* updata = (UpstreamData*)(link->user);
-    unsigned int i, problem_dim = 2;	//Number of model eqs
-
-    link->dim = problem_dim + problem_dim + (problem_dim - 1)*(problem_dim - 1) //Model eqs + variational eqs from this link
-        + updata->num_upstreams * problem_dim;	                                //Variational eqs from upstreams !!!! Too high? !!!!
-    //for(i=0;i<link->num_parents;i++)
-    //	link->dim += updata->num_upstreams[i] * problem_dim;	//Variational eqs from upstreams !!!! Too high? !!!!
-
-    if (link->dim != updata->dim)
-        printf("[%i]: Warning: calculated the number of equations at link %u twice and got %u and %u.\n", my_rank, link->ID, link->dim, updata->dim);
-    link->no_ini_start = 2;
-    link->diff_start = 0;
-
-    link->num_dense = link->dim - 1;	//Take out s_p
-    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
-    link->dense_indices[0] = 0;
-    for (i = 1; i < link->num_dense; i++)	link->dense_indices[i] = i + 1;
-
-    link->f = &assim_river_rainfall_adjusted_custom;
-    link->alg = NULL;
-    link->state_check = NULL;
-    link->CheckConsistency = &CheckConsistency_Nonzero_2States;
-    link->RKSolver = &ExplicitRKSolver;
-}
-
-
-void InitRoutines_Model(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
-{
-    UpstreamData* updata = (UpstreamData*)(link->user);
-    unsigned int problem_dim = 2;	//Number of model eqs
-
-    link->dim = 2;
-    link->no_ini_start = 2;
-    link->diff_start = 0;
-
-    link->num_dense = 1;
-    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
-    link->dense_indices[0] = 0;
-
-    link->f = &river_rainfall_adjusted;
-    link->alg = NULL;
-    link->state_check = NULL;
-    link->CheckConsistency = &CheckConsistency_Nonzero_2States;
-    link->RKSolver = &ExplicitRKSolver;
-}
-
-void Precalculations_Assim(Link* link_i, VEC global_params, VEC params, unsigned int disk_params, unsigned int params_size, unsigned short int dam, unsigned int type, void* external)
-{
-    //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
-    //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
-    //Order of global_params: v_r,lambda_1,lambda_2,v_h,A_r,RC
-    //The numbering is:        0      1        2     3   4   5
-    //Need to set entries 12-19 of params.
-    double* vals = params.ve;
-    double K_T = 1.0;
-    double s_r = 1.0;
-    double rootS_h = pow(vals[7], .5);
-    double L = params.ve[0];
-    double A_h = params.ve[1] * 1e6;	//Put into m^2
-    double eta = params.ve[8];
-    double v_r = global_params.ve[0];
-    double lambda_1 = global_params.ve[1];
-    double lambda_2 = global_params.ve[2];
-    double v_h = global_params.ve[3];
-    double A_r = global_params.ve[4];
-    double RC = global_params.ve[5];
-
-    //!!!! Clean this model. You don't really need 20 parameters... !!!!
-    vals[12] = 60.0*v_r*pow(vals[2] / A_r, lambda_2) / ((1.0 - lambda_1)*vals[0]);	//invtau [1/min]
-    vals[13] = vals[3] / s_r; //epsilon
-    vals[14] = v_h*L;	//c_1 [m^2/s]
-    vals[15] = vals[6] * vals[0] * vals[3] / 3600.0; //c_2
-    vals[16] = (1e-3 / 60.0) * RC;	//c_3
-    vals[17] = 60.0*v_h*L / A_h;	//c_4 [1/min], A_h converted above
-    vals[18] = K_T / 60.0;
-    vals[19] = vals[6] / (60.0*s_r);
-
-    //iparams.ve[0] = link_i->location; //!!!! Is this even needed anywhere? !!!!
-}
-
-int ReadInitData_Assim(VEC global_params, VEC params, QVSData* qvs, unsigned short int dam, VEC y_0, unsigned int type, unsigned int diff_start, unsigned int no_init_start, void* user, void* external)
-{
-    //For this type, all initial conditions for variational equation must be set here.
-    //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
-    //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
-    //Order of global_params: v_r,lambda_1,lambda_2,Q_r,A_r,RC
-    //The numbering is:        0      1        2     3   4   5
-    unsigned int i;
-    unsigned int offset = 2;
-
-    y_0.ve[offset] = 1.0;
-    y_0.ve[offset + 1] = 1.0;
-    y_0.ve[offset + 2] = 0.0;
-    for (i = offset + 3; i < y_0.dim; i++)	y_0.ve[i] = 0.0;
-
-    return 0;
-}
-
-//Function for simple river system with data assimilation.
-//Calculates the flow using simple parameters, using only the flow q.
-//Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
-//The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
-//Order of global_params: v_r,lambda_1,lambda_2,v_h,A_r,RC
-//The numbering is:        0      1        2     3   4   5
-//This uses the units and functions from September 18, 2011 document
-//y_i[0] = q, y_i[1] = s, followed by N entries for the variational equation
-void assim_river_rainfall_adjusted_custom(double t, VEC y_i, VEC* y_p, unsigned short int num_parents, VEC global_params, double* forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans)
-{
-    unsigned int i, j;
-    unsigned int dim = ans.dim;
-    unsigned int offset = 2;		//!!!! This needs to be num_dense, but without variational eqs !!!!
-    unsigned int parent_offset;
-    unsigned int problem_dim = 2;
-    unsigned int all_states = (dim - offset) / problem_dim;
-    double inflow = 0.0;
-    UpstreamData* updata = (UpstreamData*)user;
-
-    double q = y_i.ve[0];
-    double s_p = y_i.ve[1];
-
-    double L = params.ve[0];
-    double invtau = params.ve[12];
-    double c_1 = params.ve[14];
-    double c_3 = params.ve[16];
-    double c_4 = params.ve[17];
-    double lambda_1 = global_params.ve[1];
-
-    double q_to_lambda_1 = pow(q, lambda_1);
-    double q_to_lambda_1_m1 = (q > 1e-12) ? q_to_lambda_1 / q : pow(1e-12, lambda_1 - 1.0);
-    double deriv_qpl = 1.0;
-
-    double q_pl = s_p;
-
-    //Flux equation (y_i[0])
-    ans.ve[0] = -q + c_1 * q_pl;
-    for (i = 0; i < num_parents; i++)
-        inflow += y_p[i].ve[0];
-    ans.ve[0] = invtau * q_to_lambda_1 * (inflow + ans.ve[0]);
-
-    //Ponded water equation (y_i[1])
-    ans.ve[1] = c_3 * forcing_values[0] - c_4 * q_pl;
-    //ans.ve[1] = c_3 * ( max(forcing_values[0] + 20.0*sin(t/5.0),0.0)) - c_4 * q_pl;
-
-    //!!!! Pull if statements out of loops (should just need two cases total) !!!!
-    //!!!! A lot of terms get repeated !!!!
-
-    //Eqs for variational equations
-    for (i = offset; i < dim; i++)	ans.ve[i] = 0.0;
-
-    //s variable from this link
-    ans.ve[offset] = -c_4*deriv_qpl*y_i.ve[offset];
-
-    //q variables from this link
-//	if(lambda_1 > 1e-12 && (inflow) > 1e-12)
-    ans.ve[offset + 1] = (lambda_1 * invtau * q_to_lambda_1_m1 * (inflow + c_1*s_p) - (lambda_1 + 1) * invtau * q_to_lambda_1) * y_i.ve[offset + 1];
-    //	else
-    //		ans.ve[offset + 1] = -(lambda_1 + 1.0) * invtau * q_to_lambda_1 * y_i.ve[offset + 1];
-
-    //	if(lambda_1 > 1e-12 && (inflow) > 1e-12)
-    ans.ve[offset + 2] = (lambda_1 * invtau * q_to_lambda_1_m1 * (inflow + c_1*s_p) - (lambda_1 + 1) * invtau * q_to_lambda_1) * y_i.ve[offset + 2] + invtau*c_1*q_to_lambda_1*deriv_qpl * y_i.ve[offset];
-    //	else
-    //		ans.ve[offset + 2] = -(lambda_1 + 1.0) * invtau * q_to_lambda_1 * y_i.ve[offset + 2] + invtau*c_1*deriv_qpl*y_i.ve[offset];
-
-        //Adjust offset
-    offset += 3;
-
-    //Variables from parents
-    for (i = 0; i < num_parents; i++)
-    {
-        parent_offset = 1 + problem_dim;
-
-        //Get the number of upstreams link for that parent
-        unsigned int num_upstreams = ((UpstreamData *)updata->upstreams[i]->user)->num_upstreams;
-
-        for (j = 0; j < num_upstreams; j++)
-        {
-            ans.ve[offset] = invtau * q_to_lambda_1 * y_p[i].ve[parent_offset];
-            //			if(lambda_1 > 1e-12 && (inflow) > 1e-12)
-            ans.ve[offset] += (lambda_1 * invtau * q_to_lambda_1_m1 * (inflow + c_1*s_p) - (lambda_1 + 1) * invtau * q_to_lambda_1) * y_i.ve[offset];
-            //			else
-            //				ans.ve[offset] += -(lambda_1 + 1.0) * invtau * q_to_lambda_1 * y_i.ve[offset];
-
-            ans.ve[offset + 1] = invtau * q_to_lambda_1 * y_p[i].ve[parent_offset + 1];
-            //			if(lambda_1 > 1e-12 && (inflow) > 1e-12)
-            ans.ve[offset + 1] += (lambda_1 * invtau * q_to_lambda_1_m1 * (inflow + c_1*s_p) - (lambda_1 + 1) * invtau * q_to_lambda_1) * y_i.ve[offset + 1];
-            //			else
-            //				ans.ve[offset + 1] += -(lambda_1 + 1.0) * invtau * q_to_lambda_1 * y_i.ve[offset + 1];
-
-            offset += 2;
-            parent_offset += 2;
-        }
-    }
-}
+////Function for simple river system with data assimilation.
+////Calculates the flow using simple parameters, using only the flow q.
+////Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
+////The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
+////Order of global_params: v_r,lambda_1,lambda_2,v_h,A_r,RC
+////The numbering is:        0      1        2     3   4   5
+////This uses the units and functions from September 18, 2011 document
+////y_i[0] = q, y_i[1] = s, followed by N entries for the variational equation
+//void assim_river_rainfall_adjusted_custom(
+//    double t,
+//    const double * const y_i, unsigned int dim,
+//    const double * const y_p, unsigned short num_parents,
+//    const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+//{
+//    unsigned int i, j;
+//    unsigned int offset = 2;		//!!!! This needs to be num_dense, but without variational eqs !!!!
+//    unsigned int parent_offset;
+//    unsigned int problem_dim = 2;
+//    unsigned int all_states = (dim - offset) / problem_dim;
+//    double inflow = 0.0;
+//    UpstreamData* updata = (UpstreamData*)user;
+//
+//    double q = y_i[0];
+//    double s_p = y_i[1];
+//
+//    double L = params[0];
+//    double invtau = params[12];
+//    double c_1 = params[14];
+//    double c_3 = params[16];
+//    double c_4 = params[17];
+//    double lambda_1 = global_params[1];
+//
+//    double q_to_lambda_1 = pow(q, lambda_1);
+//    double q_to_lambda_1_m1 = (q > 1e-12) ? q_to_lambda_1 / q : pow(1e-12, lambda_1 - 1.0);
+//    double deriv_qpl = 1.0;
+//
+//    double q_pl = s_p;
+//
+//    //Flux equation (y_i[0])
+//    ans[0] = -q + c_1 * q_pl;
+//    for (i = 0; i < num_parents; i++)
+//        inflow += y_p[i][0];
+//    ans[0] = invtau * q_to_lambda_1 * (inflow + ans[0]);
+//
+//    //Ponded water equation (y_i[1])
+//    ans[1] = c_3 * forcing_values[0] - c_4 * q_pl;
+//    //ans[1] = c_3 * ( max(forcing_values[0] + 20.0*sin(t/5.0),0.0)) - c_4 * q_pl;
+//
+//    //!!!! Pull if statements out of loops (should just need two cases total) !!!!
+//    //!!!! A lot of terms get repeated !!!!
+//
+//    //Eqs for variational equations
+//    for (i = offset; i < dim; i++)	ans[i] = 0.0;
+//
+//    //s variable from this link
+//    ans[offset] = -c_4*deriv_qpl*y_i[offset];
+//
+//    //q variables from this link
+////	if(lambda_1 > 1e-12 && (inflow) > 1e-12)
+//    ans[offset + 1] = (lambda_1 * invtau * q_to_lambda_1_m1 * (inflow + c_1*s_p) - (lambda_1 + 1) * invtau * q_to_lambda_1) * y_i[offset + 1];
+//    //	else
+//    //		ans[offset + 1] = -(lambda_1 + 1.0) * invtau * q_to_lambda_1 * y_i[offset + 1];
+//
+//    //	if(lambda_1 > 1e-12 && (inflow) > 1e-12)
+//    ans[offset + 2] = (lambda_1 * invtau * q_to_lambda_1_m1 * (inflow + c_1*s_p) - (lambda_1 + 1) * invtau * q_to_lambda_1) * y_i[offset + 2] + invtau*c_1*q_to_lambda_1*deriv_qpl * y_i[offset];
+//    //	else
+//    //		ans[offset + 2] = -(lambda_1 + 1.0) * invtau * q_to_lambda_1 * y_i[offset + 2] + invtau*c_1*deriv_qpl*y_i[offset];
+//
+//        //Adjust offset
+//    offset += 3;
+//
+//    //Variables from parents
+//    for (i = 0; i < num_parents; i++)
+//    {
+//        parent_offset = 1 + problem_dim;
+//
+//        //Get the number of upstreams link for that parent
+//        unsigned int num_upstreams = ((UpstreamData *)updata->upstreams[i]->user)->num_upstreams;
+//
+//        for (j = 0; j < num_upstreams; j++)
+//        {
+//            ans[offset] = invtau * q_to_lambda_1 * y_p[i][parent_offset];
+//            //			if(lambda_1 > 1e-12 && (inflow) > 1e-12)
+//            ans[offset] += (lambda_1 * invtau * q_to_lambda_1_m1 * (inflow + c_1*s_p) - (lambda_1 + 1) * invtau * q_to_lambda_1) * y_i[offset];
+//            //			else
+//            //				ans[offset] += -(lambda_1 + 1.0) * invtau * q_to_lambda_1 * y_i[offset];
+//
+//            ans[offset + 1] = invtau * q_to_lambda_1 * y_p[i][parent_offset + 1];
+//            //			if(lambda_1 > 1e-12 && (inflow) > 1e-12)
+//            ans[offset + 1] += (lambda_1 * invtau * q_to_lambda_1_m1 * (inflow + c_1*s_p) - (lambda_1 + 1) * invtau * q_to_lambda_1) * y_i[offset + 1];
+//            //			else
+//            //				ans[offset + 1] += -(lambda_1 + 1.0) * invtau * q_to_lambda_1 * y_i[offset + 1];
+//
+//            offset += 2;
+//            parent_offset += 2;
+//        }
+//    }
+//}
 
 
 
@@ -477,21 +486,21 @@ void assim_river_rainfall_adjusted_custom(double t, VEC y_i, VEC* y_p, unsigned 
 void SetParamSizes_Assim_254(GlobalVars* GlobalVars, void* external)
 {
     GlobalVars->uses_dam = 0;
-    GlobalVars->params_size = 8;
+    GlobalVars->num_params = 8;
     GlobalVars->dam_params_size = 0;
     GlobalVars->area_idx = 0;
     GlobalVars->areah_idx = 2;
-    GlobalVars->disk_params = 3;
+    GlobalVars->num_disk_params = 3;
     GlobalVars->convertarea_flag = 0;
     GlobalVars->num_forcings = 3;
     GlobalVars->min_error_tolerances = 8;
 }
 
 
-void ConvertParams_Assim_254(VEC params, unsigned int type, void* external)
+void ConvertParams_Assim_254(double *params, unsigned int type, void* external)
 {
-    params.ve[1] *= 1000;		//L_h: km -> m
-    params.ve[2] *= 1e6;		//A_h: km^2 -> m^2
+    params[1] *= 1000;		//L_h: km -> m
+    params[2] *= 1e6;		//A_h: km^2 -> m^2
 }
 
 void InitRoutines_Assim_254(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
@@ -514,51 +523,52 @@ void InitRoutines_Assim_254(Link* link, unsigned int type, unsigned int exp_imp,
     link->dense_indices[1] = 6;
     for (i = 2; i < link->num_dense; i++)	link->dense_indices[i] = i + 5;
 
-    link->f = &TopLayerHillslope_extras_assim;
-    link->alg = NULL;
-    link->state_check = NULL;
-    link->CheckConsistency = &CheckConsistency_Nonzero_Model254;
-    link->RKSolver = &ExplicitRKSolver;
+    link->differential = &TopLayerHillslope_extras_assim;
+    link->algebraic = NULL;
+    link->check_state = NULL;
+    link->check_consistency = &CheckConsistency_Nonzero_Model254;
+    link->solver = &ExplicitRKSolver;
 }
 
-void InitRoutines_Model_254(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
-{
-    link->dim = 7;
-    link->no_ini_start = 4;
-    link->diff_start = 0;
+//void InitRoutines_Model_254(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
+//{
+//    link->dim = 7;
+//    link->no_ini_start = 4;
+//    link->diff_start = 0;
+//
+//    link->num_dense = 2;
+//    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+//    link->dense_indices[0] = 0;
+//    link->dense_indices[1] = 6;
+//
+//    if (link->has_res)
+//    {
+//        link->differential = &TopLayerHillslope_Reservoirs;
+//        link->solver = &ForcedSolutionSolver;
+//    }
+//    else			
+//        link->differential = &TopLayerHillslope_extras;
+//    link->algebraic = NULL;
+//    link->check_state = NULL;
+//    link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+//}
 
-    link->num_dense = 2;
-    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
-    link->dense_indices[0] = 0;
-    link->dense_indices[1] = 6;
-
-    if (link->res)
-    {
-        link->f = &TopLayerHillslope_Reservoirs;
-        link->RKSolver = &ForcedSolutionSolver;
-    }
-    else			link->f = &TopLayerHillslope_extras;
-    link->alg = NULL;
-    link->state_check = NULL;
-    link->CheckConsistency = &CheckConsistency_Nonzero_AllStates_q;
-}
-
-void Precalculations_Assim_254(Link* link_i, VEC global_params, VEC params, unsigned int disk_params, unsigned int params_size, unsigned short int dam, unsigned int type, void* external)
+void Precalculations_Assim_254(Link* link_i, const double * const global_params, double * const params, unsigned short has_dam, void *user)
 {
     //Order of parameters: A_i,L_i,A_h,invtau,k_2,k_i,c_1,c_2
     //The numbering is:	0   1   2    3     4   5   6   7 
     //Order of global_params: v_0,lambda_1,lambda_2,v_h,k_3,k_I_factor,h_b,S_L,A,B,exponent,v_B
     //The numbering is:        0      1        2     3   4     5        6   7  8 9  10       11
-    double* vals = params.ve;
-    double A_i = params.ve[0];
-    double L_i = params.ve[1];
-    double A_h = params.ve[2];
+    double* vals = params;
+    double A_i = params[0];
+    double L_i = params[1];
+    double A_h = params[2];
 
-    double v_0 = global_params.ve[0];
-    double lambda_1 = global_params.ve[1];
-    double lambda_2 = global_params.ve[2];
-    double v_h = global_params.ve[3];
-    double k_i_factor = global_params.ve[5];
+    double v_0 = global_params[0];
+    double lambda_1 = global_params[1];
+    double lambda_2 = global_params[2];
+    double v_h = global_params[3];
+    double k_i_factor = global_params[5];
 
     vals[3] = 60.0*v_0*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
     vals[4] = v_h * L_i / A_h * 60.0;	//[1/min] k_2
@@ -567,44 +577,51 @@ void Precalculations_Assim_254(Link* link_i, VEC global_params, VEC params, unsi
     vals[7] = A_h / 60.0;	//  c_2
 }
 
-int ReadInitData_Assim_254(VEC global_params, VEC params, QVSData* qvs, unsigned short int dam, VEC y_0, unsigned int type, unsigned int diff_start, unsigned int no_init_start, void* user, void* external)
+int ReadInitData_Assim_254(
+    const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
+    double *y_0, unsigned int dim,
+    void *user)
 {
     //For this type, all initial conditions for variational equation must be set here.
     unsigned int i;
     unsigned int offset = 7;
 
     //For this type, the extra states need to be set (4,5,6)
-    y_0.ve[4] = 0.0;
-    y_0.ve[5] = 0.0;
-    y_0.ve[6] = y_0.ve[0];
+    y_0[4] = 0.0;
+    y_0[5] = 0.0;
+    y_0[6] = y_0[0];
 
-    y_0.ve[offset++] = 1.0;  //ds_p/ds_p0
-    y_0.ve[offset++] = 0.0;  //ds_p/ds_t0
+    y_0[offset++] = 1.0;  //ds_p/ds_p0
+    y_0[offset++] = 0.0;  //ds_p/ds_t0
 
-    y_0.ve[offset++] = 0.0;  //ds_t/ds_p0
-    y_0.ve[offset++] = 1.0;  //ds_t/ds_t0
+    y_0[offset++] = 0.0;  //ds_t/ds_p0
+    y_0[offset++] = 1.0;  //ds_t/ds_t0
 
-    y_0.ve[offset++] = 0.0;  //ds_s/ds_p0
-    y_0.ve[offset++] = 0.0;  //ds_s/ds_t0
-    y_0.ve[offset++] = 1.0;  //ds_s/ds_s0
+    y_0[offset++] = 0.0;  //ds_s/ds_p0
+    y_0[offset++] = 0.0;  //ds_s/ds_t0
+    y_0[offset++] = 1.0;  //ds_s/ds_s0
 
-    y_0.ve[offset++] = 1.0;  //dq/dq_0
-    y_0.ve[offset++] = 0.0;  //dq/ds_p0
-    y_0.ve[offset++] = 0.0;  //dq/ds_t0
-    y_0.ve[offset++] = 0.0;  //dq/ds_s0
+    y_0[offset++] = 1.0;  //dq/dq_0
+    y_0[offset++] = 0.0;  //dq/ds_p0
+    y_0[offset++] = 0.0;  //dq/ds_t0
+    y_0[offset++] = 0.0;  //dq/ds_s0
 
-    for (i = offset; i < y_0.dim; i++)	y_0.ve[i] = 0.0;	//From upstreams
+    for (i = offset; i < dim; i++)	y_0[i] = 0.0;	//From upstreams
 
     return 0;
 }
 
-void CheckConsistency_Nonzero_Model254(VEC y, VEC params, VEC global_params)
+void CheckConsistency_Nonzero_Model254(double *y, unsigned int dim,
+    const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
+    void *user)
 {
     unsigned int i, problem_dim = 7;
 
-    if (y.ve[0] < 1e-14)	y.ve[0] = 1e-14;
+    if (y[0] < 1e-14)	y[0] = 1e-14;
     for (i = 1; i < problem_dim; i++)
-        if (y.ve[i] < 0.0)	y.ve[i] = 0.0;
+        if (y[i] < 0.0)	y[i] = 0.0;
 }
 
 //Function for simple river system with data assimilation.
@@ -615,37 +632,39 @@ void CheckConsistency_Nonzero_Model254(VEC y, VEC params, VEC global_params)
 //The numbering is:        0      1        2     3   4     5        6   7  8 9  10       11
 //This uses the units and functions from September 18, 2011 document
 //y_i[0] = q, y_i[1] = s, followed by N entries for the variational equation
-void TopLayerHillslope_extras_assim(double t, VEC y_i, VEC* y_p, unsigned short int num_parents, VEC global_params, double* forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans)
+void TopLayerHillslope_extras_assim(
+    double t,
+    const double * const y_i, unsigned int dim,
+    const double * const y_p, unsigned short num_parents, unsigned int max_dim,
+    const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
 {
-    unsigned int i, j;
-
     UpstreamData *updata = (UpstreamData*)user;
 
-    double lambda_1 = global_params.ve[1];
-    double k_3 = global_params.ve[4];	//[1/min]
-    double h_b = global_params.ve[6];	//[m]
-    double S_L = global_params.ve[7];	//[m]
-    double A = global_params.ve[8];
-    double B = global_params.ve[9];
-    double exponent = global_params.ve[10];
-    double v_B = global_params.ve[11];
+    double lambda_1 = global_params[1];
+    double k_3 = global_params[4];	//[1/min]
+    double h_b = global_params[6];	//[m]
+    double S_L = global_params[7];	//[m]
+    double A = global_params[8];
+    double B = global_params[9];
+    double exponent = global_params[10];
+    double v_B = global_params[11];
     double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
 
-    double L = params.ve[1];	//[m]
-    double A_h = params.ve[2];	//[m^2]
-    double invtau = params.ve[3];	//[1/min]
-    double k_2 = params.ve[4];	//[1/min]
-    double k_i = params.ve[5];	//[1/min]
-    double c_1 = params.ve[6];
-    double c_2 = params.ve[7];
+    double L = params[1];	//[m]
+    double A_h = params[2];	//[m^2]
+    double invtau = params[3];	//[1/min]
+    double k_2 = params[4];	//[1/min]
+    double k_i = params[5];	//[1/min]
+    double c_1 = params[6];
+    double c_2 = params[7];
 
-    double q = y_i.ve[0];		//[m^3/s]
-    double s_p = y_i.ve[1];	//[m]
-    double s_t = y_i.ve[2];	//[m]
-    double s_s = y_i.ve[3];	//[m]
-    //double s_precip = y_i.ve[4];	//[m]
-    //double V_r = y_i.ve[5];	//[m^3]
-    double q_b = y_i.ve[6];	//[m^3/s]
+    double q = y_i[0];		//[m^3/s]
+    double s_p = y_i[1];	//[m]
+    double s_t = y_i[2];	//[m]
+    double s_s = y_i[3];	//[m]
+    //double s_precip = y_i[4];	//[m]
+    //double V_r = y_i[5];	//[m^3]
+    double q_b = y_i[6];	//[m^3/s]
 
     //Evaporation
     double e_p, e_t, e_s;
@@ -679,32 +698,33 @@ void TopLayerHillslope_extras_assim(double t, VEC y_i, VEC* y_p, unsigned short 
 
     //Discharge
     double inflow = 0.0;
-    ans.ve[0] = -q + (q_pl + q_sl) * c_2;
-    for (i = 0; i < num_parents; i++)
-        inflow += y_p[i].ve[0];
-    ans.ve[0] = invtau * q_to_lambda_1 * (inflow + ans.ve[0]);
+    ans[0] = -q + (q_pl + q_sl) * c_2;
+    for (unsigned int i = 0, p = 0; i < num_parents; i++, p += updata->parents[i]->dim)
+        inflow += y_p[p];
+    ans[0] = invtau * q_to_lambda_1 * (inflow + ans[0]);
 
     //Hillslope
-    ans.ve[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;
-    ans.ve[2] = q_pt - q_ts - e_t;
-    ans.ve[3] = q_ts - q_sl - e_s;
+    ans[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;
+    ans[2] = q_pt - q_ts - e_t;
+    ans[3] = q_ts - q_sl - e_s;
 
-    //Additional states
-    ans.ve[4] = forcing_values[0] * c_1;
-    ans.ve[5] = q_pl;
-    ans.ve[6] = q_sl * A_h - q_b*60.0;
-    for (i = 0; i < num_parents; i++)
-        ans.ve[6] += y_p[i].ve[6] * 60.0;
-    //ans.ve[6] += k_3*y_p[i].ve[3]*A_h;
-    ans.ve[6] *= v_B / L;
+    ////Additional states
+    //ans[4] = forcing_values[0] * c_1;
+    //ans[5] = q_pl;
+    //ans[6] = q_sl * A_h - q_b*60.0;
+    //for (i = 0; i < num_parents; i++)
+    //    ans[6] += y_p[i][6] * 60.0;
+    ////ans[6] += k_3*y_p[i][3]*A_h;
+    //ans[6] *= v_B / L;
 
 
     //!!!! Pull if statements out of loops (should just need two cases total) !!!!
     //!!!! A lot of terms get repeated !!!!
 
     //Init for variational equations
-    unsigned int offset = 7, dim = ans.dim, problem_dim = 7;
-    for (i = offset; i < dim; i++)	ans.ve[i] = 0.0;
+    unsigned int offset = 7, problem_dim = 7;
+    for (unsigned int i = offset; i < dim; i++)
+        ans[i] = 0.0;
 
     //Compute partial derivatives (local variables)
     double dfq_dq = lambda_1 * invtau * q_to_lambda_1_m1 * (-q + c_2*(k_2*s_p + k_3*s_s) + inflow) - invtau * q_to_lambda_1;
@@ -722,23 +742,23 @@ void TopLayerHillslope_extras_assim(double t, VEC y_i, VEC* y_p, unsigned short 
 
     //Hillslope variational eqs
     //!!!! I think these are needed only if changing the appropriate state... !!!!
-    ans.ve[offset] = dfsp_dsp * y_i.ve[offset] + dfsp_dst * y_i.ve[offset + 2];	//s_p, s_p
-    ans.ve[offset + 1] = dfsp_dsp * y_i.ve[offset + 1] + dfsp_dst * y_i.ve[offset + 3];	//s_p, s_t
-    ans.ve[offset + 2] = dfst_dsp * y_i.ve[offset] + dfst_dst * y_i.ve[offset + 2];	//s_t, s_p
-    ans.ve[offset + 3] = dfst_dsp * y_i.ve[offset + 1] + dfst_dst * y_i.ve[offset + 3];	//s_t, s_t	
-    ans.ve[offset + 4] = dfss_dst * y_i.ve[offset + 2] + dfss_dss * y_i.ve[offset + 4];	//s_s, s_p
-    ans.ve[offset + 5] = dfss_dst * y_i.ve[offset + 3] + dfss_dss * y_i.ve[offset + 5];	//s_s, s_t
-    ans.ve[offset + 6] = dfss_dss * y_i.ve[offset + 6];	//s_s, s_s
+    ans[offset] = dfsp_dsp * y_i[offset] + dfsp_dst * y_i[offset + 2];	//s_p, s_p
+    ans[offset + 1] = dfsp_dsp * y_i[offset + 1] + dfsp_dst * y_i[offset + 3];	//s_p, s_t
+    ans[offset + 2] = dfst_dsp * y_i[offset] + dfst_dst * y_i[offset + 2];	//s_t, s_p
+    ans[offset + 3] = dfst_dsp * y_i[offset + 1] + dfst_dst * y_i[offset + 3];	//s_t, s_t	
+    ans[offset + 4] = dfss_dst * y_i[offset + 2] + dfss_dss * y_i[offset + 4];	//s_s, s_p
+    ans[offset + 5] = dfss_dst * y_i[offset + 3] + dfss_dss * y_i[offset + 5];	//s_s, s_t
+    ans[offset + 6] = dfss_dss * y_i[offset + 6];	//s_s, s_s
 
     //Discharge variational eqs from this link
-    ans.ve[offset + 7] = dfq_dq * y_i.ve[offset + 7]; //q, q
-    ans.ve[offset + 8] = dfq_dq * y_i.ve[offset + 8] + dfq_dsp * y_i.ve[offset + 0] + dfq_dss * y_i.ve[offset + 4]; //q, s_p
-    ans.ve[offset + 9] = dfq_dq * y_i.ve[offset + 9] + dfq_dsp * y_i.ve[offset + 1] + dfq_dss * y_i.ve[offset + 5]; //q, s_t
-    ans.ve[offset + 10] = dfq_dq * y_i.ve[offset + 10] + dfq_dss * y_i.ve[offset + 6]; //q, s_s
+    ans[offset + 7] = dfq_dq * y_i[offset + 7]; //q, q
+    ans[offset + 8] = dfq_dq * y_i[offset + 8] + dfq_dsp * y_i[offset + 0] + dfq_dss * y_i[offset + 4]; //q, s_p
+    ans[offset + 9] = dfq_dq * y_i[offset + 9] + dfq_dsp * y_i[offset + 1] + dfq_dss * y_i[offset + 5]; //q, s_t
+    ans[offset + 10] = dfq_dq * y_i[offset + 10] + dfq_dss * y_i[offset + 6]; //q, s_s
 
     //Discharge variational eqs from parent links
     unsigned int current_idx = offset + 11, parent_idx;
-    for (i = 0; i < num_parents; i++)
+    for (unsigned int i = 0, p = 0; i < num_parents; i++, p += updata->parents[i]->dim)
     {
         //parent_idx = offset + 8;
         parent_idx = offset + 7;
@@ -746,12 +766,12 @@ void TopLayerHillslope_extras_assim(double t, VEC y_i, VEC* y_p, unsigned short 
         //Get the number of upstreams link for that parent
         unsigned int num_upstreams = ((UpstreamData *)updata->upstreams[i]->user)->num_upstreams;
 
-        for (j = 0; j < num_upstreams; j++)
+        for (unsigned int j = 0; j < num_upstreams; j++)
         {
-            ans.ve[current_idx] = dfq_dupq * y_p[i].ve[parent_idx] + dfq_dq * y_i.ve[current_idx]; //q, upq
-            ans.ve[current_idx + 1] = dfq_dupq * y_p[i].ve[parent_idx + 1] + dfq_dq * y_i.ve[current_idx + 1]; //q, ups_p
-            ans.ve[current_idx + 2] = dfq_dupq * y_p[i].ve[parent_idx + 2] + dfq_dq * y_i.ve[current_idx + 2]; //q, ups_t
-            ans.ve[current_idx + 3] = dfq_dupq * y_p[i].ve[parent_idx + 3] + dfq_dq * y_i.ve[current_idx + 3]; //q, ups_s
+            ans[current_idx] = dfq_dupq * y_p[p + parent_idx] + dfq_dq * y_i[current_idx]; //q, upq
+            ans[current_idx + 1] = dfq_dupq * y_p[p + parent_idx + 1] + dfq_dq * y_i[current_idx + 1]; //q, ups_p
+            ans[current_idx + 2] = dfq_dupq * y_p[p + parent_idx + 2] + dfq_dq * y_i[current_idx + 2]; //q, ups_t
+            ans[current_idx + 3] = dfq_dupq * y_p[p + parent_idx + 3] + dfq_dq * y_i[current_idx + 3]; //q, ups_s
             current_idx += 4;
             parent_idx += 4;
         }
@@ -765,8 +785,9 @@ void TopLayerHillslope_extras_assim(double t, VEC y_i, VEC* y_p, unsigned short 
 //These only store those sensitivites used for the fitting.
 void Setup_Fitting_Data_Model254(AsynchSolver* asynch, unsigned int* obs_locs, unsigned int num_obs)
 {
-    unsigned int i, j, k, my_N = asynch->my_N, *my_sys = asynch->my_sys, *assignments = asynch->assignments;
-    Link *sys = asynch->sys, *current;
+    unsigned int i, j, k, my_N = asynch->my_N;
+    int *assignments = asynch->assignments;
+    Link *sys = asynch->sys, **my_sys = asynch->my_sys, *current;
     UpstreamData *updata;
 
     //Number of states to fit
@@ -878,65 +899,69 @@ void InitRoutines_Assim_254_q(Link* link, unsigned int type, unsigned int exp_im
     link->dense_indices[0] = 0;
     for (i = 1; i < link->num_dense; i++)	link->dense_indices[i] = i + 3;
 
-    link->f = &TopLayerHillslope_assim_q;
-    link->alg = NULL;
-    link->state_check = NULL;
-    link->CheckConsistency = &CheckConsistency_Nonzero_Model252;
-    link->RKSolver = &ExplicitRKSolver;
+    link->differential = &TopLayerHillslope_assim_q;
+    link->algebraic = NULL;
+    link->check_state = NULL;
+    link->check_consistency = &CheckConsistency_Nonzero_Model252;
+    link->solver = &ExplicitRKSolver;
 }
 
-void InitRoutines_Model_252(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
-{
-    link->dim = 4;
-    link->no_ini_start = 4;
-    link->diff_start = 0;
+//void InitRoutines_Model_252(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
+//{
+//    link->dim = 4;
+//    link->no_ini_start = 4;
+//    link->diff_start = 0;
+//
+//    link->num_dense = 1;
+//    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+//    link->dense_indices[0] = 0;
+//
+//    if (link->has_res)
+//    {
+//        link->differential = &TopLayerHillslope_Reservoirs;
+//        link->solver = &ForcedSolutionSolver;
+//    }
+//    else			link->differential = &TopLayerHillslope;
+//    link->algebraic = NULL;
+//    link->check_state = NULL;
+//    link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+//}
 
-    link->num_dense = 1;
-    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
-    link->dense_indices[0] = 0;
 
-    if (link->res)
-    {
-        link->f = &TopLayerHillslope_Reservoirs;
-        link->RKSolver = &ForcedSolutionSolver;
-    }
-    else			link->f = &TopLayerHillslope;
-    link->alg = NULL;
-    link->state_check = NULL;
-    link->CheckConsistency = &CheckConsistency_Nonzero_AllStates_q;
-}
-
-
-int ReadInitData_Assim_254_q(VEC global_params, VEC params, QVSData* qvs, unsigned short int dam, VEC y_0, unsigned int type, unsigned int diff_start, unsigned int no_init_start, void* user, void* external)
+int ReadInitData_Assim_254_q(
+    const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
+    double *y_0, unsigned int dim,
+    void *user)
 {
     //UpstreamData *updata = (UpstreamData*)user;
 
-    //double lambda_1 = global_params.ve[1];
-    //double k_3 = global_params.ve[4];	//[1/min]
-    //double h_b = global_params.ve[6];	//[m]
-    //double S_L = global_params.ve[7];	//[m]
-    //double A = global_params.ve[8];
-    //double B = global_params.ve[9];
-    //double exponent = global_params.ve[10];
+    //double lambda_1 = global_params[1];
+    //double k_3 = global_params[4];	//[1/min]
+    //double h_b = global_params[6];	//[m]
+    //double S_L = global_params[7];	//[m]
+    //double A = global_params[8];
+    //double B = global_params[9];
+    //double exponent = global_params[10];
 
-    //double L = params.ve[1];	//[m]
-    //double A_h = params.ve[2];	//[m^2]
-    //double invtau = params.ve[3];	//[1/min]
-    //double k_2 = params.ve[4];	//[1/min]
-    //double k_i = params.ve[5];	//[1/min]
-    //double c_1 = params.ve[6];
-    //double c_2 = params.ve[7];
+    //double L = params[1];	//[m]
+    //double A_h = params[2];	//[m^2]
+    //double invtau = params[3];	//[1/min]
+    //double k_2 = params[4];	//[1/min]
+    //double k_i = params[5];	//[1/min]
+    //double c_1 = params[6];
+    //double c_2 = params[7];
 
-    //double q = y_0.ve[0];		//[m^3/s]
-    //double s_p = y_0.ve[1];	//[m]
-    //double s_t = y_0.ve[2];	//[m]
-    //double s_s = y_0.ve[3];	//[m]
+    //double q = y_0[0];		//[m^3/s]
+    //double s_p = y_0[1];	//[m]
+    //double s_t = y_0[2];	//[m]
+    //double s_s = y_0[3];	//[m]
 
     //For this type, all initial conditions for variational equation must be set here.
     unsigned int i;
     unsigned int offset = 4;
 
-    y_0.ve[offset++] = 1.0;  //dq/dq_0
+    y_0[offset++] = 1.0;  //dq/dq_0
 
     ////A few calculations...
     //double q_to_lambda_1 = pow(q, lambda_1);
@@ -945,7 +970,7 @@ int ReadInitData_Assim_254_q(VEC global_params, VEC params, QVSData* qvs, unsign
     ////Discharge
     //double inflow = 0.0;
     //for (unsigned int i = 0; i < updata->num_parents; i++)
-    //    inflow += updata->parents[i]->list->head->y_approx.ve[0];
+    //    inflow += updata->parents[i]->list->head->y_approx[0];
 
     ////Compute partial derivatives (local variables)
     //double dfq_dq = lambda_1 * invtau * q_to_lambda_1_m1 * (-q + c_2*(k_2*s_p + k_3*s_s) + inflow) - invtau * q_to_lambda_1;
@@ -954,21 +979,25 @@ int ReadInitData_Assim_254_q(VEC global_params, VEC params, QVSData* qvs, unsign
     //double dfq_dupq = invtau*q_to_lambda_1;
 
     //if (updata->num_upstreams)
-    //    y_0.ve[offset++] = dfq_dupq + dfq_dq;
+    //    y_0[offset++] = dfq_dupq + dfq_dq;
 
-    for (i = offset ; i < y_0.dim ; i++)
-        y_0.ve[i] = 0.0;
+    for (i = offset ; i < dim ; i++)
+        y_0[i] = 0.0;
 
     return 0;
 }
 
-void CheckConsistency_Nonzero_Model252(VEC y, VEC params, VEC global_params)
+void CheckConsistency_Nonzero_Model252(
+    double *y, unsigned int dim,
+    const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
+    void *user)
 {
     unsigned int i, problem_dim = 4;
 
-    if (y.ve[0] < 1e-14)	y.ve[0] = 1e-14;
+    if (y[0] < 1e-14)	y[0] = 1e-14;
     for (i = 1; i < problem_dim; i++)
-        if (y.ve[i] < 0.0)	y.ve[i] = 0.0;
+        if (y[i] < 0.0)	y[i] = 0.0;
 }
 
 //Function for simple river system with data assimilation.
@@ -979,31 +1008,35 @@ void CheckConsistency_Nonzero_Model252(VEC y, VEC params, VEC global_params)
 //The numbering is:        0      1        2     3   4     5        6   7  8 9  10     
 //This uses the units and functions from September 18, 2011 document
 //y_i[0] = q, y_i[1] = s, followed by N entries for the variational equation
-void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int num_parents, VEC global_params, double* forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans)
+void TopLayerHillslope_assim_q(
+    double t,
+    const double * const y_i, unsigned int dim,
+    const double * const y_p, unsigned short num_parents, unsigned int max_dim,
+    const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
 {
     UpstreamData *updata = (UpstreamData*)user;
 
-    double lambda_1 = global_params.ve[1];
-    double k_3 = global_params.ve[4];	//[1/min]
-    double h_b = global_params.ve[6];	//[m]
-    double S_L = global_params.ve[7];	//[m]
-    double A = global_params.ve[8];
-    double B = global_params.ve[9];
-    double exponent = global_params.ve[10];
+    double lambda_1 = global_params[1];
+    double k_3 = global_params[4];	//[1/min]
+    double h_b = global_params[6];	//[m]
+    double S_L = global_params[7];	//[m]
+    double A = global_params[8];
+    double B = global_params[9];
+    double exponent = global_params[10];
     double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
 
-    double L = params.ve[1];	//[m]
-    double A_h = params.ve[2];	//[m^2]
-    double invtau = params.ve[3];	//[1/min]
-    double k_2 = params.ve[4];	//[1/min]
-    double k_i = params.ve[5];	//[1/min]
-    double c_1 = params.ve[6];
-    double c_2 = params.ve[7];
+    double L = params[1];	//[m]
+    double A_h = params[2];	//[m^2]
+    double invtau = params[3];	//[1/min]
+    double k_2 = params[4];	//[1/min]
+    double k_i = params[5];	//[1/min]
+    double c_1 = params[6];
+    double c_2 = params[7];
 
-    double q = y_i.ve[0];		//[m^3/s]
-    double s_p = y_i.ve[1];	//[m]
-    double s_t = y_i.ve[2];	//[m]
-    double s_s = y_i.ve[3];	//[m]
+    double q = y_i[0];		//[m^3/s]
+    double s_p = y_i[1];	//[m]
+    double s_t = y_i[2];	//[m]
+    double s_s = y_i[3];	//[m]
 
     //Evaporation
     double e_p, e_t, e_s;
@@ -1037,20 +1070,20 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
 
     //Discharge
     double inflow = 0.0;
-    ans.ve[0] = -q + (q_pl + q_sl) * c_2;
-    for (unsigned int i = 0; i < num_parents; i++)
-        inflow += y_p[i].ve[0];
-    ans.ve[0] = invtau * q_to_lambda_1 * (inflow + ans.ve[0]);
+    ans[0] = -q + (q_pl + q_sl) * c_2;
+    for (unsigned int i = 0, p = 0; i < num_parents; i++, p += max_dim)
+        inflow += y_p[p];
+    ans[0] = invtau * q_to_lambda_1 * (inflow + ans[0]);
 
     //Hillslope
-    ans.ve[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;
-    ans.ve[2] = q_pt - q_ts - e_t;
-    ans.ve[3] = q_ts - q_sl - e_s;
+    ans[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;
+    ans[2] = q_pt - q_ts - e_t;
+    ans[3] = q_ts - q_sl - e_s;
 
     //Init for variational equations
-    unsigned int offset = 4, dim = ans.dim, problem_dim = 4;
+    unsigned int offset = 4, problem_dim = 4;
     //for (unsigned int i = offset; i < dim; i++)
-    //    ans.ve[i] = 0.0;	//!!!! Is this needed? !!!!
+    //    ans[i] = 0.0;	//!!!! Is this needed? !!!!
 
     //Compute partial derivatives (local variables)
     double dfq_dq = lambda_1 * invtau * q_to_lambda_1_m1 * (-q + c_2*(k_2*s_p + k_3*s_s) + inflow) - invtau * q_to_lambda_1;
@@ -1066,9 +1099,12 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
     //Compute partial derivatives (upstreams variables)
     double dfq_dupq = invtau*q_to_lambda_1;
 
-    //Discharge variational eqs from this link
-    ans.ve[offset] = dfq_dq * y_i.ve[offset]; //q, q
+    const unsigned int num_variational_eqs = 1;
 
+    //Discharge variational eqs from this link
+    ans[offset] = dfq_dq * y_i[offset]; //q, q
+
+/* TEST SAM
     //Discharge variational eqs from parent links
     unsigned int current_idx = offset + 1;
 
@@ -1077,7 +1113,7 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
     //    for (unsigned int i = 0; i < num_parents; i++)
     //    {
     //        unsigned int num_upstreams = ((UpstreamData *)updata->parents[i]->user)->num_upstreams;
-    //        ans.ve[current_idx++] = dfq_dupq * y_p[i].ve[offset] + dfq_dq * y_i.ve[current_idx]; //q, upq
+    //        ans[current_idx++] = dfq_dupq * y_p[i][offset] + dfq_dq * y_i[current_idx]; //q, upq
 
     //        for (unsigned int j = 0; j < num_upstreams; j++)
     //        {
@@ -1086,7 +1122,7 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
     //            assert(current_idx < ans.dim);
     //            assert(parent_idx < y_p[i].dim);
     //            assert(current_idx < y_i.dim);
-    //            ans.ve[current_idx++] = dfq_dupq * y_p[i].ve[parent_idx] + dfq_dq * y_i.ve[current_idx]; //q, upq
+    //            ans[current_idx++] = dfq_dupq * y_p[i][parent_idx] + dfq_dq * y_i[current_idx]; //q, upq
     //        }
     //    }
 
@@ -1110,10 +1146,26 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
         unsigned int current_idx = offset + i + 1;
         unsigned int parent_idx = offset + j;
 
-        assert(current_idx < ans.dim);
-        assert(parent_idx < y_p[p].dim);
-        assert(current_idx < y_i.dim);
-        ans.ve[current_idx] = dfq_dupq * y_p[p].ve[parent_idx] + dfq_dq * y_i.ve[current_idx]; //q, upq
+        assert(current_idx < dim);
+        assert(parent_idx < dim_parents[p]);
+        assert(current_idx < dim);
+        ans[current_idx] = dfq_dupq * y_p[p + parent_idx] + dfq_dq * y_i[current_idx]; //q, upq
+    }
+*/
+
+    //Discharge variational eqs from parent links
+    unsigned int current_idx = offset + num_variational_eqs, parent_idx;
+    for (unsigned int i = 0, p = 0; i < num_parents; i++, p += max_dim)
+    {
+        parent_idx = offset;
+        unsigned int num_upstreams2 = ((UpstreamData *)updata->parents[i]->user)->num_upstreams;
+        unsigned int num_upstreams = updata->parents[i]->dim - problem_dim;
+        for (unsigned int j = 0; j < num_upstreams; j++)
+        {
+            ans[current_idx] = dfq_dupq * y_p[p + parent_idx] + dfq_dq * y_i[current_idx]; //q, upq
+            current_idx += 1;
+            parent_idx += 1;
+        }
     }
 }
 
@@ -1124,8 +1176,9 @@ void TopLayerHillslope_assim_q(double t, VEC y_i, VEC* y_p, unsigned short int n
 //These only store those sensitivites used for the fitting.
 void Setup_Fitting_Data_Model254_q(AsynchSolver* asynch, unsigned int* obs_locs, unsigned int num_obs)
 {
-    unsigned int i, j, k, my_N = asynch->my_N, *my_sys = asynch->my_sys, *assignments = asynch->assignments;
-    Link *sys = asynch->sys, *current;
+    unsigned int my_N = asynch->my_N;
+    int *assignments = asynch->assignments;
+    Link *sys = asynch->sys, **my_sys = asynch->my_sys, *current;
     UpstreamData *updata;
 
     //Number of states to fit
@@ -1144,7 +1197,7 @@ void Setup_Fitting_Data_Model254_q(AsynchSolver* asynch, unsigned int* obs_locs,
     //unsigned int allstates_needed = num_above * 2;	//For q and s_p
     //unsigned int allstates_needed = num_above;	//For q
 
-    for (i = 0; i < num_obs; i++)
+    for (unsigned int i = 0; i < num_obs; i++)
     {
         if (assignments[obs_locs[i]] == my_rank)
         {
@@ -1168,7 +1221,7 @@ void Setup_Fitting_Data_Model254_q(AsynchSolver* asynch, unsigned int* obs_locs,
             unsigned int num_upstreams = ((UpstreamData *)updata)->num_upstreams;
             Link **upstreams = ((UpstreamData *)updata)->upstreams;
 
-            for (k = 0; k < num_upstreams; k++)
+            for (unsigned int k = 0; k < num_upstreams; k++)
             {
                 updata->fit_states[counter] = problem_dim + counter;
                 updata->fit_to_universal[counter] = upstreams[k]->location * assim_dim;
@@ -1210,30 +1263,35 @@ void InitRoutines_Assim_254_qsp(Link* link, unsigned int type, unsigned int exp_
     link->dense_indices[0] = 0;
     for (i = 1; i < link->num_dense; i++)	link->dense_indices[i] = i + 3;
 
-    link->f = &TopLayerHillslope_assim_qsp;
-    link->alg = NULL;
-    link->state_check = NULL;
-    link->CheckConsistency = &CheckConsistency_Nonzero_Model252;
-    link->RKSolver = &ExplicitRKSolver;
+    link->differential = &TopLayerHillslope_assim_qsp;
+    link->algebraic = NULL;
+    link->check_state = NULL;
+    link->check_consistency = &CheckConsistency_Nonzero_Model252;
+    link->solver = &ExplicitRKSolver;
 }
 
 
-int ReadInitData_Assim_254_qsp(VEC global_params, VEC params, QVSData* qvs, unsigned short int dam, VEC y_0, unsigned int type, unsigned int diff_start, unsigned int no_init_start, void* user, void* external)
+int ReadInitData_Assim_254_qsp(
+    const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
+    double *y_0, unsigned int dim,
+    void *user)
 {
     //For this type, all initial conditions for variational equation must be set here.
     unsigned int i;
     unsigned int offset = 4;
 
-    y_0.ve[offset++] = 1.0;  //ds_p/ds_p0
+    y_0[offset++] = 1.0;  //ds_p/ds_p0
 
-    y_0.ve[offset++] = 0.0;  //ds_t/ds_p0
+    y_0[offset++] = 0.0;  //ds_t/ds_p0
 
-    y_0.ve[offset++] = 0.0;  //ds_s/ds_p0
+    y_0[offset++] = 0.0;  //ds_s/ds_p0
 
-    y_0.ve[offset++] = 1.0;  //dq/dq_0
-    y_0.ve[offset++] = 0.0;  //dq/ds_p0
+    y_0[offset++] = 1.0;  //dq/dq_0
+    y_0[offset++] = 0.0;  //dq/ds_p0
 
-    for (i = offset; i < y_0.dim; i++)	y_0.ve[i] = 0.0;	//From upstreams
+    for (i = offset; i < dim; i++)
+        y_0[i] = 0.0;	//From upstreams
 
     return 0;
 }
@@ -1247,33 +1305,37 @@ int ReadInitData_Assim_254_qsp(VEC global_params, VEC params, QVSData* qvs, unsi
 //The numbering is:        0      1        2     3   4     5        6   7  8 9  10     
 //This uses the units and functions from September 18, 2011 document
 //y_i[0] = q, y_i[1] = s, followed by N entries for the variational equation
-void TopLayerHillslope_assim_qsp(double t, VEC y_i, VEC* y_p, unsigned short int num_parents, VEC global_params, double* forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans)
+void TopLayerHillslope_assim_qsp(
+    double t,
+    const double * const y_i, unsigned int dim,
+    const double * const y_p, unsigned short num_parents, unsigned int max_dim,
+    const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
 {
     unsigned int i, j;
 
     UpstreamData *updata = (UpstreamData*)user;
 
-    double lambda_1 = global_params.ve[1];
-    double k_3 = global_params.ve[4];	//[1/min]
-    double h_b = global_params.ve[6];	//[m]
-    double S_L = global_params.ve[7];	//[m]
-    double A = global_params.ve[8];
-    double B = global_params.ve[9];
-    double exponent = global_params.ve[10];
+    double lambda_1 = global_params[1];
+    double k_3 = global_params[4];	//[1/min]
+    double h_b = global_params[6];	//[m]
+    double S_L = global_params[7];	//[m]
+    double A = global_params[8];
+    double B = global_params[9];
+    double exponent = global_params[10];
     double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
 
-    double L = params.ve[1];	//[m]
-    double A_h = params.ve[2];	//[m^2]
-    double invtau = params.ve[3];	//[1/min]
-    double k_2 = params.ve[4];	//[1/min]
-    double k_i = params.ve[5];	//[1/min]
-    double c_1 = params.ve[6];
-    double c_2 = params.ve[7];
+    double L = params[1];	//[m]
+    double A_h = params[2];	//[m^2]
+    double invtau = params[3];	//[1/min]
+    double k_2 = params[4];	//[1/min]
+    double k_i = params[5];	//[1/min]
+    double c_1 = params[6];
+    double c_2 = params[7];
 
-    double q = y_i.ve[0];		//[m^3/s]
-    double s_p = y_i.ve[1];	//[m]
-    double s_t = y_i.ve[2];	//[m]
-    double s_s = y_i.ve[3];	//[m]
+    double q = y_i[0];		//[m^3/s]
+    double s_p = y_i[1];	//[m]
+    double s_t = y_i[2];	//[m]
+    double s_s = y_i[3];	//[m]
 
     //Evaporation
     double e_p, e_t, e_s;
@@ -1307,20 +1369,21 @@ void TopLayerHillslope_assim_qsp(double t, VEC y_i, VEC* y_p, unsigned short int
 
     //Discharge
     double inflow = 0.0;
-    ans.ve[0] = -q + (q_pl + q_sl) * c_2;
-    for (i = 0; i < num_parents; i++)
-        inflow += y_p[i].ve[0];
-    ans.ve[0] = invtau * q_to_lambda_1 * (inflow + ans.ve[0]);
+    ans[0] = -q + (q_pl + q_sl) * c_2;
+    for (unsigned int i = 0, p = 0; i < num_parents; i++, p += updata->parents[i]->dim)
+        inflow += y_p[p];
+    ans[0] = invtau * q_to_lambda_1 * (inflow + ans[0]);
 
     //Hillslope
-    ans.ve[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;
-    ans.ve[2] = q_pt - q_ts - e_t;
-    ans.ve[3] = q_ts - q_sl - e_s;
+    ans[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;
+    ans[2] = q_pt - q_ts - e_t;
+    ans[3] = q_ts - q_sl - e_s;
 
 
     //Init for variational equations
-    unsigned int offset = 4, dim = ans.dim, problem_dim = 4;
-    for (i = offset; i < dim; i++)	ans.ve[i] = 0.0;
+    unsigned int offset = 4, problem_dim = 4;
+    for (i = offset; i < dim; i++)
+        ans[i] = 0.0;
 
     //Compute partial derivatives (local variables)
     double dfq_dq = lambda_1 * invtau * q_to_lambda_1_m1 * (-q + c_2*(k_2*s_p + k_3*s_s) + inflow) - invtau * q_to_lambda_1;
@@ -1336,25 +1399,28 @@ void TopLayerHillslope_assim_qsp(double t, VEC y_i, VEC* y_p, unsigned short int
     //Compute partial derivatives (upstreams variables)
     double dfq_dupq = invtau*q_to_lambda_1;
 
+    const unsigned int num_variational_eqs = 5;
+
     //Hillslope variational eqs
-    ans.ve[offset] = dfsp_dsp * y_i.ve[offset] + dfsp_dst * y_i.ve[offset + 1];	//s_p, s_p
-    ans.ve[offset + 1] = dfst_dsp * y_i.ve[offset] + dfst_dst * y_i.ve[offset + 1];	//s_t, s_p
-    ans.ve[offset + 2] = dfss_dst * y_i.ve[offset + 1] + dfss_dss * y_i.ve[offset + 2];	//s_s, s_p
+    ans[offset] = dfsp_dsp * y_i[offset] + dfsp_dst * y_i[offset + 1];	//s_p, s_p
+    ans[offset + 1] = dfst_dsp * y_i[offset] + dfst_dst * y_i[offset + 1];	//s_t, s_p
+    ans[offset + 2] = dfss_dst * y_i[offset + 1] + dfss_dss * y_i[offset + 2];	//s_s, s_p
 
     //Discharge variational eqs from this link
-    ans.ve[offset + 3] = dfq_dq * y_i.ve[offset + 3]; //q, q
-    ans.ve[offset + 4] = dfq_dq * y_i.ve[offset + 4] + dfq_dsp * y_i.ve[offset + 0] + dfq_dss * y_i.ve[offset + 2]; //q, s_p
+    ans[offset + 3] = dfq_dq * y_i[offset + 3]; //q, q
+    ans[offset + 4] = dfq_dq * y_i[offset + 4] + dfq_dsp * y_i[offset + 0] + dfq_dss * y_i[offset + 2]; //q, s_p
 
     //Discharge variational eqs from parent links
-    unsigned int current_idx = offset + 5, parent_idx;
+    unsigned int current_idx = offset + num_variational_eqs, parent_idx;
     for (i = 0; i < num_parents; i++)
     {
         parent_idx = offset + 3;
         unsigned int num_upstreams = ((UpstreamData *)updata->upstreams[i]->user)->num_upstreams;
         for (j = 0; j < num_upstreams; j++)
         {
-            ans.ve[current_idx] = dfq_dupq * y_p[i].ve[parent_idx] + dfq_dq * y_i.ve[current_idx]; //q, upq
-            ans.ve[current_idx + 1] = dfq_dupq * y_p[i].ve[parent_idx + 1] + dfq_dq * y_i.ve[current_idx + 1]; //q, ups_p
+            // TODO
+            //ans[current_idx] = dfq_dupq * y_p[i][parent_idx] + dfq_dq * y_i[current_idx]; //q, upq
+            //ans[current_idx + 1] = dfq_dupq * y_p[i][parent_idx + 1] + dfq_dq * y_i[current_idx + 1]; //q, ups_p
             current_idx += 2;
             parent_idx += 2;
         }
@@ -1367,14 +1433,15 @@ void TopLayerHillslope_assim_qsp(double t, VEC y_i, VEC* y_p, unsigned short int
 //These only store those sensitivites used for the fitting.
 void Setup_Fitting_Data_Model254_qsp(AsynchSolver* asynch, unsigned int* obs_locs, unsigned int num_obs)
 {
-    unsigned int i, j, k, my_N = asynch->my_N, *my_sys = asynch->my_sys, *assignments = asynch->assignments;
-    Link *sys = asynch->sys, *current;
+    unsigned int i, j, k, my_N = asynch->my_N;
+    int *assignments = asynch->assignments;
+    Link *sys = asynch->sys, **my_sys = asynch->my_sys, *current;
     UpstreamData *updata;
 
     //Number of states to fit
     unsigned int counter;
     unsigned int problem_dim = 4;	//!!!! Should be allowed to vary by link !!!!
-    unsigned int assim_dim = 4;	//!!!! Should be allowed to vary by link !!!!
+    unsigned int assim_dim = 4; 	//!!!! Should be allowed to vary by link !!!!
     unsigned int num_change_states = 2;	//For q and s_p
 
     //Find links upstreams from gauges
@@ -1463,30 +1530,35 @@ void InitRoutines_Assim_254_qst(Link* link, unsigned int type, unsigned int exp_
     link->dense_indices[0] = 0;
     for (i = 1; i < link->num_dense; i++)	link->dense_indices[i] = i + 3;
 
-    link->f = &TopLayerHillslope_assim_qst;
-    link->alg = NULL;
-    link->state_check = NULL;
-    link->CheckConsistency = &CheckConsistency_Nonzero_Model252_st;
-    link->RKSolver = &ExplicitRKSolver;
+    link->differential = &TopLayerHillslope_assim_qst;
+    link->algebraic = NULL;
+    link->check_state = NULL;
+    link->check_consistency = &CheckConsistency_Nonzero_Model252_st;
+    link->solver = &ExplicitRKSolver;
 }
 
 
-int ReadInitData_Assim_254_qst(VEC global_params, VEC params, QVSData* qvs, unsigned short int dam, VEC y_0, unsigned int type, unsigned int diff_start, unsigned int no_init_start, void* user, void* external)
+int ReadInitData_Assim_254_qst(
+    double *y_0, unsigned int dim,
+    const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
+    void *user)
 {
     //For this type, all initial conditions for variational equation must be set here.
     unsigned int i;
     unsigned int offset = 4;
 
-    y_0.ve[offset++] = 0.0;  //ds_p/ds_t0
+    y_0[offset++] = 0.0;  //ds_p/ds_t0
 
-    y_0.ve[offset++] = 1.0;  //ds_t/ds_t0
+    y_0[offset++] = 1.0;  //ds_t/ds_t0
 
-    y_0.ve[offset++] = 0.0;  //ds_s/ds_t0
+    y_0[offset++] = 0.0;  //ds_s/ds_t0
 
-    y_0.ve[offset++] = 1.0;  //dq/dq_0
-    y_0.ve[offset++] = 0.0;  //dq/ds_t0
+    y_0[offset++] = 1.0;  //dq/dq_0
+    y_0[offset++] = 0.0;  //dq/ds_t0
 
-    for (i = offset; i < y_0.dim; i++)	y_0.ve[i] = 0.0;	//From upstreams
+    for (i = offset; i < dim; i++)
+        y_0[i] = 0.0;	//From upstreams
 
     return 0;
 }
@@ -1500,33 +1572,37 @@ int ReadInitData_Assim_254_qst(VEC global_params, VEC params, QVSData* qvs, unsi
 //The numbering is:        0      1        2     3   4     5        6   7  8 9  10     
 //y_i[0] = q, y_i[1] = s_p, y_i[2] = s_t, y_i[3] = s_s followed by N entries for the variational equation
 //!!!! Note: this actually works out to be the same as the function for qsp, I think... !!!!
-void TopLayerHillslope_assim_qst(double t, VEC y_i, VEC* y_p, unsigned short int num_parents, VEC global_params, double* forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans)
+void TopLayerHillslope_assim_qst(
+    double t,
+    const double * const y_i, unsigned int dim,
+    const double * const y_p, unsigned short num_parents, unsigned int max_dim,
+    const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
 {
     unsigned int i, j;
 
     UpstreamData *updata = (UpstreamData*)user;
 
-    double lambda_1 = global_params.ve[1];
-    double k_3 = global_params.ve[4];	//[1/min]
-    double h_b = global_params.ve[6];	//[m]
-    double S_L = global_params.ve[7];	//[m]
-    double A = global_params.ve[8];
-    double B = global_params.ve[9];
-    double exponent = global_params.ve[10];
+    double lambda_1 = global_params[1];
+    double k_3 = global_params[4];	//[1/min]
+    double h_b = global_params[6];	//[m]
+    double S_L = global_params[7];	//[m]
+    double A = global_params[8];
+    double B = global_params[9];
+    double exponent = global_params[10];
     double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
 
-    double L = params.ve[1];	//[m]
-    double A_h = params.ve[2];	//[m^2]
-    double invtau = params.ve[3];	//[1/min]
-    double k_2 = params.ve[4];	//[1/min]
-    double k_i = params.ve[5];	//[1/min]
-    double c_1 = params.ve[6];
-    double c_2 = params.ve[7];
+    double L = params[1];	//[m]
+    double A_h = params[2];	//[m^2]
+    double invtau = params[3];	//[1/min]
+    double k_2 = params[4];	//[1/min]
+    double k_i = params[5];	//[1/min]
+    double c_1 = params[6];
+    double c_2 = params[7];
 
-    double q = y_i.ve[0];		//[m^3/s]
-    double s_p = y_i.ve[1];	//[m]
-    double s_t = y_i.ve[2];	//[m]
-    double s_s = y_i.ve[3];	//[m]
+    double q = y_i[0];		//[m^3/s]
+    double s_p = y_i[1];	//[m]
+    double s_t = y_i[2];	//[m]
+    double s_s = y_i[3];	//[m]
 
     //Evaporation
     double e_p, e_t, e_s;
@@ -1560,20 +1636,20 @@ void TopLayerHillslope_assim_qst(double t, VEC y_i, VEC* y_p, unsigned short int
 
     //Discharge
     double inflow = 0.0;
-    ans.ve[0] = -q + (q_pl + q_sl) * c_2;
-    for (i = 0; i < num_parents; i++)
-        inflow += y_p[i].ve[0];
-    ans.ve[0] = invtau * q_to_lambda_1 * (inflow + ans.ve[0]);
+    ans[0] = -q + (q_pl + q_sl) * c_2;
+    for (unsigned int i = 0, p = 0; i < num_parents; i++, p += updata->parents[i]->dim)
+        inflow += y_p[p];
+    ans[0] = invtau * q_to_lambda_1 * (inflow + ans[0]);
 
     //Hillslope
-    ans.ve[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;
-    ans.ve[2] = q_pt - q_ts - e_t;
-    ans.ve[3] = q_ts - q_sl - e_s;
+    ans[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;
+    ans[2] = q_pt - q_ts - e_t;
+    ans[3] = q_ts - q_sl - e_s;
 
 
     //Init for variational equations
-    unsigned int offset = 4, dim = ans.dim, problem_dim = 4;
-    for (i = offset; i < dim; i++)	ans.ve[i] = 0.0;
+    unsigned int offset = 4, problem_dim = 4;
+    for (i = offset; i < dim; i++)	ans[i] = 0.0;
 
     //Compute partial derivatives (local variables)
     double dfq_dq = lambda_1 * invtau * q_to_lambda_1_m1 * (-q + c_2*(k_2*s_p + k_3*s_s) + inflow) - invtau * q_to_lambda_1;
@@ -1590,13 +1666,13 @@ void TopLayerHillslope_assim_qst(double t, VEC y_i, VEC* y_p, unsigned short int
     double dfq_dupq = invtau*q_to_lambda_1;
 
     //Hillslope variational eqs
-    ans.ve[offset] = dfsp_dsp * y_i.ve[offset] + dfsp_dst * y_i.ve[offset + 1];	//s_p, s_t
-    ans.ve[offset + 1] = dfst_dsp * y_i.ve[offset] + dfst_dst * y_i.ve[offset + 1];	//s_t, s_t
-    ans.ve[offset + 2] = dfss_dst * y_i.ve[offset + 1] + dfss_dss * y_i.ve[offset + 2];	//s_s, s_t
+    ans[offset] = dfsp_dsp * y_i[offset] + dfsp_dst * y_i[offset + 1];	//s_p, s_t
+    ans[offset + 1] = dfst_dsp * y_i[offset] + dfst_dst * y_i[offset + 1];	//s_t, s_t
+    ans[offset + 2] = dfss_dst * y_i[offset + 1] + dfss_dss * y_i[offset + 2];	//s_s, s_t
 
     //Discharge variational eqs from this link
-    ans.ve[offset + 3] = dfq_dq * y_i.ve[offset + 3]; //q, q
-    ans.ve[offset + 4] = dfq_dq * y_i.ve[offset + 4] + dfq_dsp * y_i.ve[offset + 0] + dfq_dss * y_i.ve[offset + 2]; //q, s_t
+    ans[offset + 3] = dfq_dq * y_i[offset + 3]; //q, q
+    ans[offset + 4] = dfq_dq * y_i[offset + 4] + dfq_dsp * y_i[offset + 0] + dfq_dss * y_i[offset + 2]; //q, s_t
 
     //Discharge variational eqs from parent links
     unsigned int current_idx = offset + 5, parent_idx;
@@ -1606,8 +1682,9 @@ void TopLayerHillslope_assim_qst(double t, VEC y_i, VEC* y_p, unsigned short int
         unsigned int num_upstreams = ((UpstreamData *)updata->upstreams[i]->user)->num_upstreams;
         for (j = 0; j < num_upstreams; j++)
         {
-            ans.ve[current_idx] = dfq_dupq * y_p[i].ve[parent_idx] + dfq_dq * y_i.ve[current_idx]; //q, upq
-            ans.ve[current_idx + 1] = dfq_dupq * y_p[i].ve[parent_idx + 1] + dfq_dq * y_i.ve[current_idx + 1]; //q, ups_t
+            // TODO
+            //ans[current_idx] = dfq_dupq * y_p[i][parent_idx] + dfq_dq * y_i[current_idx]; //q, upq
+            //ans[current_idx + 1] = dfq_dupq * y_p[i][parent_idx + 1] + dfq_dq * y_i[current_idx + 1]; //q, ups_t
             current_idx += 2;
             parent_idx += 2;
         }
@@ -1620,8 +1697,9 @@ void TopLayerHillslope_assim_qst(double t, VEC y_i, VEC* y_p, unsigned short int
 //These only store those sensitivites used for the fitting.
 void Setup_Fitting_Data_Model254_qst(AsynchSolver* asynch, unsigned int* obs_locs, unsigned int num_obs)
 {
-    unsigned int i, j, k, my_N = asynch->my_N, *my_sys = asynch->my_sys, *assignments = asynch->assignments;
-    Link *sys = asynch->sys, *current;
+    unsigned int i, j, k, my_N = asynch->my_N;
+    int *assignments = asynch->assignments;
+    Link *sys = asynch->sys, **my_sys = asynch->my_sys, *current;
     UpstreamData *updata;
 
     //Number of states to fit
@@ -1690,13 +1768,12 @@ void Setup_Fitting_Data_Model254_qst(AsynchSolver* asynch, unsigned int* obs_loc
     //return allstates_needed;
 }
 
-void CheckConsistency_Nonzero_Model252_st(VEC y, VEC params, VEC global_params)
+void CheckConsistency_Nonzero_Model252_st(double *y, unsigned int dim, const double * const global_params, unsigned int num_global_params, const double * const params, unsigned int num_params, void *user)
 {
     unsigned int i, problem_dim = 4;
 
-    if (y.ve[0] < 1e-14)	y.ve[0] = 1e-14;
-    if (y.ve[1] > global_params.ve[7])		y.ve[1] = global_params.ve[7];
+    if (y[0] < 1e-14)	y[0] = 1e-14;
+    if (y[1] > global_params[7])		y[1] = global_params[7];
     for (i = 1; i < problem_dim; i++)
-        if (y.ve[i] < 0.0)	y.ve[i] = 0.0;
+        if (y[i] < 0.0)	y[i] = 0.0;
 }
-

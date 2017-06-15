@@ -530,14 +530,27 @@ void Asynch_Set_Database_Connection(AsynchSolver* asynch, const char* connstring
     ConnData_Init(&asynch->db_connections[conn_idx], connstring);
 }
 
+time_t Asynch_Get_Begin_Timestamp(AsynchSolver* asynch)
+{
+    return asynch->globals->begin_time;
+}
+
+time_t Asynch_Get_End_Timestamp(AsynchSolver* asynch)
+{
+    return asynch->globals->end_time;
+}
+
+void Asynch_Set_Simulation_Period(AsynchSolver* asynch, time_t begin, time_t end)
+{
+    assert(end >= begin);
+    asynch->globals->begin_time = begin;
+    asynch->globals->end_time = end;
+    asynch->globals->maxtime = (end - begin) / 60.0;
+}
+
 double Asynch_Get_Total_Simulation_Duration(AsynchSolver* asynch)
 {
     return asynch->globals->maxtime;
-}
-
-void Asynch_Set_Total_Simulation_Duration(AsynchSolver* asynch, double new_time)
-{
-    asynch->globals->maxtime = new_time;
 }
 
 unsigned int Asynch_Get_Last_Forcing_Timestamp(AsynchSolver* asynch, unsigned int forcing_idx)

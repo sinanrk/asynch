@@ -782,20 +782,20 @@ int Build_RKData(
             Link *current = &system[i];
             if (assignments[i] == my_rank || getting[i])
             {
-                current->my->error_data.abstol = calloc(num_states, sizeof(double));
-                current->my->error_data.reltol = calloc(num_states, sizeof(double));
-                current->my->error_data.abstol_dense = calloc(num_states, sizeof(double));
-                current->my->error_data.reltol_dense = calloc(num_states, sizeof(double));
-                current->my->error_data.facmax = error_data->facmax;
-                current->my->error_data.facmin = error_data->facmin;
-                current->my->error_data.fac = error_data->fac;
+                current->my->error_data->abstol = calloc(num_states, sizeof(double));
+                current->my->error_data->reltol = calloc(num_states, sizeof(double));
+                current->my->error_data->abstol_dense = calloc(num_states, sizeof(double));
+                current->my->error_data->reltol_dense = calloc(num_states, sizeof(double));
+                current->my->error_data->facmax = error_data->facmax;
+                current->my->error_data->facmin = error_data->facmin;
+                current->my->error_data->fac = error_data->fac;
 
                 for (unsigned int j = 0; j < num_states; j++)
                 {
-                    current->my->error_data.abstol[j] = filedata_abs[i*num_states + j];
-                    current->my->error_data.reltol[j] = filedata_rel[i*num_states + j];
-                    current->my->error_data.abstol_dense[j] = filedata_abs_dense[i*num_states + j];
-                    current->my->error_data.reltol_dense[j] = filedata_rel_dense[i*num_states + j];
+                    current->my->error_data->abstol[j] = filedata_abs[i*num_states + j];
+                    current->my->error_data->reltol[j] = filedata_rel[i*num_states + j];
+                    current->my->error_data->abstol_dense[j] = filedata_abs_dense[i*num_states + j];
+                    current->my->error_data->reltol_dense[j] = filedata_rel_dense[i*num_states + j];
                 }
                 current->method = &rk_methods[rk_methods_idx[i]];
             }
@@ -808,7 +808,7 @@ int Build_RKData(
             Link *current = &system[i];
             if (assignments[i] == my_rank || getting[i])
             {
-                memcpy(&current->my->error_data, error_data, sizeof(ErrorData));
+                current->my->error_data = error_data;
                 current->method = &rk_methods[globals->method];
             }
         }
@@ -1008,7 +1008,11 @@ static int Load_Initial_Conditions_Ini(
             if (system[loc].my)
             {
                 if (model && model->initialize_eqs)
-                    system[i].state = model->initialize_eqs(globals->global_params, system[loc].params, y_0, system[loc].user);
+                    system[i].state = model->initialize_eqs(
+                        globals->global_params, globals->num_global_params,
+                        system[loc].params, globals->num_params,
+                        y_0, system[loc].dim,
+                        system[loc].user);
                 else
                     system[i].state = ReadInitData(
                         globals->global_params, globals->num_global_params,
@@ -1072,7 +1076,11 @@ static int Load_Initial_Conditions_Ini(
                 MPI_Recv(y_0 + diff_start, no_ini_start - diff_start, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 if (model && model->initialize_eqs)
-                    system[i].state = model->initialize_eqs(globals->global_params, system[loc].params, y_0, system[loc].user);
+                    system[i].state = model->initialize_eqs(
+                        globals->global_params, globals->num_global_params,
+                        system[loc].params, globals->num_params,
+                        y_0, system[loc].dim,
+                        system[loc].user);
                 else
                     system[i].state = ReadInitData(
                         globals->global_params, globals->num_global_params,
@@ -1185,7 +1193,11 @@ static int Load_Initial_Conditions_Uini(
                 y_0[j] = y_0_backup[j - diff_start];
 
             if (model && model->initialize_eqs)
-                system[i].state = model->initialize_eqs(globals->global_params, system[i].params, y_0, system[i].user);
+                system[i].state = model->initialize_eqs(
+                    globals->global_params, globals->num_global_params,
+                    system[i].params, globals->num_params,
+                    y_0, system[i].dim,
+                    system[i].user);
             else
                 system[i].state = ReadInitData(
                     globals->global_params, globals->num_global_params,
@@ -1529,6 +1541,9 @@ static int Load_Initial_Conditions_H5(
             return 1;
         }
 
+        //Assume that every links have the same dimension
+        unsigned int dim = system[0].dim;
+
         //Read model type, init time
         unsigned short type;
         H5LTget_attribute_ushort(file_id, "/", "model", &type);
@@ -1690,20 +1705,6 @@ int Load_Initial_Conditions(
     default:
         printf("Error: invalid intial condition file type.\n");
         res = -1;
-    }
-
-    //TODO Check intial conditions
-    for (unsigned int i = 0; i < N; i++)
-    {
-        if (system[i].list)
-        {
-            VEC y = system[i].list->head->y_approx;
-            if (y.ve[0] < 0.0 || y.ve[1] < 0.0 || y.ve[2] < 0.0 || y.ve[3] < 0.0)
-            {
-                printf("ERROR: Invalid initial conditions");
-                exit(EXIT_FAILURE);
-            }
-        }
     }
 
     return res;

@@ -50,34 +50,36 @@ typedef struct
 
     PetscInt *HM_col_indices; //For inserting HM values
     PetscInt *d_indices; //For inserting d values
-} Workspace;
+} AssimWorkspace;
 
-typedef struct CustomParams
-{
-    unsigned int ID, offset, simulation_time_with_data;
-} CustomParams;
+//typedef struct CustomParams
+//{
+//    unsigned int ID, offset, simulation_time_with_data;
+//} CustomParams;
 
 
-void Make_Assimilated_Forecasts(AsynchSolver* asynch, unsigned int background_time_unix, double simulation_time_with_data, VEC* backup, Workspace* user, ForecastData* forecaster, AssimData* assim, unsigned int assim_dim, unsigned int forecast_idx);
+//void Make_Assimilated_Forecasts(AsynchSolver* asynch, unsigned int background_time_unix, double simulation_time_with_data, VEC* backup, Workspace* user, ForecastData* forecaster, AssimData* assim, unsigned int assim_dim, unsigned int forecast_idx);
 
-void MM_mult(double** A, double** B, double** C, unsigned int m, unsigned int inner, unsigned int n);
-void VECTOR_Copy(double* u, double* v, unsigned int dim);
-int LinearLeastSquares(Workspace* ptr, double* q);
+//void MM_mult(double** A, double** B, double** C, unsigned int m, unsigned int inner, unsigned int n);
+//void VECTOR_Copy(double* u, double* v, unsigned int dim);
+
+int LinearLeastSquares(AssimWorkspace* ptr, double* q);
 void Print_MATRIX(double** A, unsigned int m, unsigned int n);
 void Print_VECTOR(double* v, unsigned int dim);
+
 double*** DownloadGaugeReadings(unsigned int start_time, unsigned int stop_time, unsigned int** id_to_loc, unsigned int N, unsigned int* numlinks, unsigned int** ids, unsigned int** locs, unsigned int** numsteps);
-double compute_diff(double* d, double* q, unsigned int size);
+double compute_diff(const double * const d, const double * const q, unsigned int size);
 
-int Output_Linkid(double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
-int Output_Timestamp(double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
+//int Output_Linkid(double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
+//int Output_Timestamp(double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
 
-void Init_Output_User_forecastparams(AsynchSolver* asynch);
-void Free_Output_User_forecastparams(AsynchSolver* asynch);
-void Set_Output_User_forecastparams(AsynchSolver* asynch, unsigned int offset, unsigned int time_with_data);
-
-void Init_Output_PeakflowUser_Offset(AsynchSolver* asynch);
-void Free_Output_PeakflowUser_Offset(AsynchSolver* asynch);
-void Set_Output_PeakflowUser_Offset(AsynchSolver* asynch, unsigned int offset);
+//void Init_Output_User_forecastparams(AsynchSolver* asynch);
+//void Free_Output_User_forecastparams(AsynchSolver* asynch);
+//void Set_Output_User_forecastparams(AsynchSolver* asynch, unsigned int offset, unsigned int time_with_data);
+//
+//void Init_Output_PeakflowUser_Offset(AsynchSolver* asynch);
+//void Free_Output_PeakflowUser_Offset(AsynchSolver* asynch);
+//void Set_Output_PeakflowUser_Offset(AsynchSolver* asynch, unsigned int offset);
 
 
 #endif //ASSIM_H

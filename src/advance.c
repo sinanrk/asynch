@@ -50,10 +50,6 @@ void Advance(
     //if (globals->dump_loc_flag == 4)
     //    passes = max(passes, (unsigned int)ceil(globals->maxtime / globals->dump_time));
 
-    for (i = 0; i < globals->num_forcings; i++)
-        if (forcings[i].active)
-            forcings[i].passes = passes;
-
     //Start the main loop
     while (globals->t < globals->maxtime)
     {
@@ -110,7 +106,7 @@ void Advance(
                 //if(current->res && fabs( (current->last_t) - (current->next_save - current->print_time) ) < 1e-12)                
                 if (current->has_res)
                 {
-                    current->differential(current->last_t, current->my->list.tail->y_approx, current->dim, NULL, 0, globals->global_params, current->params, current->my->forcing_values, current->qvs, current->state, current->user, current->my->list.tail->y_approx);
+                    current->differential(current->last_t, current->my->list.tail->y_approx, current->dim, NULL, 0, 0, globals->global_params, current->params, current->my->forcing_values, current->qvs, current->state, current->user, current->my->list.tail->y_approx);
                     if (current->save_flag && fabs(current->last_t - (current->next_save - current->print_time)) / (current->last_t + 1e-12) < 1e-6)
                     {
                         error_code = overwrite_last_step(current, globals, outputfile);

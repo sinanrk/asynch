@@ -209,12 +209,24 @@ int main(int argc, char* argv[])
     //Init asynch object and the river network
     AsynchSolver *asynch = Asynch_Init(MPI_COMM_WORLD);
 
+    //Model 254, q
+    AsynchModel model_254_assim_q;
+    memset(&model_254_assim_q, 0, sizeof(AsynchModel));
+    model_254_assim_q.dim = 4;
+    model_254_assim_q.set_param_sizes = SetParamSizes_Assim_254;
+    model_254_assim_q.convert = ConvertParams_Assim_254;
+    model_254_assim_q.routines = InitRoutines_Assim_254_q;
+    model_254_assim_q.precalculations = Precalculations_Assim_254;
+    model_254_assim_q.initialize_eqs = ReadInitData_Assim_254_q;
+
+    Asynch_Custom_Model(asynch, &model_254_assim_q);
+
     //Model 15
     //Asynch_Custom_Model(asynch,&SetParamSizes_Assim,&ConvertParams_Assim,&InitRoutines_Assim,&Precalculations_Assim,&ReadInitData_Assim);
     //Model 254
     //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
     //Model 254, q
-    Asynch_Custom_Model(asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q, &Precalculations_Assim_254, &ReadInitData_Assim_254_q);
+    //Asynch_Custom_Model(asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q,&Precalculations_Assim_254, &ReadInitData_Assim_254_q);
     //Model 254, q and s_p
     //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qsp,&Precalculations_Assim_254,&ReadInitData_Assim_254_qsp);
     //Model 254, q and s_t
@@ -269,7 +281,7 @@ int main(int argc, char* argv[])
     Asynch_Partition_Network(asynch);
     //CleanUpstreamLinks(asynch);
     print_out("Loading parameters...\n");
-    Asynch_Load_Network_Parameters(asynch, 0);
+    Asynch_Load_Network_Parameters(asynch);
     print_out("Reading dam and reservoir data...\n");
     Asynch_Load_Dams(asynch);
     print_out("Setting up numerical error data...\n");
@@ -321,12 +333,14 @@ int main(int argc, char* argv[])
     //Asynch_Prepare_Output(asynch);
 
     //Pull data from asynch
-    unsigned int my_N = asynch->my_N, N = asynch->N, *my_sys = asynch->my_sys, **id_to_loc = asynch->id_to_loc, num_forcings = asynch->globals->num_forcings;
+    Link **my_sys = asynch->my_sys;
+    Lookup *id_to_loc = asynch->id_to_loc;
+    unsigned int my_N = asynch->my_N, N = asynch->N, num_forcings = asynch->globals->num_forcings;
     int *assignments = asynch->assignments;
     Link* sys = asynch->sys;
     short int *getting = asynch->getting;
     GlobalVars *globals = asynch->globals;
-    Model* custom_model = asynch->custom_model;
+    AsynchModel* custom_model = asynch->model;
 
     //Set print_time to t_0
     //Asynch_Reset_Temp_Files(asynch,sys[my_sys[0]]->last_t);
@@ -344,8 +358,10 @@ int main(int argc, char* argv[])
     //Initialize choices
     //unsigned int num_obs = assim.num_obs, *obs_locs = assim.obs_locs, num_steps = assim.num_steps;
     unsigned int num_total_obs = assim.num_steps * assim.num_obs;
+    time_t begin_time = Asynch_Get_Begin_Timestamp(asynch);
+    time_t end_time = Asynch_Get_End_Timestamp(asynch);
+    double duration = Asynch_Get_Total_Simulation_Duration(asynch);
     double t_b = 0.0;
-    double t_f = Asynch_Get_Total_Simulation_Duration(asynch);
     unsigned int allstates = assim_dim * N;
     //double x_b[allstates];
 
@@ -356,7 +372,7 @@ int main(int argc, char* argv[])
         if (assignments[i] == my_rank)
         {
             for (j = 0; j < assim_dim; j++)
-                x_b[i*assim_dim + j] = sys[i].list->tail->y_approx.ve[j];	//!!!! Need to be able to specify which states are used !!!!
+                x_b[i*assim_dim + j] = sys[i].my->list.tail->y_approx[j];	//!!!! Need to be able to specify which states are used !!!!
         }
         //MPI_Bcast(&(x_b[i*assim_dim]), assim_dim, MPI_DOUBLE, assignments[i], MPI_COMM_WORLD);
     }
@@ -429,7 +445,8 @@ int main(int argc, char* argv[])
     //Prep PetSC
     if (my_rank == 0)
         printf("\nPrepping PetSc...\n");
-    Workspace ws;
+    
+    AssimWorkspace ws;
 
     //For linear least squares
     int *HM_col_indices = NULL;
@@ -459,7 +476,7 @@ int main(int argc, char* argv[])
     for (i = 0; i < N; i++)
     {
         if (assignments[i] == my_rank)
-            inv_upareas[i] = 1.0 / (sys[i].params.ve[globals->area_idx] * 1e3);
+            inv_upareas[i] = 1.0 / (sys[i].params[globals->area_idx] * 1e3);
     }
 
     MPI_Allreduce(MPI_IN_PLACE, inv_upareas, N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -544,7 +561,7 @@ int main(int argc, char* argv[])
 
     //Print out some information
     unsigned int my_eqs = 0, total_eqs;
-    for (i = 0; i < my_N; i++)	my_eqs += sys[my_sys[i]].dim;
+    for (i = 0; i < my_N; i++)	my_eqs += my_sys[i]->dim;
     MPI_Reduce(&my_eqs, &total_eqs, 1, MPI_UNSIGNED, MPI_SUM, 0, MPI_COMM_WORLD);
 
     printf("[%i]: Good to go with %u links (%u eqs).\n", my_rank, my_N, my_eqs);
@@ -663,7 +680,7 @@ int main(int argc, char* argv[])
 
 
     //Set the forecast window
-    Asynch_Set_Total_Simulation_Duration(asynch, assim.num_steps * assim.obs_time_step);	//!!!! Is this needed? !!!!
+    //Asynch_Set_Total_Simulation_Duration(asynch, assim.num_steps * assim.obs_time_step);	//!!!! Is this needed? !!!!
 
     //Get the observations
     {
@@ -820,17 +837,17 @@ int main(int argc, char* argv[])
     for (i = 0; i < N; i++)
     {
         Link *current = &asynch->sys[i];
-        if (current->list != NULL)
+        if (current->my != NULL)
         {
-            VEC y = current->list->tail->y_approx;
+            double *y = current->my->list.tail->y_approx;
             for (j = 0; j < problem_dim; j++)
-                y.ve[j] = x_start[i * problem_dim + j];
+                y[j] = x_start[i * problem_dim + j];
 
             // Idem CheckConsistency_Nonzero_4States
-            if (y.ve[0] < 1e-14)	y.ve[0] = 1e-14;
-            if (y.ve[1] < 1e-20)	y.ve[1] = 0.0;
-            if (y.ve[2] < 1e-20)	y.ve[2] = 0.0;
-            if (y.ve[3] < 1e-20)	y.ve[3] = 0.0;
+            if (y[0] < 1e-14)	y[0] = 1e-14;
+            if (y[1] < 1e-20)	y[1] = 0.0;
+            if (y[2] < 1e-20)	y[2] = 0.0;
+            if (y[3] < 1e-20)	y[3] = 0.0;
         }
     }
 
@@ -882,7 +899,7 @@ int main(int argc, char* argv[])
 //HM is (num_obs*steps_to_use) X allstates_needed
 //HM_els is 1 X allstates (i.e. a 1D array)
 //HM_buffer is 1 X allstates_needed
-int LinearLeastSquares(Workspace* ws, double* q)
+int LinearLeastSquares(AssimWorkspace* ws, double* q)
 {
     unsigned int i, j,/*k,m,*/n/*,l,counter*/;
 
@@ -905,7 +922,7 @@ int LinearLeastSquares(Workspace* ws, double* q)
     unsigned int allstates_needed = ws->allstates_needed;
     double /**RHS_els,*/*x_start = ws->x_start, *HM_buffer = ws->HM_buffer;
     //unsigned int max_or_steps = steps_to_use;
-    Model* custom_model = asynch->custom_model;
+    AsynchModel* custom_model = asynch->model;
     unsigned int *vareq_shift = ws->vareq_shift, *inv_vareq_shift = ws->inv_vareq_shift;
 
     double start = MPI_Wtime();
@@ -933,7 +950,11 @@ int LinearLeastSquares(Workspace* ws, double* q)
 
     for (i = 0; i < N; i++)				//!!!! Put this into ResetSysLS? !!!!
         if (assignments[i] == my_rank || getting[i])
-            custom_model->initialize_eqs(globals->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, globals->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
+            custom_model->initialize_eqs(
+                globals->global_params, globals->num_global_params,
+                sys[i].params, globals->num_params,
+                sys[i].my->list.head->y_approx, sys[i].dim,
+                sys[i].user); //!!!! Should all states be reset? !!!!
             //ReadInitData(globals->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,globals->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);	//!!!! Very inefficient. Too many checks. !!!!
 
     ////Initialize the variational equations
@@ -1039,6 +1060,8 @@ int LinearLeastSquares(Workspace* ws, double* q)
     //Advance the system and extract the HM matrix
     for (i = 0; i < ws->num_steps; i++)	//!!!! Start at i=1? For i = 0, I don't think we need to set anything... !!!!		//HM here holds the values of M that are needed
     {
+        globals->t = 0.0;
+
         if (i > 0)
         {
             // Adjust the end of the simulation
@@ -1080,16 +1103,16 @@ int LinearLeastSquares(Workspace* ws, double* q)
                     if (verbose)
                         printf("ID = %u | Loading %e (from %u) into spot %u\n",
                             current->ID,
-                            current->list->tail->y_approx.ve[updata->fit_states[n]],
+                            current->my->list.tail->y_approx[updata->fit_states[n]],
                             updata->fit_states[n],
                             vareq_shift[updata->fit_to_universal[n]]);
 
-                    assert(updata->fit_states[n] < current->list->tail->y_approx.dim);
-                    HM_buffer[vareq_shift[updata->fit_to_universal[n]]] = current->list->tail->y_approx.ve[updata->fit_states[n]];
+                    assert(updata->fit_states[n] < current->dim);
+                    HM_buffer[vareq_shift[updata->fit_to_universal[n]]] = current->my->list.tail->y_approx[updata->fit_states[n]];
                 }
 
                 //Extract calculationed q's (Just needed for testing. Maybe...)
-                q[i * ws->num_obs + j] = current->list->tail->y_approx.ve[0];
+                q[i * ws->num_obs + j] = current->my->list.tail->y_approx[0];
             }
 
             //MPI_Bcast(HM_buffer, allstates_needed, MPI_DOUBLE, owner, MPI_COMM_WORLD);	//!!!! Only proc 0 needs this !!!!
@@ -1352,7 +1375,7 @@ int LinearLeastSquares(Workspace* ws, double* q)
 }
 
 
-double compute_diff(double* d, double* q, unsigned int size)
+double compute_diff(const double * const d, const double * const q, unsigned int size)
 {
     unsigned int i;
     double result = 0.0;
@@ -1365,30 +1388,30 @@ double compute_diff(double* d, double* q, unsigned int size)
 }
 
 
-//v = u
-void VECTOR_Copy(double* u, double* v, unsigned int dim)
-{
-    unsigned int i;
-    for (i = 0; i < dim; i++)
-        v[i] = u[i];
-}
-
-//C = A*B
-//A= m x inner, B= inner x p, C= m x n
-void MM_mult(double** A, double** B, double** C, unsigned int m, unsigned int inner, unsigned int n)
-{
-    unsigned int i, j, k;
-
-    for (i = 0; i < m; i++)
-    {
-        for (j = 0; j < n; j++)	C[i][j] = 0.0;
-        for (k = 0; k < inner; k++)
-        {
-            for (j = 0; j < n; j++)
-                C[i][j] += A[i][k] * B[k][j];
-        }
-    }
-}
+////v = u
+//void VECTOR_Copy(double* u, double* v, unsigned int dim)
+//{
+//    unsigned int i;
+//    for (i = 0; i < dim; i++)
+//        v[i] = u[i];
+//}
+//
+////C = A*B
+////A= m x inner, B= inner x p, C= m x n
+//void MM_mult(double** A, double** B, double** C, unsigned int m, unsigned int inner, unsigned int n)
+//{
+//    unsigned int i, j, k;
+//
+//    for (i = 0; i < m; i++)
+//    {
+//        for (j = 0; j < n; j++)	C[i][j] = 0.0;
+//        for (k = 0; k < inner; k++)
+//        {
+//            for (j = 0; j < n; j++)
+//                C[i][j] += A[i][k] * B[k][j];
+//        }
+//    }
+//}
 
 void Print_MATRIX(double** A, unsigned int m, unsigned int n)
 {

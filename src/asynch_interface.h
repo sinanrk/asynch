@@ -5,6 +5,7 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -418,11 +419,30 @@ unsigned short Asynch_Get_Model_Type(AsynchSolver* asynch);
 /// \param type    The model type.
 void Asynch_Set_Model_Type(AsynchSolver* asynch, unsigned short type);
 
-/// This routine returns the value of *duration*, as defined in Section[sec:model type and duration].
+/// This routine returns the begin timestamp of the simulation as defined in Section[sec:simulation period].
 ///
 /// \param asynch A pointer to a AsynchSolver object to use.
-/// \return The current duration of the simulation time of the AsynchSolver object.
+/// \return The current begin timestamp of the simulation.
+time_t Asynch_Get_Begin_Timestamp(AsynchSolver* asynch);
+
+/// This routine returns the end timestamp of the simulation as defined in Section[sec:simulation period].
+///
+/// \param asynch A pointer to a AsynchSolver object to use.
+/// \return The current end timestamp of the simulation.
+time_t Asynch_Get_End_Timestamp(AsynchSolver* asynch);
+
+/// This routine returns the value of *duration*, as defined in Section[sec:simulation period].
+///
+/// \param asynch A pointer to a AsynchSolver object to use.
+/// \return The current duration of the simulation time of the AsynchSolver object (unit is model dependant, but usually minutes is used).
 double Asynch_Get_Total_Simulation_Duration(AsynchSolver* asynch);
+
+/// This routine set the simulation period, as defined in Section[sec:simulation period].
+///
+/// \param asynch A pointer to a AsynchSolver object to use.
+/// \param begin A unix timestamp of the beginning of the simulation.
+/// \param end A unix timestamp of the end of the simulation.
+void Asynch_Set_Simulation_Period(AsynchSolver* asynch, time_t begin, time_t end);
 
 /// This routine returns the value of *duration*, as defined in Section[sec:model type and duration].
 ///

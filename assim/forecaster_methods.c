@@ -15,6 +15,10 @@
 #include <libpq-fe.h>
 #endif
 
+#include <math.h>
+
+#include <db.h>
+
 #include "forecaster_methods.h"
 
 

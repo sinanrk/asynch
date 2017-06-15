@@ -60,6 +60,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(RootDir);$(RootDir)\src;$(MSMPI_INC);$(MSMPI_INC)\x64</AdditionalIncludeDirectories>
+      <AdditionalOptions>/we4133 /we4113 /we4029 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
