@@ -15,12 +15,12 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\src\asynch_interface_py.c">
+    <ClCompile Include="..\..\..\py\asynch_interface_py.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\src\asynch_interface_py.h">
+    <ClInclude Include="..\..\..\py\asynch_interface_py.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
