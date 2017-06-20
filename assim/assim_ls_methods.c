@@ -19,10 +19,13 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include "assim_ls_methods.h"
-
+#include "blas.h"
+#include "db.h"
 #include "comm.h"
 #include "riversys.h"
+#include "sort.h"
+
+#include "assim_ls_methods.h"
 
 //!!!! Use interface instead !!!!
 void ResetSysLS(Link* sys, unsigned int N, GlobalVars* globals, double t_0, double* x_start, unsigned int problem_dim, unsigned int num_forcings, TransData* my_data)
@@ -35,22 +38,25 @@ void ResetSysLS(Link* sys, unsigned int N, GlobalVars* globals, double t_0, doub
     for (i = 0; i < N; i++)
     {
         current = &sys[i];
-        if (current->list != NULL)
+        if (current->my != NULL)
         {
             while (current->current_iterations > 1)
             {
-                Remove_Head_Node(current->list);
+                Remove_Head_Node(&current->my->list);
                 (current->current_iterations)--;
             }
-            current->list->head->t = t_0;
+            current->my->list.head->t = t_0;
             current->last_t = t_0;
             current->steps_on_diff_proc = 1;
             current->iters_removed = 0;
             current->rejected = 0;
-            if (current->num_parents == 0)	current->ready = 1;
-            else				current->ready = 0;
-            for (j = 0; j < problem_dim; j++)	current->list->head->y_approx.ve[j] = x_start[i*problem_dim + j];
-            //v_copy(backup[i],current->list->head->y_approx);
+            if (current->num_parents == 0)
+                current->ready = 1;
+            else
+                current->ready = 0;
+            for (j = 0; j < problem_dim; j++)	
+                current->my->list.head->y_approx[j] = x_start[i*problem_dim + j];
+            //v_copy(backup[i],current->my->list.head->y_approx);
 
             //Reset the next_save time
             if (current->save_flag)
@@ -61,41 +67,45 @@ void ResetSysLS(Link* sys, unsigned int N, GlobalVars* globals, double t_0, doub
 
             //Reset peak flow information
             current->peak_time = t_0;
-            v_copy(current->list->head->y_approx, current->peak_value);
+            dcopy(current->my->list.head->y_approx, current->peak_value, 0, current->dim);
 
             //Set hydrograph scale
             //current->Q_TM = backup[i]->ve[0];
 
             //Reset current state
-            if (current->state_check != NULL)
-                current->state = current->state_check(current->list->head->y_approx, globals->global_params, current->params, current->qvs, current->dam);
-            current->list->head->state = current->state;
+            if (current->check_state != NULL)
+                current->state = current->check_state(
+                    current->my->list.head->y_approx, current->dim,
+                    globals->global_params, globals->num_global_params,
+                    current->params, globals->num_params,
+                    current->qvs, current->has_dam, NULL);
+            current->my->list.head->state = current->state;
 
             //Set forcings
-            if (current->forcing_buff)
+            if (current->my->forcing_data)
             {
                 for (k = 0; k < num_forcings; k++)
                 {
-                    if (current->forcing_buff[k])
+                    if (current->my->forcing_values[k])
                     {
                         //Find the right index in forcings
-                        for (l = 0; l < current->forcing_buff[k]->nrows - 1; l++)
-                            if (current->forcing_buff[k]->data[l][0] <= t_0 && t_0 < current->forcing_buff[k]->data[l + 1][0])	break;
-                        double rainfall_buffer = current->forcing_buff[k]->data[l][1];
-                        current->forcing_values[k] = rainfall_buffer;
-                        current->forcing_indices[k] = l;
+                        for (l = 0; l < current->my->forcing_data[k].num_points - 1; l++)
+                            if (current->my->forcing_data[k].data[l].time <= t_0 && t_0 < current->my->forcing_data[k].data[l + 1].time)	break;
+                        double rainfall_buffer = current->my->forcing_data[k].data[l].value;
+                        current->my->forcing_values[k] = rainfall_buffer;
+                        current->my->forcing_indices[k] = l;
 
                         //Find and set the new change in data
-                        for (j = l + 1; j < current->forcing_buff[k]->nrows; j++)
+                        for (j = l + 1; j < current->my->forcing_data[k].num_points; j++)
                         {
-                            if (fabs(current->forcing_buff[k]->data[j][1] - rainfall_buffer) > 1e-12)
+                            if (fabs(current->my->forcing_data[k].data[j].value - rainfall_buffer) > 1e-12)
                             {
-                                current->forcing_change_times[k] = current->forcing_buff[k]->data[j][0];
+                                current->my->forcing_change_times[k] = current->my->forcing_data[k].data[j].time;
                                 break;
                             }
                         }
-                        if (j == current->forcing_buff[k]->nrows)
-                            current->forcing_change_times[k] = current->forcing_buff[k]->data[j - 1][0];
+                        if (j == current->my->forcing_data[k].num_points)
+                            current->my->forcing_change_times[k] = current->my->forcing_data[k].data[j - 1].time;
 
                         //Select new step size
                         //current->h = InitialStepSize(current->last_t,current,globals,workspace);
@@ -110,7 +120,8 @@ void ResetSysLS(Link* sys, unsigned int N, GlobalVars* globals, double t_0, doub
 void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim, unsigned int problem_dim, bool trim, double obs_time_step, unsigned int num_steps, unsigned int* obs_locs, unsigned int num_obs)
 {
     Link *sys = asynch->sys, *current;
-    unsigned int N = asynch->N, parentsval, leaves_size = 0, i, j, **id_to_loc = asynch->id_to_loc;
+    unsigned int N = asynch->N, parentsval, leaves_size = 0, i, j;
+    Lookup *id_to_loc = asynch->id_to_loc;
     int *assignments = asynch->assignments;
     GlobalVars *globals = asynch->globals;
 
@@ -211,7 +222,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
         for (i = 0; i < current->num_parents; i++)
         {
             Link *parent = current->parents[i];
-            if (parent->res)
+            if (parent->has_res)
                 continue;
 
             assert(count < updata->num_upstreams);
@@ -546,7 +557,7 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
                     for (i = 0; i < current->num_parents; i++)
                     {
                         Link *parent = current->parents[i];
-                        if (parent->res)
+                        if (parent->has_res)
                             continue;
 
                         assert(count < updata->num_upstreams);
@@ -625,7 +636,8 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
 void FindUpstreamLinks2(const AsynchSolver * const asynch, AssimData* const assim, unsigned int problem_dim, bool trim, double obs_time_step, unsigned int num_steps, unsigned int* obs_locs, unsigned int num_obs)
 {
     Link *sys = asynch->sys;
-    unsigned int N = asynch->N, i, j, **id_to_loc = asynch->id_to_loc;
+    unsigned int N = asynch->N;
+    Lookup *id_to_loc = asynch->id_to_loc;
     int *assignments = asynch->assignments;
     GlobalVars *globals = asynch->globals;
 
@@ -633,7 +645,7 @@ void FindUpstreamLinks2(const AsynchSolver * const asynch, AssimData* const assi
     //UpstreamData* updata;
 
     //For every links
-    for (i = 0; i < N; i++)
+    for (unsigned int i = 0; i < N; i++)
     {
         //Allocate UpstreamData
         UpstreamData *updata = malloc(sizeof(UpstreamData));
@@ -677,7 +689,7 @@ void FindUpstreamLinks2(const AsynchSolver * const asynch, AssimData* const assi
         n = PQntuples(res);
         if (n != N)
         {
-            printf("Error: got a different number of links for the distances to outlet than links in network. (%u vs %u)\n", i, N);
+            printf("Error: got a different number of links for the distances to outlet than links in network. (%u vs %u)\n", n, N);
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
         else
@@ -686,7 +698,7 @@ void FindUpstreamLinks2(const AsynchSolver * const asynch, AssimData* const assi
             int i_distance = PQfnumber(res, "distance");
 
             //Sort the data
-            for (i = 0; i < N; i++)
+            for (unsigned int i = 0; i < N; i++)
             {
                 if (!PQgetisnull(res, i, i_link_id) && PQgetlength(res, i, i_link_id) > 0)
                 {
@@ -826,7 +838,7 @@ void FindUpstreamLinks2(const AsynchSolver * const asynch, AssimData* const assi
                 for (unsigned int i = 0; i < current->num_parents; i++)
                 {
                     Link *parent = current->parents[i];
-                    if (parent->res)
+                    if (parent->has_res)
                         continue;
 
                     assert(count < updata->num_upstreams);
@@ -1109,7 +1121,8 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
 {
     //Unpack
     GlobalVars* globals = asynch->globals;
-    unsigned int N = asynch->N, **id_to_loc = asynch->id_to_loc;
+    unsigned int N = asynch->N;
+    Lookup *id_to_loc = asynch->id_to_loc;
     int *assignments = asynch->assignments;
     Link *sys = asynch->sys;
     unsigned int area_idx = globals->area_idx;
@@ -1126,7 +1139,7 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
     for (i = 0; i < N; i++)
     {
         if (assignments[i] == my_rank)
-            upareas[i] = sys[i].params.ve[globals->area_idx];
+            upareas[i] = sys[i].params[globals->area_idx];
     }
 
     MPI_Allreduce(MPI_IN_PLACE, upareas, N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -1226,7 +1239,8 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
 //Reads a .das file
 bool InitAssimData(AssimData* assim, const char* assim_filename, AsynchSolver* asynch)
 {
-    unsigned int **id_to_loc = asynch->id_to_loc, N = asynch->N, string_size = asynch->globals->string_size;
+    unsigned int N = asynch->N, string_size = asynch->globals->string_size;
+    Lookup *id_to_loc = asynch->id_to_loc;
     int errorcode, valsread;
     FILE* inputfile = NULL;
     char end_char;
@@ -1303,11 +1317,8 @@ bool InitAssimData(AssimData* assim, const char* assim_filename, AsynchSolver* a
 //Trashes an AssimData object
 void FreeAssimData(AssimData* assim)
 {
-    unsigned int i;
     if (assim->id_to_assim)
     {
-        for (i = 0; i < assim->num_obs; i++)
-            free(assim->id_to_assim[i]);
         free(assim->id_to_assim);
     }
     if (assim->obs_locs)
@@ -1319,7 +1330,8 @@ void FreeAssimData(AssimData* assim)
 int GetObservationsIds(const AsynchSolver* asynch, AssimData* assim)
 {
     int errorcode = 0;
-    unsigned int i, dropped, *gauged_ids = NULL, **id_to_loc = asynch->id_to_loc, N = asynch->N;
+    unsigned int i, dropped, *gauged_ids = NULL, N = asynch->N;
+    Lookup *id_to_loc = asynch->id_to_loc;
     char query[ASYNCH_MAX_QUERY_LENGTH];
     PGresult *res;
 
@@ -1371,14 +1383,13 @@ int GetObservationsIds(const AsynchSolver* asynch, AssimData* assim)
         MPI_Bcast(gauged_ids, assim->num_obs, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
         //Build id_to_assim
-        assim->id_to_assim = (unsigned int**)malloc(assim->num_obs * sizeof(unsigned int*));	//!!!! Should really have an array (should REALLY be a hash table) !!!!
-        for (i = 0; i < assim->num_obs; i++)	assim->id_to_assim[i] = (unsigned int*)malloc(2 * sizeof(unsigned int*));
+        assim->id_to_assim = malloc(assim->num_obs * sizeof(Lookup));	//!!!! Should really have an array (should REALLY be a hash table) !!!!
         for (i = 0; i < assim->num_obs; i++)
         {
-            assim->id_to_assim[i][0] = gauged_ids[i];
-            assim->id_to_assim[i][1] = i;
+            assim->id_to_assim[i].id = gauged_ids[i];
+            assim->id_to_assim[i].loc = i;
         }
-        merge_sort_ids(assim->id_to_assim, assim->num_obs);
+        merge_sort_by_ids(assim->id_to_assim, assim->num_obs);
     }
 
     if (gauged_ids)	free(gauged_ids);
@@ -1388,13 +1399,13 @@ int GetObservationsIds(const AsynchSolver* asynch, AssimData* assim)
 //Download gauge data and store them in d. d orders the data by time, then location.
 //Data are obtained from times starting at background_time_unix and ending at steps_to_use*inc+background_time_unix.
 //Returns 0 if everything went as planned. Returns 1 if some data was not available. Returns -1 if an error occurred.
-int GetObservationsData(const AssimData* assim, const unsigned int **id_loc_loc, unsigned int N, unsigned int background_time_unix, double* d)
+int GetObservationsData(const AssimData* assim, const Lookup * const id_loc_loc, unsigned int N, unsigned int background_time_unix, double* d)
 {
     unsigned int i, n, end_time_unix, *obs_locs = assim->obs_locs, idx, inc_secs = (unsigned int)(assim->obs_time_step*60.0 + 1e-3), unix_t, id, num_obs = assim->num_obs;
     unsigned int num_steps = assim->num_steps, current_time;
     int errorcode = 0;
     PGresult *res;
-    char *query = assim->conninfo.query;
+    const char * const query = assim->conninfo.query;
 
     //Reset d
     for (i = 0; i < num_steps*num_obs; i++)	d[i] = -1.0;
@@ -1634,14 +1645,14 @@ int SnapShot_ModelStates(AsynchSolver* asynch, unsigned int problem_dim)
         MPI_Bcast(&i, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
         if (i)	return 1;
 
-        fprintf(output, "%hu\n%u\n0.0\n\n", globals->type, N);
+        fprintf(output, "%hu\n%u\n0.0\n\n", globals->model_uid, N);
 
         for (i = 0; i < N; i++)
         {
             if (assignments[i] != 0)
                 MPI_Recv(buffer, problem_dim, MPI_DOUBLE, assignments[i], i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             else
-                for (j = 0; j < problem_dim; j++)	buffer[j] = sys[i].list->tail->y_approx.ve[j];
+                for (j = 0; j < problem_dim; j++)	buffer[j] = sys[i].my->list.tail->y_approx[j];
 
             fprintf(output, "%u\n", sys[i].ID);
             for (j = 0; j < problem_dim; j++)	fprintf(output, "%.6e ", buffer[j]);
@@ -1660,7 +1671,7 @@ int SnapShot_ModelStates(AsynchSolver* asynch, unsigned int problem_dim)
         {
             if (assignments[i] == my_rank)
             {
-                for (j = 0; j < problem_dim; j++)	buffer[j] = sys[i].list->tail->y_approx.ve[j];
+                for (j = 0; j < problem_dim; j++)	buffer[j] = sys[i].my->list.tail->y_approx[j];
                 MPI_Send(buffer, problem_dim, MPI_DOUBLE, 0, i, MPI_COMM_WORLD);
             }
         }
