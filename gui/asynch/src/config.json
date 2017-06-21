@@ -1,0 +1,181 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "definitions": {
+        "BuffersConfig": {
+            "properties": {
+                "num_discont": {
+                    "type": "number"
+                },
+                "num_step": {
+                    "type": "number"
+                },
+                "num_transfer": {
+                    "type": "number"
+                }
+            },
+            "type": "object"
+        },
+        "ErrorCtlConfig": {
+            "properties": {
+                "fac": {
+                    "type": "number"
+                },
+                "facmax": {
+                    "type": "number"
+                },
+                "facmin": {
+                    "type": "number"
+                }
+            },
+            "type": "object"
+        },
+        "ForcingConfig": {
+            "properties": {
+                "filename": {
+                    "type": "string"
+                },
+                "step": {
+                    "type": "number"
+                }
+            },
+            "type": "object"
+        },
+        "ForcingStateConfig": {
+            "properties": {
+                "filename": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "number"
+                }
+            },
+            "type": "object"
+        },
+        "ForcingsConfig": {
+            "properties": {
+                "dams": {
+                    "type": "string"
+                },
+                "state": {
+                    "$ref": "#/definitions/ForcingStateConfig"
+                },
+                "timeseries": {
+                    "items": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/definitions/ForcingConfig"
+                            },
+                            {
+                                "type": "string"
+                            }
+                        ]
+                    },
+                    "type": "array"
+                }
+            },
+            "type": "object"
+        },
+        "OutputsConfig": {
+            "properties": {
+                "peaks": {
+                    "$ref": "#/definitions/PeakConfig"
+                },
+                "snapshots": {
+                    "$ref": "#/definitions/SnapshotConfig"
+                },
+                "timeseries": {
+                    "$ref": "#/definitions/TimeserieConfig"
+                }
+            },
+            "type": "object"
+        },
+        "PeakConfig": {
+            "properties": {
+            },
+            "type": "object"
+        },
+        "SnapshotConfig": {
+            "properties": {
+            },
+            "type": "object"
+        },
+        "SolverConfig": {
+            "properties": {
+                "buffers": {
+                    "$ref": "#/definitions/BuffersConfig"
+                },
+                "error_ctl": {
+                    "$ref": "#/definitions/ErrorCtlConfig"
+                },
+                "method": {
+                    "type": "number"
+                },
+                "tolerances": {
+                    "items": {
+                        "type": "number"
+                    },
+                    "type": "array"
+                }
+            },
+            "type": "object"
+        },
+        "TimeserieConfig": {
+            "properties": {
+            },
+            "type": "object"
+        }
+    },
+    "properties": {
+        "addSolver": {
+            "properties": {
+            },
+            "type": "object"
+        },
+        "begin": {
+            "description": "Enables basic storage and retrieval of dates and times.",
+            "format": "date-time",
+            "type": "string"
+        },
+        "end": {
+            "description": "Enables basic storage and retrieval of dates and times.",
+            "format": "date-time",
+            "type": "string"
+        },
+        "forcings": {
+            "$ref": "#/definitions/ForcingsConfig"
+        },
+        "globalParams": {
+            "items": {
+                "type": "number"
+            },
+            "type": "array"
+        },
+        "init": {
+            "properties": {
+            },
+            "type": "object"
+        },
+        "model": {
+            "type": "number"
+        },
+        "outputs": {
+            "$ref": "#/definitions/OutputsConfig"
+        },
+        "removeSolver": {
+            "properties": {
+            },
+            "type": "object"
+        },
+        "scratch_folder": {
+            "type": "string"
+        },
+        "solver": {
+            "$ref": "#/definitions/SolverConfig"
+        },
+        "topology": {
+            "type": "string"
+        }
+    },
+    "type": "object"
+}
+

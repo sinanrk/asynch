@@ -26,3 +26,6 @@ examples
 *.dbc
 *.str
 *.rvr
+
+work
+src.*

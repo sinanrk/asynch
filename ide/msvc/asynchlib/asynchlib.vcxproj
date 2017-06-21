@@ -179,7 +179,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="$(RootDir)\LICENSE" />
-    <None Include="$(RootDir)\makefile" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
