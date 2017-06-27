@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include <libpq-fe.h>
 #include <mpi.h>
 
 #if defined(HAVE_UNISTD_H)

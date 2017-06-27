@@ -17,12 +17,13 @@ AX_LIB_POSTGRESQL
 AX_BLAS
 AX_LAPACK
 
-AM_CONDITIONAL([HAVE_POSTGRESQL], [test "$HAVE_POSTGRESQL" -eq 1])
-
 # Checks for packages
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.8], [AC_DEFINE([HAVE_LIBCHECK], [1], [Defined if you have libcheck support] )],[HAVE_LIBCHECK=0])
-PKG_CHECK_MODULES([METIS], [check >= 5.0.0], [AC_DEFINE([HAVE_METIS], [1], [Defined if you have METIS support] )], [HAVE_METIS=0])
-PKG_CHECK_MODULES([PETSC], [check >= 3.7.0], [AC_DEFINE([HAVE_PETSC], [1], [Defined if you have PETSC support] )], [HAVE_PETSC=0])
+PKG_CHECK_MODULES([METIS], [metis >= 5.0.0], [AC_DEFINE([HAVE_METIS], [1], [Defined if you have METIS support] )], [HAVE_METIS=0])
+PKG_CHECK_MODULES([PETSC], [PETSc >= 3.7.0], [AC_DEFINE([HAVE_PETSC], [1], [Defined if you have PETSc support] )], [HAVE_PETSC=0])
+
+AM_CONDITIONAL([HAVE_POSTGRESQL], [test "$HAVE_POSTGRESQL" -eq 1])
+AM_CONDITIONAL([HAVE_PETSC], [test "$HAVE_PETSC" -eq 1])
 
 # Generate config header
 AC_CONFIG_HEADERS([config.h])

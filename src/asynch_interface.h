@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <time.h>
 
 #if defined(HAVE_MPI)
 #include <mpi.h>

@@ -16,8 +16,9 @@
 #endif
 
 #include <assert.h>
-#include <stdbool.h>
 #include <math.h>
+#include <stdbool.h>
+#include <string.h>
 
 #include "blas.h"
 #include "db.h"
@@ -26,6 +27,13 @@
 #include "sort.h"
 
 #include "assim_ls_methods.h"
+
+
+// For older version of OpenMPI
+#if !defined(MPI_C_BOOL)
+#define MPI_C_BOOL MPI_CHAR
+#endif
+
 
 //!!!! Use interface instead !!!!
 void ResetSysLS(Link* sys, unsigned int N, GlobalVars* globals, double t_0, double* x_start, unsigned int problem_dim, unsigned int num_forcings, TransData* my_data)

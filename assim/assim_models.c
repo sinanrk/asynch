@@ -15,7 +15,7 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include <metis.h>
+//#include <metis.h>
 
 // Internal Asynch stuffs
 #include <sort.h>
@@ -26,6 +26,12 @@
 #include <models/equations.h>
 
 #include "assim_models.h"
+
+// For older version of OpenMPI
+#if !defined(MPI_C_BOOL)
+#define MPI_C_BOOL MPI_CHAR
+#endif
+
 
 
 //int* Partition_METIS_ByEqs(Link* sys, unsigned int N, Link** leaves, unsigned int numleaves, Link** my_sys, unsigned int* my_N, TransData* my_data, short int *getting)
