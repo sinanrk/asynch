@@ -7,8 +7,9 @@
 
 #include <stdlib.h>
 
-#include "asynch_interface.h"
-#include "assim_ls_methods.h"
+#include <asynch_interface.h>
+
+//#include "assim_ls_methods.h"
 
 //int* Partition_METIS_ByEqs(Link* sys, unsigned int N, Link** leaves, unsigned int numleaves, unsigned int** my_sys, unsigned int* my_N, TransData* my_data, short int *getting);
 

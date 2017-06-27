@@ -25,162 +25,9 @@
 #include <models/check_state.h>
 #include <models/equations.h>
 
-#include "assim_models.h"
-
-// For older version of OpenMPI
-#if !defined(MPI_C_BOOL)
-#define MPI_C_BOOL MPI_CHAR
-#endif
-
-
-
-//int* Partition_METIS_ByEqs(Link* sys, unsigned int N, Link** leaves, unsigned int numleaves, Link** my_sys, unsigned int* my_N, TransData* my_data, short int *getting)
-//{
-//    unsigned int i, j, start_index, end_index, loc, retval;
-//    unsigned int nodes_per_proc = numleaves / np;	//Number of leaves assigned to each process (except the last)
-//    Link* current;
-//
-//    start_index = nodes_per_proc * my_rank;
-//    if (my_rank == np - 1)		end_index = numleaves;
-//    else				end_index = nodes_per_proc * (my_rank + 1);
-//    //	*my_N = end_index - start_index;
-//    *my_N = 0;
-//    unsigned int my_max_nodes = N - numleaves + nodes_per_proc;
-//    *my_sys = (unsigned int*)malloc(my_max_nodes * sizeof(unsigned int));	//The indices of this processes links (in sys)
-//    for (i = 0; i < my_max_nodes; i++)	(*my_sys)[i] = -1;
-//    for (i = start_index; i < end_index; i++)	(*my_sys)[i - start_index] = leaves[i]->location;
-//    for (i = 0; i < N; i++)	getting[i] = 0;
-//
-//    //Initialize assignments
-//    int* assignments = (int*)malloc(N * sizeof(int));
-//    for (i = 0; i < N; i++)	assignments[i] = -1;
-//
-//    //Form the graph to partition
-//    idx_t* xadj = malloc((N + 1) * sizeof(idx_t));
-//    idx_t* adjncy = malloc(2 * (N - 1) * sizeof(idx_t));
-//    idx_t index = 0;
-//
-//    for (i = 0; i < N; i++)
-//    {
-//        xadj[i] = index;
-//        current = &sys[i];
-//        if (current->child != NULL)
-//        {
-//            adjncy[index] = current->child->location;
-//            index++;
-//        }
-//        for (j = 0; j < current->num_parents; j++)
-//        {
-//            adjncy[index] = current->parents[j]->location;
-//            index++;
-//        }
-//    }
-//    xadj[N] = 2 * (N - 1);
-//
-//    //Partition the system
-//    idx_t nverts = N;
-//    idx_t parts = np;
-//    idx_t ncon = 1;
-//    idx_t objval;
-//    idx_t* partitions = (idx_t*)calloc(N, sizeof(idx_t));
-//    idx_t* vwgt = (idx_t*)malloc(N * sizeof(idx_t));
-//
-//    for (i = 0; i < N; i++)
-//        vwgt[i] = ((UpstreamData*)(sys[i].user))->dim;
-//    if (np != 1)
-//    {
-//        retval = METIS_PartGraphKway(&nverts, &ncon, xadj, adjncy, vwgt, vwgt, NULL, &parts, NULL, NULL, NULL, &objval, partitions);
-//        //retval = METIS_PartGraphKway(&nverts,&ncon,xadj,adjncy,NULL,NULL,NULL,&parts,NULL,NULL,NULL,&objval,partitions);
-//        if (retval != METIS_OK)
-//        {
-//            printf("Error: METIS returned error code %i.\n", retval);
-//            return NULL;
-//        }
-//    }
-//
-//    *my_N = 0;
-//    for (i = 0; i < N; i++)
-//    {
-//        assignments[i] = partitions[i];	//!!!! Just use assignments? !!!!
-//        if (partitions[i] == my_rank)
-//        {
-//            (*my_sys)[*my_N] = i;
-//            (*my_N)++;
-//        }
-//    }
-//
-//    //Set the getting array and determine number of sending and receiving links
-//    for (i = 0; i < *my_N; i++)
-//    {
-//        //Receiving
-//        for (j = 0; j < sys[(*my_sys)[i]].num_parents; j++)
-//        {
-//            loc = sys[(*my_sys)[i]].parents[j]->location;
-//            if (assignments[loc] != my_rank)
-//            {
-//                getting[loc] = 1;
-//                my_data->receive_size[assignments[loc]]++;
-//            }
-//        }
-//
-//        //Sending
-//        if (sys[(*my_sys)[i]].child != NULL)
-//        {
-//            loc = sys[(*my_sys)[i]].child->location;
-//            if (assignments[loc] != my_rank)
-//                my_data->send_size[assignments[loc]]++;
-//        }
-//    }
-//
-//    //Reorder my_sys so that the links with lower numbering are towards the beginning
-//    merge_sort_by_distance(my_sys, *my_N);
-//
-//    //Allocate space in my_data for recieving and sending
-//    for (j = 0; j < np; j++)
-//    {
-//        my_data->receive_data[j] = (Link**)malloc(my_data->receive_size[j] * sizeof(Link*));
-//        my_data->send_data[j] = (Link**)malloc(my_data->send_size[j] * sizeof(Link*));
-//    }
-//
-//    //Set the receive_data and send_data arrays
-//    int* current_receive_size = (int*)calloc(np, sizeof(int));
-//    int* current_send_size = (int*)calloc(np, sizeof(int));
-//    for (i = 0; i < *my_N; i++)
-//    {
-//        //Receiving
-//        for (j = 0; j < sys[(*my_sys)[i]].num_parents; j++)
-//        {
-//            loc = sys[(*my_sys)[i]].parents[j]->location;
-//            if (assignments[loc] != my_rank)
-//            {
-//                my_data->receive_data[assignments[loc]][current_receive_size[assignments[loc]]] = &sys[loc];
-//                current_receive_size[assignments[loc]]++;
-//            }
-//        }
-//
-//        //Sending
-//        if (sys[(*my_sys)[i]].child != NULL)
-//        {
-//            loc = sys[(*my_sys)[i]].child->location;
-//            if (assignments[loc] != my_rank)
-//            {
-//                my_data->send_data[assignments[loc]][current_send_size[assignments[loc]]] = &sys[(*my_sys)[i]];
-//                current_send_size[assignments[loc]]++;
-//            }
-//        }
-//    }
-//
-//    //Clean up
-//    free(current_receive_size);
-//    free(current_send_size);
-//    free(xadj);
-//    free(adjncy);
-//    free(partitions);
-//    free(vwgt);
-//    (*my_sys) = (unsigned int*)realloc(*my_sys, *my_N * sizeof(unsigned int));
-//
-//    return assignments;
-//}
+#include <assim/structs.h>
+#include <assim/ancillary.h>
+#include <assim/models.h>
 
 
 void Setup_Errors(AsynchSolver* asynch, unsigned int problem_dim)
@@ -215,7 +62,7 @@ unsigned int BuildStateShift(AsynchSolver* asynch, unsigned int allstates, unsig
 
     for (i = 0; i < num_obs; i++)
     {
-        if (assignments[obs_locs[i]] == my_rank)
+        if (assignments[obs_locs[i]] == asynch->my_rank)
         {
             UpstreamData * updata = (UpstreamData*)sys[obs_locs[i]].user;
             for (j = 0; j < updata->num_fit_states; j++)
@@ -815,7 +662,7 @@ void Setup_Fitting_Data_Model254(AsynchSolver* asynch, unsigned int* obs_locs, u
     //for(i=0;i<my_N;i++)
     for (i = 0; i < num_obs; i++)
     {
-        if (assignments[obs_locs[i]] == my_rank)
+        if (assignments[obs_locs[i]] == asynch->my_rank)
         {
             //current = sys[my_sys[i]];
             current = &sys[obs_locs[i]];
@@ -1205,7 +1052,7 @@ void Setup_Fitting_Data_Model254_q(AsynchSolver* asynch, unsigned int* obs_locs,
 
     for (unsigned int i = 0; i < num_obs; i++)
     {
-        if (assignments[obs_locs[i]] == my_rank)
+        if (assignments[obs_locs[i]] == asynch->my_rank)
         {
             current = &sys[obs_locs[i]];
             updata = (UpstreamData*)current->user;
@@ -1460,7 +1307,7 @@ void Setup_Fitting_Data_Model254_qsp(AsynchSolver* asynch, unsigned int* obs_loc
 
     for (i = 0; i < num_obs; i++)
     {
-        if (assignments[obs_locs[i]] == my_rank)
+        if (assignments[obs_locs[i]] == asynch->my_rank)
         {
             current = &sys[obs_locs[i]];
             updata = (UpstreamData*)current->user;
@@ -1721,7 +1568,7 @@ void Setup_Fitting_Data_Model254_qst(AsynchSolver* asynch, unsigned int* obs_loc
 
     for (i = 0; i < num_obs; i++)
     {
-        if (assignments[obs_locs[i]] == my_rank)
+        if (assignments[obs_locs[i]] == asynch->my_rank)
         {
             current = &sys[obs_locs[i]];
             updata = (UpstreamData*)current->user;

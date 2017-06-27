@@ -5,8 +5,16 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+
+#ifdef _DEBUG
+#undef _DEBUG
 #include <Python.h>
-#include "asynch_interface.h"
+#define _DEBUG
+#else
+#include <Python.h>
+#endif
+
+#include <asynch_interface.h>
 
 typedef struct PythonInterface
 {

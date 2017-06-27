@@ -19,6 +19,9 @@ libasynch_a_SOURCES = \
   rksteppers.c \
   sort.c \
   system.c \
+  assim/ancillary.c \
+  assim/linear_least_squares.c \
+  assim/models.c \
   models/check_consistency.c \
   models/check_state.c \
   models/definitions.c \
@@ -33,10 +36,13 @@ libasynch_a_SOURCES = \
   steppers/explicit_index1_dam.c \
   steppers/forced.c
 
-bin_PROGRAMS = asynch
-asynch_SOURCES = optparse.c asynchdist.c
+bin_PROGRAMS = asynch assim
+asynch_SOURCES = optparse.c asynch_cli.c
 asynch_LDADD = libasynch.a $(HDF5_LIBS) $(POSTGRESQL_LIBS)
 asynch_LDFLAGS = $(HDF5_LDFLAGS) $(POSTGRESQL_LDFLAGS)
+
+assim_SOURCES = optparse.c assim_cli.c
+assim_LDADD = libassim.a $(top_builddir)/src/libasynch.a -lm $(POSTGRESQL_LIBS) $(HDF5_LIBS) $(SSH2_LIBS) $(METIS_LIBS) $(PETSC_LIBS)
 
 include_HEADERS = structs.h structs_fwd.h asynch_interface.h
 

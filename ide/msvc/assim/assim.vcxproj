@@ -59,7 +59,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(RootDir);$(RootDir)\src;$(MSMPI_INC);$(MSMPI_INC)\x64;$(RootDir)\third_party\postgresql-8.4.22-1\include;$(RootDir)\third_party\metis-5.1.0\include;$(RootDir)\third_party\petsc-3.7.3\include;$(RootDir)\third_party\petsc-3.7.3\arch-mswin-c-debug\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(RootDir);$(RootDir)\src;$(RootDir)\assim;$(MSMPI_INC);$(MSMPI_INC)\x64;$(RootDir)\third_party\postgresql-8.4.22-1\include;$(RootDir)\third_party\metis-5.1.0\include;$(RootDir)\third_party\petsc-3.7.3\include;$(RootDir)\third_party\petsc-3.7.3\arch-mswin-c-debug\include</AdditionalIncludeDirectories>
       <AdditionalOptions>/we4133 /we4113 /we4029 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -83,7 +83,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(RootDir);$(RootDir)\src;$(MSMPI_INC);$(MSMPI_INC)\x64;$(RootDir)\third_party\postgresql-8.4.22-1\include;$(RootDir)\third_party\metis-5.1.0\include;$(RootDir)\third_party\petsc-3.7.3\include;$(RootDir)\third_party\petsc-3.7.3\arch-mswin-c-opt\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(RootDir);$(RootDir)\src;$(RootDir)\assim;$(MSMPI_INC);$(MSMPI_INC)\x64;$(RootDir)\third_party\postgresql-8.4.22-1\include;$(RootDir)\third_party\metis-5.1.0\include;$(RootDir)\third_party\petsc-3.7.3\include;$(RootDir)\third_party\petsc-3.7.3\arch-mswin-c-opt\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -104,20 +104,12 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\assim\assim.c" />
-    <ClCompile Include="..\..\..\assim\assim_ls_methods.c" />
-    <ClCompile Include="..\..\..\assim\assim_models.c" />
-    <ClCompile Include="..\..\..\assim\forecaster_methods.c">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\..\..\assim\optparse.c" />
+    <ClCompile Include="..\..\..\src\assim_cli.c" />
+    <ClCompile Include="..\..\..\src\optparse.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\assim\assim.h" />
-    <ClInclude Include="..\..\..\assim\assim_ls_methods.h" />
-    <ClInclude Include="..\..\..\assim\assim_models.h" />
     <ClInclude Include="..\..\..\assim\optparse.h" />
+    <ClInclude Include="..\..\..\src\asynch_interface.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

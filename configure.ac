@@ -27,6 +27,6 @@ AM_CONDITIONAL([HAVE_PETSC], [test "$HAVE_PETSC" -eq 1])
 
 # Generate config header
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile assim/Makefile forecasters/Makefile tests/Makefile tools/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile forecasters/Makefile tests/Makefile tools/Makefile])
 
 AC_OUTPUT

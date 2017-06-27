@@ -1,5 +1,5 @@
-#ifndef ASSIM_LS_METHODS_H
-#define ASSIM_LS_METHODS_H
+#if !defined(ASSIM_ANCILLARY_H)
+#define ASSIM_ANCILLARY_H
 
 #if _MSC_VER > 1000
 #pragma once
@@ -7,39 +7,13 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
-#include "asynch_interface.h"
-#include "structs.h"
+#include <asynch_interface.h>
+#include <assim/structs.h>
 
-extern int np;
-extern int my_rank;
 
-typedef struct UpstreamData
-{
-    unsigned int* fit_states;       //Holds the index in each state vector of the ith sensitivity at this link.
-    unsigned int* fit_to_universal; //Holds universal index of the ith sensitivity at this link.
-    unsigned int num_fit_states;    //Number of sensitivity at this link
-    unsigned int num_upstreams;     //Number of the upstream links
-    Link** upstreams;               //List of the upstream links
-    unsigned int num_parents;       //Number of the parents links
-    Link** parents;                 //List of the parents links
-} UpstreamData;
-
-typedef struct AssimData
-{
-    char db_filename[ASYNCH_MAX_PATH_LENGTH];
-    ConnData conninfo;	        // Query to get link ids with gauges, query to download gauge readings
-    unsigned int num_obs;       // Number of observation sites
-    unsigned int* obs_locs;     // Link index in the sys[] vector associtated with the site
-    unsigned int num_steps;     // Number of time step to use for the optimization
-    double obs_time_step;       // Observation time step
-    unsigned int max_least_squares_iters;   // Maximum number of LS iterations
-    Lookup* id_to_assim;
-} AssimData;
-
-void ResetSysLS(Link* sys, unsigned int N, GlobalVars* GlobalVars, double t_0, double* backup, unsigned int problem_dim, unsigned int num_forcings, TransData* my_data);
-
-void FindAllDischarges(double*** data, double t, unsigned int numlinks, unsigned int* numsteps, double* d);
+//void FindAllDischarges(double*** data, double t, unsigned int numlinks, unsigned int* numsteps, double* d);
 unsigned int GaugeDownstream(const AsynchSolver* asynch, const unsigned int* obs_locs, unsigned int num_obs, unsigned int** above_gauges, bool **is_above_gauges);
 int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, const double * obs, unsigned int num_obs, unsigned int problem_dim, double* x);
 
@@ -61,5 +35,5 @@ int SnapShot_ModelStates(AsynchSolver* asynch, unsigned int problem_dim);
 
 //int GaugeDataAvailable(AssimData* Assim, unsigned int start_time, unsigned int end_time);
 
-#endif //ASSIM_LS_METHODS_H
+#endif //ASSIM_ANCILLARY_H
 

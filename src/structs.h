@@ -1,5 +1,5 @@
-#if !defined(STRUCTS_H)
-#define STRUCTS_H
+#if !defined(ASYNCH_STRUCTS_H)
+#define ASYNCH_STRUCTS_H
 
 #if _MSC_VER > 1000
 #pragma once
@@ -22,39 +22,6 @@
 #include <libpq_fwd.h>
 
 #include <asynch_interface.h>
-
-//Constants
-#define ASYNCH_MAX_DB_CONNECTIONS 20
-
-#define ASYNCH_DB_LOC_TOPO 0
-#define ASYNCH_DB_LOC_PARAMS 1
-#define ASYNCH_DB_LOC_INIT 2
-#define ASYNCH_DB_LOC_QVS 3
-#define ASYNCH_DB_LOC_RSV 4
-#define ASYNCH_DB_LOC_HYDROSAVE 5
-#define ASYNCH_DB_LOC_PEAKSAVE 6
-#define ASYNCH_DB_LOC_HYDRO_OUTPUT 7
-#define ASYNCH_DB_LOC_PEAK_OUTPUT 8
-#define ASYNCH_DB_LOC_SNAPSHOT_OUTPUT 9
-#define ASYNCH_DB_LOC_FORCING_START 10
-
-#define ASYNCH_MAX_QUERIES 5
-
-#define ASYNCH_MAX_NUM_FORCINGS 12
-#define ASYNCH_MAX_TIMESTAMP_LENGTH 12
-#define ASYNCH_MAX_PATH_LENGTH 1024
-
-#define ASYNCH_MAX_LINE_LENGTH 1024
-#define ASYNCH_MAX_SYMBOL_LENGTH 64
-#define ASYNCH_MAX_QUERY_LENGTH 16384
-#define ASYNCH_MAX_CONNSTRING_LENGTH 1024
-
-#define ASYNCH_MAX_SOLVER_STAGES 8      //!< Maximum number of stages in RK solvers
-
-#define ASYNCH_MAX_DIM 256              //!< Maximum number of Degree of Freedom
-
-#define ASYNCH_LINK_MAX_PARENTS 8
-
 
 /// Structure to store temporary memory needed for RK solvers.
 ///
@@ -564,6 +531,7 @@ struct AsynchSolver
     MPI_Comm comm;		//!< COMM on which the solver works
     int np;			    //!< Number of procs in the comm
     int my_rank;		//!< This processes rank in the comm (varies by proc)
+    bool verbose;       //!< Set to true is asynch
 
     //Routines for checking what is initialized
     bool setup_gbl;
@@ -627,4 +595,4 @@ struct AsynchSolver
 };
 
 
-#endif //STRUCTS_H
+#endif //ASYNCH_STRUCTS_H

@@ -40,7 +40,7 @@
 #include <asynch_interface.h>
 
 //Initializes the asynch solver object.
-AsynchSolver* Asynch_Init(MPI_Comm comm)
+AsynchSolver* Asynch_Init(MPI_Comm comm, bool verbose)
 {
     AsynchSolver* res = NULL;
 
@@ -51,9 +51,11 @@ AsynchSolver* Asynch_Init(MPI_Comm comm)
     if (res)
     {
         memset(res, 0, sizeof(AsynchSolver));
+        res->verbose = verbose;
 
         res->comm = comm;
-        if (comm != MPI_COMM_WORLD)	printf("Warning: asynchsolver object my not work fully with in a comm other than MPI_COMM_WORLD.\n");
+        if (comm != MPI_COMM_WORLD)
+            printf("Warning: asynchsolver object my not work fully with in a comm other than MPI_COMM_WORLD.\n");
 
         //Initialize MPI stuff
         MPI_Initialized(&init_flag);

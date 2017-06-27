@@ -1,6 +1,10 @@
 #include "asynch_interface_py.h"
 
 
+// Global variables
+int my_rank = 0;
+int np = 0;
+
 //Utilities for mixing C and Python **************************************
 
 void C_inc_ref(PyObject* obj)
@@ -24,7 +28,7 @@ void Free_PythonInterface(AsynchSolver* asynch)
 AsynchSolver* Asynch_Init_py(int numprocs, int* ranks)
 {
     //!!!! Assumes MPI_COMM_WORLD. This should create a new communicator and pass that along. !!!!
-    AsynchSolver* asynch = Asynch_Init(MPI_COMM_WORLD);
+    AsynchSolver* asynch = Asynch_Init(MPI_COMM_WORLD, false);
 
     asynch->ExternalInterface = malloc(sizeof(PythonInterface));
 

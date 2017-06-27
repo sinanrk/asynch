@@ -16,6 +16,7 @@
 
 #include <structs_fwd.h>
 #include <data_types.h>
+#include <constants.h>
 
 #include <models/model.h>
 
@@ -70,7 +71,7 @@ typedef void (PeakflowOutputCallback)(unsigned int ID, double peak_time, double 
 /// \param comm  The MPI communicator to use with this solver object.
 /// \return A pointer to an AsynchSolver object.
 /// \see Asynch_Free
-AsynchSolver* Asynch_Init(MPI_Comm comm);
+AsynchSolver* Asynch_Init(MPI_Comm comm, bool verbose);
 
 /// This routine deallocates the memory occupied by an AsynchSolver object created with a call to Asynch_Init.
 ///

@@ -20,13 +20,15 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "blas.h"
-#include "db.h"
-#include "comm.h"
-#include "riversys.h"
-#include "sort.h"
 
-#include "assim_ls_methods.h"
+// Internal stuffs
+#include <blas.h>
+#include <db.h>
+#include <comm.h>
+#include <riversys.h>
+#include <sort.h>
+
+#include <assim/ancillary.h>
 
 
 // For older version of OpenMPI
@@ -34,95 +36,6 @@
 #define MPI_C_BOOL MPI_CHAR
 #endif
 
-
-//!!!! Use interface instead !!!!
-void ResetSysLS(Link* sys, unsigned int N, GlobalVars* globals, double t_0, double* x_start, unsigned int problem_dim, unsigned int num_forcings, TransData* my_data)
-{
-    unsigned i, j, k, l;
-    Link* current;
-
-    Flush_TransData(my_data);
-
-    for (i = 0; i < N; i++)
-    {
-        current = &sys[i];
-        if (current->my != NULL)
-        {
-            while (current->current_iterations > 1)
-            {
-                Remove_Head_Node(&current->my->list);
-                (current->current_iterations)--;
-            }
-            current->my->list.head->t = t_0;
-            current->last_t = t_0;
-            current->steps_on_diff_proc = 1;
-            current->iters_removed = 0;
-            current->rejected = 0;
-            if (current->num_parents == 0)
-                current->ready = 1;
-            else
-                current->ready = 0;
-            for (j = 0; j < problem_dim; j++)	
-                current->my->list.head->y_approx[j] = x_start[i*problem_dim + j];
-            //v_copy(backup[i],current->my->list.head->y_approx);
-
-            //Reset the next_save time
-            if (current->save_flag)
-            {
-                current->next_save = t_0;		//!!!! This forces the print times to match up with the assimilation times !!!!
-                //current->disk_iterations = 1;
-            }
-
-            //Reset peak flow information
-            current->peak_time = t_0;
-            dcopy(current->my->list.head->y_approx, current->peak_value, 0, current->dim);
-
-            //Set hydrograph scale
-            //current->Q_TM = backup[i]->ve[0];
-
-            //Reset current state
-            if (current->check_state != NULL)
-                current->state = current->check_state(
-                    current->my->list.head->y_approx, current->dim,
-                    globals->global_params, globals->num_global_params,
-                    current->params, globals->num_params,
-                    current->qvs, current->has_dam, NULL);
-            current->my->list.head->state = current->state;
-
-            //Set forcings
-            if (current->my->forcing_data)
-            {
-                for (k = 0; k < num_forcings; k++)
-                {
-                    if (current->my->forcing_values[k])
-                    {
-                        //Find the right index in forcings
-                        for (l = 0; l < current->my->forcing_data[k].num_points - 1; l++)
-                            if (current->my->forcing_data[k].data[l].time <= t_0 && t_0 < current->my->forcing_data[k].data[l + 1].time)	break;
-                        double rainfall_buffer = current->my->forcing_data[k].data[l].value;
-                        current->my->forcing_values[k] = rainfall_buffer;
-                        current->my->forcing_indices[k] = l;
-
-                        //Find and set the new change in data
-                        for (j = l + 1; j < current->my->forcing_data[k].num_points; j++)
-                        {
-                            if (fabs(current->my->forcing_data[k].data[j].value - rainfall_buffer) > 1e-12)
-                            {
-                                current->my->forcing_change_times[k] = current->my->forcing_data[k].data[j].time;
-                                break;
-                            }
-                        }
-                        if (j == current->my->forcing_data[k].num_points)
-                            current->my->forcing_change_times[k] = current->my->forcing_data[k].data[j - 1].time;
-
-                        //Select new step size
-                        //current->h = InitialStepSize(current->last_t,current,globals,workspace);
-                    }
-                }
-            }
-        }
-    }
-}
 
 //Finds the link ids upstreams from every link in obs_locs. If trim is 1, then only links which can affect the links in obs_locs (assuming a constant channel velocity) are used.
 void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim, unsigned int problem_dim, bool trim, double obs_time_step, unsigned int num_steps, unsigned int* obs_locs, unsigned int num_obs)
@@ -158,8 +71,6 @@ void FindUpstreamLinks(const AsynchSolver * const asynch, AssimData* const assim
     for (i = 0; i < N; i++)
         if (sys[i].num_parents == 0)
             leaves[leaves_size++] = &sys[i];
-
-    //unsigned int* temp_numupstream = (unsigned int*) calloc(N,sizeof(unsigned int));
 
     //Set the number of upstreams parents to 0 for leaves
     for (i = 0; i < leaves_size; i++)
@@ -1023,42 +934,42 @@ void FreeUpstreamLinks(const AsynchSolver* asynch)
 //}
 
 
-//Returns the discharges for all links with observations in data at time t.
-void FindAllDischarges(double*** data, double t, unsigned int numlinks, unsigned int* numsteps, double* d)
-{
-    unsigned int i, j, min, max;
-
-    if (my_rank == 0)
-    {
-        for (j = 0; j < numlinks; j++)
-        {
-            i = numsteps[j] / 2;
-            max = numsteps[j];
-            min = 0;
-            if (t > data[j][numsteps[j] - 1][0])
-                i = max - 1;
-            else
-            {
-                while (t*.99999 > data[j][i][0] || t*1.00001 < data[j][i][0])
-                {
-                    if (data[j][i][0] < t)	min = i + 1;
-                    else			max = i;
-                    i = (max + min) / 2;
-
-                    if (min >= max)
-                    {
-                        printf("Time %f not found for data %u.\n", t, j);
-                        break;
-                    }
-                }
-            }
-
-            d[j] = data[j][i][1];
-        }
-    }
-
-    MPI_Bcast(d, numlinks, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-}
+////Returns the discharges for all links with observations in data at time t.
+//void FindAllDischarges(double*** data, double t, unsigned int numlinks, unsigned int* numsteps, double* d)
+//{
+//    unsigned int i, j, min, max;
+//
+//    if (my_rank == 0)
+//    {
+//        for (j = 0; j < numlinks; j++)
+//        {
+//            i = numsteps[j] / 2;
+//            max = numsteps[j];
+//            min = 0;
+//            if (t > data[j][numsteps[j] - 1][0])
+//                i = max - 1;
+//            else
+//            {
+//                while (t*.99999 > data[j][i][0] || t*1.00001 < data[j][i][0])
+//                {
+//                    if (data[j][i][0] < t)	min = i + 1;
+//                    else			max = i;
+//                    i = (max + min) / 2;
+//
+//                    if (min >= max)
+//                    {
+//                        printf("Time %f not found for data %u.\n", t, j);
+//                        break;
+//                    }
+//                }
+//            }
+//
+//            d[j] = data[j][i][1];
+//        }
+//    }
+//
+//    MPI_Bcast(d, numlinks, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+//}
 
 //Gives a list of all locations with a downstream gauge, sorted by location.
 //This allocates an appropriate amount of space for above_gauges and is_above_gauges.
