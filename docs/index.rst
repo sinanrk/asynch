@@ -38,6 +38,7 @@ The main documentation for Asynch is organized into a couple of sections:
   builtin_options
   builtin_models
   cookbook
+  assim
 
 .. _dev-docs:
 
