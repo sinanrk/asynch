@@ -18,12 +18,18 @@ AX_BLAS
 AX_LAPACK
 
 # Checks for packages
-PKG_CHECK_MODULES([CHECK], [check >= 0.9.8], [AC_DEFINE([HAVE_LIBCHECK], [1], [Defined if you have libcheck support] )],[HAVE_LIBCHECK=0])
-PKG_CHECK_MODULES([METIS], [metis >= 5.0.0], [AC_DEFINE([HAVE_METIS], [1], [Defined if you have METIS support] )], [HAVE_METIS=0])
-PKG_CHECK_MODULES([PETSC], [PETSc >= 3.7.0], [AC_DEFINE([HAVE_PETSC], [1], [Defined if you have PETSc support] )], [HAVE_PETSC=0])
+PKG_CHECK_MODULES([CHECK], [check >= 0.9.8], [found_libcheck=1], [found_libcheck=0])
+PKG_CHECK_MODULES([METIS], [metis >= 5.0.0], [found_metis=1], [found_metis=0])
+PKG_CHECK_MODULES([PETSC], [PETSc >= 3.7.0], [found_petsc=1], [found_petsc=0])
 
-AM_CONDITIONAL([HAVE_POSTGRESQL], [test "$HAVE_POSTGRESQL" -eq 1])
-AM_CONDITIONAL([HAVE_PETSC], [test "$HAVE_PETSC" -eq 1])
+# Define automake conditionals
+AM_CONDITIONAL([USE_POSTGRESQL], [test "$found_postgresql" = "yes"])
+AM_CONDITIONAL([USE_PETSC], [test $found_petsc -eq 1])
+
+# Add preprocessor definition to config
+AS_IF([test $found_libcheck -eq 1], [AC_DEFINE([HAVE_LIBCHECK], [1], [Defined if you have libcheck support])])
+AS_IF([test $found_metis -eq 1], [AC_DEFINE([HAVE_METIS], [1], [Defined if you have METIS support])])
+AS_IF([test $found_petsc -eq 1], [AC_DEFINE([HAVE_PETSC], [1], [Defined if you have PETSc support])])
 
 # Generate config header
 AC_CONFIG_HEADERS([config.h])

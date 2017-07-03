@@ -1,4 +1,5 @@
-noinst_LIBRARIES = libasynch.a
+lib_LIBRARIES = libasynch.a
+
 libasynch_a_SOURCES = \
   advance.c \
   asynch_interface.c \
@@ -19,9 +20,6 @@ libasynch_a_SOURCES = \
   rksteppers.c \
   sort.c \
   system.c \
-  assim/ancillary.c \
-  assim/linear_least_squares.c \
-  assim/models.c \
   models/check_consistency.c \
   models/check_state.c \
   models/definitions.c \
@@ -36,14 +34,28 @@ libasynch_a_SOURCES = \
   steppers/explicit_index1_dam.c \
   steppers/forced.c
 
-bin_PROGRAMS = asynch assim
+bin_PROGRAMS = asynch
+
 asynch_SOURCES = optparse.c asynch_cli.c
-asynch_LDADD = libasynch.a $(HDF5_LIBS) $(POSTGRESQL_LIBS)
-asynch_LDFLAGS = $(HDF5_LDFLAGS) $(POSTGRESQL_LDFLAGS)
+asynch_LDADD = libasynch.a $(HDF5_LIBS) $(POSTGRESQL_LIBS) $(METIS_LIBS)
+asynch_LDFLAGS = $(HDF5_LDFLAGS) $(POSTGRESQL_LDFLAGS) $(METIS_LDFLAGS)
+
+# If PETSc is available, add the assim source files to asynch an build the assim CLI
+if USE_PETSC
+
+libasynch_a_SOURCES += \
+  assim/ancillary.c \
+  assim/linear_least_squares.c \
+  assim/models.c
+
+bin_PROGRAMS += assim
 
 assim_SOURCES = optparse.c assim_cli.c
-assim_LDADD = libassim.a $(top_builddir)/src/libasynch.a -lm $(POSTGRESQL_LIBS) $(HDF5_LIBS) $(SSH2_LIBS) $(METIS_LIBS) $(PETSC_LIBS)
+assim_LDADD = libasynch.a $(HDF5_LIBS) $(POSTGRESQL_LIBS) $(METIS_LIBS) $(PETSC_LIBS)
+assim_LDFLAGS = $(HDF5_LDFLAGS) $(POSTGRESQL_LDFLAGS) $(METIS_LDFLAGS) $(PETSC_LDFLAGS)
+
+endif
 
 include_HEADERS = structs.h structs_fwd.h asynch_interface.h
 
-AM_CFLAGS = $(HDF5_CPPFLAGS) $(POSTGRESQL_CPPFLAGS)
+AM_CFLAGS = $(HDF5_CPPFLAGS) $(POSTGRESQL_CPPFLAGS) $(METIS_CPPFLAGS) $(PETSC_CFLAGS)
