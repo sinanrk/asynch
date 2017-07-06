@@ -32,21 +32,22 @@ unsigned int BuildStateShift(AsynchSolver* asynch, unsigned int allstates, unsig
 //
 //void assim_river_rainfall_adjusted_custom(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans);
 
-//Assim model 254
+//Common routine for model 254
 void SetParamSizes_Assim_254(GlobalVars* GlobalVars, void* external);
 void ConvertParams_Assim_254(double *params, unsigned int type, void* external);
 void InitRoutines_Assim_254(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external);
 //void InitRoutines_Model_254(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external);
 void Precalculations_Assim_254(Link* link_i, const double * const global_params, double * const params, unsigned short has_dam, void *user);
 
+void CheckConsistency_Nonzero_Model254(double *y, unsigned int dim, const double * const global_params, unsigned int num_global_params, const double * const params, unsigned int num_params, void *user);
+void CheckConsistency_Nonzero_Model252(double *y, unsigned int dim, const double * const global_params, unsigned int num_global_params, const double * const params, unsigned int num_params, void *user);
 
+//Assim model 254
 int ReadInitData_Assim_254(
     const double * const global_params, unsigned int num_global_params,
     const double * const params, unsigned int num_params,
     double *y, unsigned int dim,
     void *user);
-
-void CheckConsistency_Nonzero_Model254(double *y, unsigned int dim, const double * const global_params, unsigned int num_global_params, const double * const params, unsigned int num_params, void *user);
 
 void TopLayerHillslope_extras_assim(
     double t,
@@ -67,8 +68,6 @@ int ReadInitData_Assim_254_q(
     const double * const params, unsigned int num_params,
     double *y, unsigned int dim,
     void *user);
-
-void CheckConsistency_Nonzero_Model252(double *y, unsigned int dim, const double * const global_params, unsigned int num_global_params, const double * const params, unsigned int num_params, void *user);
 
 void TopLayerHillslope_assim_q(
     double t,
@@ -103,9 +102,9 @@ void Setup_Fitting_Data_Model254_qsp(AsynchSolver* asynch, unsigned int* data_lo
 void InitRoutines_Assim_254_qst(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external);
 
 int ReadInitData_Assim_254_qst(
-    double *y, unsigned int dim,
     const double * const global_params, unsigned int num_global_params,
     const double * const params, unsigned int num_params,
+    double *y_0, unsigned int dim,
     void *user);
 
 void TopLayerHillslope_assim_qst(
@@ -117,6 +116,7 @@ void TopLayerHillslope_assim_qst(
     int state, void* user, double *ans);
 
 void Setup_Fitting_Data_Model254_qst(AsynchSolver* asynch, unsigned int* data_locs, unsigned int numdata);
+
 void CheckConsistency_Nonzero_Model252_st(double *y, unsigned int dim, const double * const global_params, unsigned int num_global_params, const double * const params, unsigned int num_params, void *user);
 
 #endif //ASSIM_MODELS_H

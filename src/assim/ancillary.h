@@ -23,7 +23,7 @@ void FindUpstreamLinks2(const AsynchSolver* const asynch, AssimData* const assim
 void CleanUpstreamLinks(const AsynchSolver* asynch);
 void FreeUpstreamLinks(const AsynchSolver* asynch);
 
-bool InitAssimData(AssimData* assim, const char* assim_filename, AsynchSolver* asynch);
+bool InitAssimData(AssimData* assim, const char* assim_filename);
 void FreeAssimData(AssimData* assim);
 
 int GetObservationsIds(const AsynchSolver* asynch, AssimData* assim);

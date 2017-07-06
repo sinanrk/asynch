@@ -1156,24 +1156,19 @@ int AdjustDischarges(const AsynchSolver* asynch, const unsigned int* obs_locs, c
 }
 
 //Reads a .das file
-bool InitAssimData(AssimData* assim, const char* assim_filename, AsynchSolver* asynch)
+bool InitAssimData(AssimData* assim, const char* assim_filename)
 {
-    unsigned int N = asynch->N, string_size = asynch->globals->string_size;
-    Lookup *id_to_loc = asynch->id_to_loc;
+    //unsigned int N = asynch->N, string_size = asynch->globals->string_size;
+    //Lookup *id_to_loc = asynch->id_to_loc;
     int errorcode, valsread;
     FILE* inputfile = NULL;
     char end_char;
-    unsigned int buff_size = string_size + 20;
-    char* linebuffer = (char*)malloc(buff_size * sizeof(char));
+    char line_buffer[ASYNCH_MAX_LINE_LENGTH];
+    const unsigned int line_buffer_len = ASYNCH_MAX_LINE_LENGTH;
+
     MPI_Barrier(MPI_COMM_WORLD);
 
     memset(assim, 0, sizeof(AssimData));
-
-    if (!id_to_loc)
-    {
-        if (my_rank == 0)	printf("Error: Topology data must be processed before starting data assimilation routines.\n");
-        return false;
-    }
 
     if (my_rank == 0)
     {
@@ -1191,38 +1186,35 @@ bool InitAssimData(AssimData* assim, const char* assim_filename, AsynchSolver* a
     MPI_Bcast(&errorcode, 1, MPI_INT, 0, MPI_COMM_WORLD);
     if (errorcode)	return false;
 
+    //Read the .model variant
+    ReadLineFromTextFile(inputfile, line_buffer, line_buffer_len);
+    valsread = sscanf(line_buffer, "%s", assim->model);
+    if (ReadLineError(valsread, 1, "model variant"))	return false;
+
     //Read the .dbc file
-    ReadLineFromTextFile(inputfile, linebuffer, buff_size);
-    valsread = sscanf(linebuffer, "%s", assim->db_filename);
-    if (ReadLineError(valsread, 1, "assimilation dbc filename"))	return false;
+    ReadLineFromTextFile(inputfile, line_buffer, line_buffer_len);
+    valsread = sscanf(line_buffer, "%s %lf", assim->db_filename, &assim->obs_time_step);
+    if (ReadLineError(valsread, 2, "assimilation dbc filename and time resolution of observations"))	return false;
     ReadDBC(assim->db_filename, &assim->conninfo);
 
-    //Read in rest of data
-    ReadLineFromTextFile(inputfile, linebuffer, buff_size);
-    valsread = sscanf(linebuffer, "%u", &(assim->num_steps));
+    //Read the num of observation (assimilation window)
+    ReadLineFromTextFile(inputfile, line_buffer, line_buffer_len);
+    valsread = sscanf(line_buffer, "%u", &(assim->num_steps));
     if (ReadLineError(valsread, 1, "number of observations to use"))	return false;
 
-    ReadLineFromTextFile(inputfile, linebuffer, buff_size);
-    valsread = sscanf(linebuffer, "%lf", &(assim->obs_time_step));
-    if (ReadLineError(valsread, 1, "time resolution of observations"))	return false;
-
-    //ReadLineFromTextFile(inputfile,linebuffer,buff_size,string_size);
-    //valsread = sscanf(linebuffer,"%lf",&(assim->forecast_window));
-    //if(ReadLineError(valsread,1,"forecast window"))	return NULL;
-
-    ReadLineFromTextFile(inputfile, linebuffer, buff_size);
-    valsread = sscanf(linebuffer, "%u", &(assim->max_least_squares_iters));
+    //Read the max least squares iterations
+    ReadLineFromTextFile(inputfile, line_buffer, line_buffer_len);
+    valsread = sscanf(line_buffer, "%u", &(assim->max_least_squares_iters));
     if (ReadLineError(valsread, 1, "least squares iterations"))	return false;
 
     //Read ending mark
-    ReadLineFromTextFile(inputfile, linebuffer, buff_size);
-    valsread = sscanf(linebuffer, "%c", &end_char);
+    ReadLineFromTextFile(inputfile, line_buffer, line_buffer_len);
+    valsread = sscanf(line_buffer, "%c", &end_char);
     if (ReadLineError(valsread, 1, "ending mark"))	return false;
 
     //Clean up
     if (my_rank == 0)
         fclose(inputfile);
-    free(linebuffer);
     MPI_Barrier(MPI_COMM_WORLD);
     if (end_char != '#')
     {

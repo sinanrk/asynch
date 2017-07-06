@@ -16,9 +16,14 @@
 #include <petsc.h>
 #endif
 
+
+#define ASYNCH_MAX_MODEL_LENGTH 256
+
+
 typedef struct AssimData
 {
-    char db_filename[ASYNCH_MAX_PATH_LENGTH];
+    char model[ASYNCH_MAX_MODEL_LENGTH];        // The name of the model variant
+    char db_filename[ASYNCH_MAX_PATH_LENGTH];   // The path tho the discharge .dbc file
     ConnData conninfo;	        // Query to get link ids with gauges, query to download gauge readings
     unsigned int num_obs;       // Number of observation sites
     unsigned int* obs_locs;     // Link index in the sys[] vector associtated with the site

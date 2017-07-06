@@ -1392,9 +1392,9 @@ void InitRoutines_Assim_254_qst(Link* link, unsigned int type, unsigned int exp_
 
 
 int ReadInitData_Assim_254_qst(
-    double *y_0, unsigned int dim,
     const double * const global_params, unsigned int num_global_params,
     const double * const params, unsigned int num_params,
+    double *y_0, unsigned int dim,
     void *user)
 {
     //For this type, all initial conditions for variational equation must be set here.

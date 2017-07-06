@@ -37,7 +37,6 @@
 #include <assim/ancillary.h>
 #include <optparse.h>
 
-
 // Global variables
 bool verbose = false;
 int my_rank;
@@ -152,7 +151,7 @@ int main(int argc, char* argv[])
     if (version) print_out("This is %s\n", PACKAGE_STRING);
     if (help)
     {
-        print_out("Usage: asynch <global file>\n", PACKAGE_STRING);
+        print_out("Usage: assim <global file> <das file>\n", PACKAGE_STRING);
         print_out(
             "  -d [--debug]   : Wait for the user input at the begining of the program (useful" \
             "                   for attaching a debugger)\n" \
@@ -207,6 +206,21 @@ int main(int argc, char* argv[])
     //Init asynch object and the river network
     AsynchSolver *asynch = Asynch_Init(MPI_COMM_WORLD, verbose);
 
+    //Create assim structure
+    AssimData assim;
+    //Read data assimilation file
+    InitAssimData(&assim, assim_filename);
+
+    //Model 254, full
+    AsynchModel model_254_assim;
+    memset(&model_254_assim, 0, sizeof(AsynchModel));
+    model_254_assim.dim = 4;
+    model_254_assim.set_param_sizes = SetParamSizes_Assim_254;
+    model_254_assim.convert = ConvertParams_Assim_254;
+    model_254_assim.routines = InitRoutines_Assim_254;
+    model_254_assim.precalculations = Precalculations_Assim_254;
+    model_254_assim.initialize_eqs = ReadInitData_Assim_254;
+
     //Model 254, q
     AsynchModel model_254_assim_q;
     memset(&model_254_assim_q, 0, sizeof(AsynchModel));
@@ -217,7 +231,47 @@ int main(int argc, char* argv[])
     model_254_assim_q.precalculations = Precalculations_Assim_254;
     model_254_assim_q.initialize_eqs = ReadInitData_Assim_254_q;
 
-    Asynch_Custom_Model(asynch, &model_254_assim_q);
+    //Model 254, q and s_p
+    AsynchModel model_254_assim_qsp;
+    memset(&model_254_assim_qsp, 0, sizeof(AsynchModel));
+    model_254_assim_qsp.dim = 4;
+    model_254_assim_qsp.set_param_sizes = SetParamSizes_Assim_254;
+    model_254_assim_qsp.convert = ConvertParams_Assim_254;
+    model_254_assim_qsp.routines = InitRoutines_Assim_254_qsp;
+    model_254_assim_qsp.precalculations = Precalculations_Assim_254;
+    model_254_assim_qsp.initialize_eqs = ReadInitData_Assim_254_qsp;
+
+    //Model 254, q and s_t
+    AsynchModel model_254_assim_qst;
+    memset(&model_254_assim_qst, 0, sizeof(AsynchModel));
+    model_254_assim_qst.dim = 4;
+    model_254_assim_qst.set_param_sizes = SetParamSizes_Assim_254;
+    model_254_assim_qst.convert = ConvertParams_Assim_254;
+    model_254_assim_qst.routines = InitRoutines_Assim_254_qst;
+    model_254_assim_qst.precalculations = Precalculations_Assim_254;
+    model_254_assim_qst.initialize_eqs = ReadInitData_Assim_254_qst;
+
+    if (strcmp(assim.model, "254") == 0)
+    {
+        Asynch_Custom_Model(asynch, &model_254_assim);
+    }
+    else if (strcmp(assim.model, "254_q") == 0)
+    {
+        Asynch_Custom_Model(asynch, &model_254_assim_q);
+    }
+    else if (strcmp(assim.model, "254_qsp") == 0)
+    {
+        Asynch_Custom_Model(asynch, &model_254_assim_qsp);
+    }
+    else if (strcmp(assim.model, "254_qst") == 0)
+    {
+        Asynch_Custom_Model(asynch, &model_254_assim_qst);
+    }
+    else /* default: */
+    {
+        print_err("Invalid model variant (expected 254, 254_q, 254_qsp or 254_qst an got %s", assim.model);
+        MPI_Abort(MPI_COMM_WORLD, 0);
+    }
 
     //Model 15
     //Asynch_Custom_Model(asynch,&SetParamSizes_Assim,&ConvertParams_Assim,&InitRoutines_Assim,&Precalculations_Assim,&ReadInitData_Assim);
@@ -251,11 +305,6 @@ int main(int argc, char* argv[])
     Asynch_Parse_GBL(asynch, global_filename);
     if (my_rank == 0)	printf("Loading network...\n");
     Asynch_Load_Network(asynch);
-
-    //Read data assimilation file
-    //Create assim
-    AssimData assim;
-    InitAssimData(&assim, assim_filename, asynch);
 
     //unsigned int obs_locs[] = {2};	//Locations of links with data	!!!! Make sure these are locations and not IDs !!!!
     //unsigned int obs_locs[] = {1,3,4};	//!!!! This should come from ReadSolution. Or should be calculated at least. !!!!
