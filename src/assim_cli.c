@@ -677,56 +677,14 @@ int main(int argc, char* argv[])
             Asynch_Set_Forcing_State(asynch, i, 0.0, begin_assim_window, end_assim_window);
     }
 
-    //!!!! Skipped! !!!!
-            //Check if a vacuum should be done
-            //This will happen at hr1
-    //		if(my_rank == 0)	PerformTableMaintainance(asynch->db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT],asynch->globals,forecaster,&vac,hr1,num_tables,"archive_hydroforecast");
-
-            //Make sure all buffer flushing is done
+    //Make sure all buffer flushing is done
     MPI_Barrier(MPI_COMM_WORLD);
-
-    ////Dump data for debugging and recovery
-    //if(k % 96 == 0)
-    //{
-    //	sprintf(filename,"%s%u.rec",dump_filename,forecast_time_unix);
-    //	Asynch_Set_Snapshot_Output_Name(asynch,filename);
-    //	Asynch_Take_System_Snapshot(asynch,NULL);
-    //}
-
     double start = MPI_Wtime();
 
-
-
-
-
     //Start the analysis
-
-
-
-
-    //time_t q_start, q_stop;
-    //int *assignments = asynch->assignments;
-    //short int *getting = asynch->getting;
-    //unsigned int **id_to_loc = asynch->id_to_loc, N = asynch->N, num_obs = assim.num_obs;
-    //Link **sys = asynch->sys;
-    //UnivVars* globals = asynch->globals;
-    //unsigned int i, j, l;
-    //unsigned int steps_to_use = assim.steps_to_use;
-    //unsigned int assim_window_unix = assim.num_steps * (int)(assim.obs_time_step + 1e-3);
-    //double t_b = 0.0, inc = assim.inc;
-    //double forecast_window = forecaster->forecast_window;
-    //double assim_window = assim.num_steps * assim.obs_time_step;
-    //double *d_full = ws->d_full, *x_start = ws->x_start, *x_b = ws->x_b;
-    //unsigned int allstates = ws->allstates;
     unsigned int max_least_squares_iters = assim.max_least_squares_iters;
-    double *analysis = (double*)calloc(allstates, sizeof(double));	//!!!! Should be removed !!!!
-    //model* custom_model = asynch->custom_model;
-    //double q[steps_to_use*num_obs];
-    double *q = (double*)calloc(num_total_obs, sizeof(double));
-
-
-    //Set the forecast window
-    //Asynch_Set_Total_Simulation_Duration(asynch, assim.num_steps * assim.obs_time_step);	//!!!! Is this needed? !!!!
+    double *analysis = calloc(allstates, sizeof(double));	//!!!! Should be removed !!!!
+    double *q = calloc(num_total_obs, sizeof(double));
 
     //Get the observations
     {
@@ -766,24 +724,6 @@ int main(int argc, char* argv[])
     memcpy(x_start, x_b, allstates * sizeof(double));
     //Copy in states that won't be affected by the optimization solver
     memcpy(analysis, x_b, allstates * sizeof(double));
-
-    if (verbose && my_rank == 0)
-    {
-        //printf("Going in, minimizer...\n");
-        //Print_VECTOR(minimizer,allstates_needed);
-        //printf("Going in, x_start...\n");
-        //Print_VECTOR(x_start, allstates);
-
-        /*
-        double* tempy;
-        printf("Guess:\n");
-        VecGetArray(Guess,&tempy);
-        for(i=0;i<allstates_needed;i++)
-        printf("%.15e ",tempy[i]);
-        printf("\n");
-        VecRestoreArray(Guess,&tempy);
-        */
-    }
 
     //Calculate the analysis
     bool try_again = false;

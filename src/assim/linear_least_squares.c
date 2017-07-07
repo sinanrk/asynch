@@ -86,18 +86,10 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
     VecAssemblyBegin(d);
     VecAssemblyEnd(d);
 
-    /*
-    //!!!! Try to scale the init conditions !!!!
-    AdjustDischarges(asynch,obs_locs,d_els,num_obs,x_start,allstates);
-    printf("Adjusted x_start to\n");
-    for(i=0;i<allstates;i++)	printf("%.15e ",x_start[i]);
-    printf("\n");
-    getchar();
-    */
     //Initialize the system
     ResetSysLS(sys, N, globals, t_b, x_start, assim_dim, globals->num_forcings, asynch->my_data);
 
-    for (i = 0; i < N; i++)				//!!!! Put this into ResetSysLS? !!!!
+    for (i = 0; i < N; i++)
         if (assignments[i] == asynch->my_rank || getting[i])
             custom_model->initialize_eqs(
                 globals->global_params, globals->num_global_params,
@@ -105,97 +97,6 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
                 sys[i].my->list.head->y_approx, sys[i].dim,
                 sys[i].user); //!!!! Should all states be reset? !!!!
             //ReadInitData(globals->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,globals->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);	//!!!! Very inefficient. Too many checks. !!!!
-
-    ////Initialize the variational equations
-    //unsigned int stack_size = 0;
-    //Link **stack = (Link**)calloc(N, sizeof(Link*));
-    //for (i = 0; i < N; i++)
-    //    if (sys[i].num_parents == 0)
-    //        stack[stack_size++] = &sys[i];
-
-    //// Visit from source to outlet
-    //unsigned int *visits = (unsigned int *)calloc(N, sizeof(unsigned int));
-    //while (stack_size > 0)
-    //{
-    //    Link *current = stack[stack_size - 1];
-    //    UpstreamData* updata = (UpstreamData*)current->user;
-
-    //    // Pop from the stack
-    //    stack_size--;
-
-    //    // Increment visit counter of child
-    //    if (current->child)
-    //        visits[current->child->location]++;
-
-    //    double lambda_1 = globals->global_params.ve[1];
-    //    double k_3 = globals->global_params.ve[4];	//[1/min]
-    //    double h_b = globals->global_params.ve[6];	//[m]
-    //    double S_L = globals->global_params.ve[7];	//[m]
-    //    double A = globals->global_params.ve[8];
-    //    double B = globals->global_params.ve[9];
-    //    double exponent = globals->global_params.ve[10];
-
-    //    double L = current->params.ve[1];	//[m]
-    //    double A_h = current->params.ve[2];	//[m^2]
-    //    double invtau = current->params.ve[3];	//[1/min]
-    //    double k_2 = current->params.ve[4];	//[1/min]
-    //    double k_i = current->params.ve[5];	//[1/min]
-    //    double c_1 = current->params.ve[6];
-    //    double c_2 = current->params.ve[7];
-
-    //    VEC y_0 = current->list->head->y_approx;
-    //    double q = y_0.ve[0];		//[m^3/s]
-    //    double s_p = y_0.ve[1];	//[m]
-    //    double s_t = y_0.ve[2];	//[m]
-    //    double s_s = y_0.ve[3];	//[m]
-
-    //    //unsigned int i;
-    //    unsigned int offset = 4;
-
-    //    y_0.ve[offset] = 1.;  //dq/dq_0
-
-    //    //A few calculations...
-    //    double q_to_lambda_1 = pow(q, lambda_1);
-    //    double q_to_lambda_1_m1 = pow(q, lambda_1 - 1.0);// (q > 1e-12) ? q_to_lambda_1 / q : pow(1e-12, lambda_1 - 1.0);
-
-    //    //Discharge
-    //    double inflow = 0.0;
-    //    for (unsigned int i = 0; i < updata->num_parents; i++)
-    //        inflow += updata->parents[i]->list->head->y_approx.ve[0];
-
-    //    //Compute partial derivatives (local variables)
-    //    double dfq_dq = lambda_1 * invtau * q_to_lambda_1_m1 * (-q + c_2*(k_2*s_p + k_3*s_s) + inflow) - invtau * q_to_lambda_1;
-
-    //    //Compute partial derivatives (upstreams variables)
-    //    double dfq_dupq = invtau*q_to_lambda_1;
-
-    //    //y_0.ve[offset] = dfq_dq * y_0.ve[offset]; //dq/dq_0
-
-    //    unsigned int j = 0, p = 0;
-    //    // For every upstream links
-    //    for (unsigned int i = 0, j = 0; i < updata->num_upstreams; i++, j++)
-    //    {
-    //        unsigned int np = p + 1;
-
-    //        // If switch to next parent
-    //        if (np < updata->num_parents && updata->upstreams[i] == updata->parents[np])
-    //        {
-    //            p++;
-    //            j = 0;
-    //        }
-
-    //        unsigned int current_idx = offset + i + 1;
-    //        unsigned int parent_idx = offset + j;
-    //        VEC y_p = updata->parents[p]->list->head->y_approx;
-
-    //        assert(current_idx < y_0.dim);
-    //        assert(parent_idx < y_p.dim);
-    //        y_0.ve[current_idx] = dfq_dupq * y_p.ve[parent_idx] + dfq_dq * y_0.ve[current_idx]; //q, upq
-    //    }
-
-    //    if (current->child && visits[current->child->location] == current->child->num_parents)
-    //        stack[stack_size++] = current->child;
-    //}
 
     for (i = 0; i < asynch->globals->num_forcings; i++)
     {
