@@ -31,7 +31,7 @@ We are given:
 
   * :math:`\mathcal{H} = H` is a linear operator
 
-We aim at producing an estimate :math:`x^a` of the true state :math:`x^t` of the system. The best estimate is searched for as a linear combination of the background estimate and the observation :math:`y^o`:
+The best estimate :math:`x^a` is searched for as a linear combination of the background estimate and the observation :math:`y^o`:
 
 .. math::
   x^a = L x^b + K y^o
@@ -42,9 +42,9 @@ Variational method
 We can rewrite the BLUE as an equivalent variational optimization problem (optimal least squares) also :
 
 .. math::
-  x^a = {arg} {min} \mathcal{J}
+  x^a = min(\mathcal{J})
 
-where :math:`\mathcal{J}` the cost function to minimize is:
+where the cost function :math:`\mathcal{J}` to minimize is:
 
 .. math::
   \mathcal{J}(x) = (x-x^b)^T B^{-1} (x-x^b) + (y^o -H(x))^T R^{-1}(y^o-H(x))
@@ -133,23 +133,20 @@ Although the equations are numerous, and the corresponding least squares problem
 Installation
 ------------
 
-Data Assimilation is available only if asynch is built with the ``PETSc`` library. Refer to the :ref:`Installation` for more information. Make sure that ``./configure`` returns:
+Data Assimilation is available only if Asynch is built with the ``PETSc`` library. Refer to the :ref:`Installation` for more information. Make sure that ``./configure`` returns:
 
 ::
 
   checking for PETSC... yes
 
-Usage
------
+Configuration
+-------------
 
 ``assim`` requires an  additional  configuration ``.das`` file on the command line, for exemple:
 
 .. code-block:: sh
 
   assim turkey_river.gbl turkey_river.das
-
-Configuration
--------------
 
 Overview
 ~~~~~~~~
@@ -302,7 +299,7 @@ Data assimilation is implemented only for the :ref:`Top Layer Hydrological Model
 
 Data assimilation only works with discharge observations (or whatever the first state variable is). This is currently hardcoded but could be extended to support other types of observation such as soil moisture.
 
-Observations should be interpolated to get a better assimilated states (especially for locations that are close to observations). For instance with discharge observations available at a 15 minutes time step, links that are upstream
+Observations should be interpolated to get a better assimilated states (especially for locations that are close to observations). For instance with discharge observations available at a 15 minutes time step, links that are upstream at a distance :math:`d < 15 * v_0` are not corrected.
 
 The larger the assimilation window, the larger is the domain of influence upstream the gages and the better the corrected state. A short assimilation window would only make correction to the links close to the gage and that could induce some ossilations. In Iowa 12 hours, seems to be the sweet spot between computation time and correction.
 
@@ -312,7 +309,7 @@ For small watersheds (N <= 15K links, i.e. Turkey River), ``assim`` works best u
 
 The performances of the assimilation are not very good when the correction of discharge is negative (falling limb).
 
-Discontinuities (i.e. at reservoirs) are not taken into account.
+Discontinuities (i.e. at reservoirs) are not supported.
 
 Strong nonlinearities could be problem. The extension of 4D-Var to non linear problems, called Incremental 4D-Var, may be more appropriate.
 
