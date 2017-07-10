@@ -573,16 +573,9 @@ int Partition_Network(
     Link*** my_sys, unsigned int* my_N, int** assignments,
     TransData** my_data, short int** getting, AsynchModel* model)
 {
-    Link *current, *prev;//**upstream_order = (Link**) malloc(N*sizeof(Link*));
+    Link *current, *prev;
 
-                         /*
-                         //Order the links by upstream area
-                         for(i=0;i<N;i++)
-                         upstream_order[i] = system[i];
-                         merge_sort(upstream_order,N,globals->area_idx);
-                         */
-
-                         //Perform a DFS to sort the leaves
+    //Perform a DFS to sort the leaves
     Link** stack = malloc(N * sizeof(Link*)); //Holds the index in system
     int stack_size = 0;
 
