@@ -166,79 +166,79 @@ int main(int argc, char* argv[])
 
     //Declare variables
     double start, stop;
-	double total_time;
+    double total_time;
 
     print_out("\nBeginning initialization...\n*****************************\n");
-	MPI_Barrier(MPI_COMM_WORLD);
-	start = MPI_Wtime();
+    MPI_Barrier(MPI_COMM_WORLD);
+    start = MPI_Wtime();
 
-	//Init asynch object and the river network
+    //Init asynch object and the river network
     AsynchSolver *asynch = Asynch_Init(MPI_COMM_WORLD, false);
-	print_out("Reading global file...\n");
+    print_out("Reading global file...\n");
     Asynch_Parse_GBL(asynch, global_filename);
-	print_out("Loading network...\n");
+    print_out("Loading network...\n");
     Asynch_Load_Network(asynch);
-	print_out("Partitioning network...\n");
+    print_out("Partitioning network...\n");
     Asynch_Partition_Network(asynch);
-	print_out("Loading parameters...\n");
+    print_out("Loading parameters...\n");
     Asynch_Load_Network_Parameters(asynch);
-	print_out("Reading dam and reservoir data...\n");
+    print_out("Reading dam and reservoir data...\n");
     Asynch_Load_Dams(asynch);
-	print_out("Setting up numerical error data...\n");
+    print_out("Setting up numerical error data...\n");
     Asynch_Load_Numerical_Error_Data(asynch);
-	print_out("Initializing model...\n");
+    print_out("Initializing model...\n");
     Asynch_Initialize_Model(asynch);
-	print_out("Loading initial conditions...\n");
+    print_out("Loading initial conditions...\n");
     Asynch_Load_Initial_Conditions(asynch);
-	print_out("Loading forcings...\n");
+    print_out("Loading forcings...\n");
     Asynch_Load_Forcings(asynch);
-	print_out("Loading output data information...\n");
+    print_out("Loading output data information...\n");
     Asynch_Load_Save_Lists(asynch);
-	print_out("Finalizing network...\n");
+    print_out("Finalizing network...\n");
     Asynch_Finalize_Network(asynch);
-	print_out("Calculating initial step sizes...\n");
+    print_out("Calculating initial step sizes...\n");
     Asynch_Calculate_Step_Sizes(asynch);
 
     print_out("\nModel type is %u.\n", Asynch_Get_Model_Type(asynch));
 
-	//Prepare output files
+    //Prepare output files
     Asynch_Prepare_Temp_Files(asynch);
     Asynch_Write_Current_Step(asynch);		//!!!! Wow, this sucks. Is there a way to get rid of it? !!!!
     Asynch_Prepare_Peakflow_Output(asynch);
     Asynch_Prepare_Output(asynch);
 
-	//Make sure everyone is good before getting down to it...
+    //Make sure everyone is good before getting down to it...
     printf("Process %i (%i total) is good to go with %i links.\n", my_rank, np, Asynch_Get_Num_Links_Proc(asynch));
-	ASYNCH_SLEEP(1);
-	MPI_Barrier(MPI_COMM_WORLD);
+    ASYNCH_SLEEP(1);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if (my_rank == 0)
-	{
-		stop = MPI_Wtime();
-		total_time = stop - start;
-		printf("Finished initialization. Total time for initialization: %f\n\n\nComputing solution at each link...\n************************************\n", stop - start);
-	}
-	fflush(stdout);
-	MPI_Barrier(MPI_COMM_WORLD);
+    {
+        stop = MPI_Wtime();
+        total_time = stop - start;
+        printf("Finished initialization. Total time for initialization: %f\n\n\nComputing solution at each link...\n************************************\n", stop - start);
+    }
+    fflush(stdout);
+    MPI_Barrier(MPI_COMM_WORLD);
 
-	//Perform the calculations
+    //Perform the calculations
     start = MPI_Wtime();
     Asynch_Advance(asynch, 1);
-	MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
     stop = MPI_Wtime();
 
-	//Out information
-	total_time += stop - start;
-	print_out("\nComputations complete. Total time for calculations: %f\n", stop - start);
+    //Out information
+    total_time += stop - start;
+    print_out("\nComputations complete. Total time for calculations: %f\n", stop - start);
 
-	//Take a snapshot
+    //Take a snapshot
     Asynch_Take_System_Snapshot(asynch, NULL);
 
-	//Create output files
+    //Create output files
     Asynch_Create_Output(asynch, NULL);
     Asynch_Create_Peakflows_Output(asynch);
 
-	//Clean up
+    //Clean up
     Asynch_Delete_Temporary_Files(asynch);
 #if !defined(NDEBUG)
     Asynch_Free(asynch);
