@@ -49,28 +49,20 @@
 /// HM_buffer is 1 X allstates_needed
 /// \param asynch The asynch solver instance
 /// \param asynch The assimilation workspace
-int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
+int LSSolveSys(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
 {
-    unsigned int i, j,/*k,m,*/n/*,l,counter*/;
-
     //Unpack ptr
     unsigned int N = asynch->N;
     Link* sys = asynch->sys;
     GlobalVars* globals = asynch->globals;
     int* assignments = asynch->assignments;
     short int* getting = asynch->getting;
-    //Mat *HM = ws->HM, *HTH = ws->HTH, *HMTR = ws->HMTR;
-    //Vec *RHS = ws->RHS, d, *x = ws->x, *B = ws->B, *R = ws->R;
-    //KSP *ksp = ws->ksp;
-    Vec d;
     unsigned int *obs_locs = ws->obs_locs, assim_dim = ws->assim_dim;
     unsigned int problem_dim = ws->problem_dim, allstates = ws->allstates;
-    //unsigned int steps_to_use = ws->steps_to_use, num_obs = ws->num_obs;
     int *HM_col_indices = ws->HM_col_indices, *d_indices = ws->d_indices;
     double t_b = ws->t_b;
     unsigned int allstates_needed = ws->allstates_needed;
     double /**RHS_els,*/*x_start = ws->x_start, *HM_buffer = ws->HM_buffer;
-    //unsigned int max_or_steps = steps_to_use;
     AsynchModel* custom_model = asynch->model;
     unsigned int *vareq_shift = ws->vareq_shift, *inv_vareq_shift = ws->inv_vareq_shift;
 
@@ -78,8 +70,9 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
 
     unsigned int num_total_obs = ws->num_steps * ws->num_obs;
 
-    //Build a vector structure for d !!!! Obviously, this needs to not happen... !!!!
-    //if(max_or_steps > allstates_needed)	printf("[%i]: Error: max_or_steps > allstates_needed (%u > %u)\n",my_rank,max_or_steps,allstates_needed);
+    //Build a vector structure for d
+    //TODO Optimize this variable out
+    Vec d;
     VecCreateSeq(MPI_COMM_SELF, num_total_obs, &d);	//!!!! This needs to be fixed !!!!
     VecSet(d, 0.0);
     VecSetValues(d, num_total_obs, d_indices, ws->d_full, INSERT_VALUES);
@@ -87,20 +80,20 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
     VecAssemblyEnd(d);
 
     //Initialize the system
-    ResetSysLS(sys, N, globals, t_b, x_start, assim_dim, globals->num_forcings, asynch->my_data);
+    LSResetSys(sys, N, globals, t_b, x_start, assim_dim, globals->num_forcings, asynch->my_data);
 
-    for (i = 0; i < N; i++)
+    for (unsigned int i = 0; i < N; i++)
         if (assignments[i] == asynch->my_rank || getting[i])
             custom_model->initialize_eqs(
                 globals->global_params, globals->num_global_params,
                 sys[i].params, globals->num_params,
                 sys[i].my->list.head->y_approx, sys[i].dim,
-                sys[i].user); //!!!! Should all states be reset? !!!!
-            //ReadInitData(globals->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,globals->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);	//!!!! Very inefficient. Too many checks. !!!!
+                sys[i].user);
 
-    for (i = 0; i < asynch->globals->num_forcings; i++)
+    for (unsigned int i = 0; i < asynch->globals->num_forcings; i++)
     {
-        if (asynch->forcings[i].flag == 3)	//!!!! Recurring and binary files need this too !!!!
+        //TODO Recurring and binary files may need this too
+        if (asynch->forcings[i].flag == 3)
         {
             //printf("Setting to %u and %u\n",asynch->forcings[i]->first_file,asynch->forcings[i]->last_file);
             Asynch_Set_Forcing_State(asynch, i, t_b, asynch->forcings[i].first_file, asynch->forcings[i].last_file);
@@ -108,7 +101,9 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
     }
 
     //Advance the system and extract the HM matrix
-    for (i = 0; i < ws->num_steps; i++)	//!!!! Start at i=1? For i = 0, I don't think we need to set anything... !!!!		//HM here holds the values of M that are needed
+    //HM here holds the values of M that are needed
+    //!!!! Start at i=1? For i = 0, I don't think we need to set anything... !!!!    
+    for (unsigned int i = 0; i < ws->num_steps; i++)
     {
         globals->t = 0.0;
 
@@ -120,6 +115,7 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
             MPI_Barrier(MPI_COMM_WORLD);
             double start = MPI_Wtime();
 
+            //Advance the simuation to globals->maxtime
             Asynch_Advance(asynch, 0);
 
             MPI_Barrier(MPI_COMM_WORLD);
@@ -129,15 +125,12 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
                 printf("Time for advance to time %f: %.0f\n", globals->maxtime, stop - start);
         }
 
-
-        //printf("ID = %u, t = %e\n",sys[obs_locs[0]]->ID,sys[obs_locs[0]]->last_t);
-        //Print_Vector(sys[obs_locs[0]]->list->tail->y_approx);
-        //printf("**********\n");
-
         //Build HM
-        for (j = 0; j < ws->num_obs; j++)
+        for (unsigned int j = 0; j < ws->num_obs; j++)
         {
-            Link *current = &sys[obs_locs[j]];	//!!!! Assumes only discharges !!!!
+            //Assumes only discharges
+            //TODO Generalize this
+            Link *current = &sys[obs_locs[j]];
             int owner = assignments[obs_locs[j]];
             bool is_my_link = (owner == asynch->my_rank);
 
@@ -148,7 +141,7 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
             if (is_my_link)
             {
                 //Pull out needed data
-                for (n = 0; n < updata->num_fit_states; n++)
+                for (unsigned int n = 0; n < updata->num_fit_states; n++)
                 {
                     if (asynch->verbose)
                         printf("ID = %u | Loading %e (from %u) into spot %u\n",
@@ -186,14 +179,8 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
                 MPI_Reduce(HM_buffer, NULL, allstates_needed, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
 
-
             MPI_Bcast(&(q[i * ws->num_obs + j]), 1, MPI_DOUBLE, owner, MPI_COMM_WORLD);
 
-            //printf("Got %u, %u\n",allstates_needed,updata->num_fit_states);
-            //for(n=0;n<allstates_needed;n++)
-            //	printf("%e ",HM_buffer[n]);
-            //printf("\n");
-            //char r = getchar();                
         }
     }
 
@@ -201,19 +188,6 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
 
     if (asynch->my_rank == 0)
         printf("Time for advance to time %f: %.0f\n", globals->maxtime, stop - start);
-
-
-    /*
-        //Zero out any unused rows
-        if(i < steps_to_use)
-        {
-    printf("Starting at %u, going to %u\n",i*num_obs,steps_to_use*num_obs);
-            for(j=0;j<allstates;j++)
-                HM_els[j] = 0.0;
-            for(i=i*num_obs;i<steps_to_use*num_obs;i++)
-                MatSetValues(ws->HM,1,&i,allstates,cols_allstates_needed,HM_els,INSERT_VALUES);
-        }
-    */
 
     if (asynch->my_rank == 0)
     {
@@ -232,7 +206,7 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
         //Calculate innovations
         double *buffer = NULL;
         VecGetArray(d, &buffer);
-        for (i = 0; i < num_total_obs; i++)
+        for (unsigned int i = 0; i < num_total_obs; i++)
             buffer[i] = buffer[i] - q[i];
         VecRestoreArray(d, &buffer);
 
@@ -248,16 +222,6 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
         /// \f$ A = B + H(y_0)^T R H(y_0) \f$
         MatMatMult(ws->HMTR, ws->HM, MAT_REUSE_MATRIX, PETSC_DEFAULT, &ws->HTH);
         MatDiagonalSet(ws->HTH, ws->B, ADD_VALUES);
-        /*
-                MatTransposeMatMult(*HM,*HM,MAT_REUSE_MATRIX,PETSC_DEFAULT,HTH);
-                for(i=0;i<allstates_needed;i++)
-                {
-                    //MatSetValue(*HTH,i,i,1.0,ADD_VALUES);  //!!!! To skip hillslope !!!!
-                    //if(i%2)	MatSetValue(*HTH,i,i,1e3,ADD_VALUES);	//Used for s_p, I think...
-                    //if(i%2)	MatSetValue(*HTH,i,i,1e2,ADD_VALUES);	//Used for s_t
-                    //else	MatSetValue(*HTH,i,i,1.0,ADD_VALUES);
-                }
-        */
 
         /// \f$ rhs = H(y_0)^T R \alpha(y_0^b) \f$
         MatMult(ws->HMTR, d, ws->rhs);
@@ -276,7 +240,7 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
             printf("Time for matrix computations: %.0f\n", stop - start);
 
         //Compute analysis
-    //MPI_Barrier(MPI_COMM_WORLD);
+        //MPI_Barrier(MPI_COMM_WORLD);
         start = MPI_Wtime();
 
         /// \f$ x = y_0 - y_0^b \f$
@@ -301,11 +265,8 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
 
         //Copy new solution to x_start
         VecGetArray(ws->x, &buffer);
-        //for(i=0;i<num_above;i++)
-        for (i = 0; i < allstates_needed; i++)	//!!!! I think this is right... !!!!
+        for (unsigned int i = 0; i < allstates_needed; i++)	//!!!! I think this is right... !!!!
         {
-            //printf("i = %u %u\n",i,inv_vareq_shift[i]);
-            //ASYNCH_SLEEP(1);
             x_start[inv_vareq_shift[i]] += buffer[i];
             //x_start[above_gauges[i]*assim_dim] += x_els[i];	//!!!! To skip hillslope !!!!
             //for(j=0;j<assim_dim;j++)
@@ -332,14 +293,14 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
         double* buffer;
         printf("difference (x)\n");
         VecGetArray(ws->x, &buffer);
-        for (i = 0; i < allstates_needed; i++)
+        for (unsigned int i = 0; i < allstates_needed; i++)
             printf("%.2e ", buffer[i]);
         printf("\n");
         VecRestoreArray(ws->x, &buffer);
 
         printf("d\n");
         VecGetArray(d, &buffer);
-        for (i = 0; i < num_total_obs; i++)
+        for (unsigned int i = 0; i < num_total_obs; i++)
             printf("%.2e ", buffer[i]);
         printf("\n");
         VecRestoreArray(d, &buffer);
@@ -363,57 +324,8 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
         //}
     }
 
-    //if (verbose)
-    //{
-    //    //Get q's produced from analysis (for testing)
-    //    if (my_rank == 0)
-    //    {
-    //        //printf("q before\n");
-    //        //Print_VECTOR(q,num_total_obs);
-    //    }
-    //    double first_diff = ComputeDiff(d_els, q, num_total_obs);
-
-    //    ResetSysLS(sys, N, globals, t_b, x_start, problem_dim, globals->num_forcings, asynch->my_data);
-    //    for (i = 0; i < N; i++)
-    //        if (assignments[i] == my_rank || getting[i])
-    //            //ReadInitData(globals->global_params,sys[i].params,NULL,0,sys[i].list->head->y_approx,globals->type,sys[i].diff_start,sys[i].no_ini_start,sys[i].user,NULL);
-    //            custom_model->InitializeEqs(globals->global_params, sys[i].params, NULL, 0, sys[i].list->head->y_approx, globals->type, sys[i].diff_start, sys[i].no_ini_start, sys[i].user, NULL); //!!!! Should all states be reset? !!!!
-    //    for (i = 0; i < asynch->globals->num_forcings; i++)
-    //    {
-    //        if (asynch->forcings[i]->flag == 3)	//!!!! I think .mon and binary files need this too !!!!
-    //            Asynch_Set_Forcing_State(asynch, i, t_b, asynch->forcings[i]->first_file, asynch->forcings[i]->last_file);
-    //    }
-    //    for (i = 0; i < max_or_steps; i++)
-    //    {
-    //        globals->maxtime = t_b + (i)* inc;
-    //        if (i)	Asynch_Advance(asynch, 0);
-
-    //        for (j = 0; j < num_obs; j++)
-    //        {
-    //            owner = assignments[obs_locs[j]];
-    //            my_link = (owner == my_rank);
-
-    //            if (my_link)
-    //                q[i*num_obs + j] = sys[obs_locs[j]]->list->tail->y_approx.ve[0];
-
-    //            MPI_Bcast(&(q[i*num_obs + j]), 1, MPI_DOUBLE, owner, MPI_COMM_WORLD);
-    //        }
-    //    }
-
-    //    if (my_rank == 0)
-    //    {
-    //        //printf("q after\n");
-    //        //Print_VECTOR(q,num_total_obs);
-
-    //        double second_diff = ComputeDiff(d_els, q, num_total_obs);
-    //        printf("\nDifferences between q and data are %e %e\n\n", first_diff, second_diff);
-    //    }
-    //}
-
-
-
     //Clean up
-    VecDestroy(&d);	//!!!! Blah !!!!
+    VecDestroy(&d);
 
     MPI_Barrier(MPI_COMM_WORLD);
     stop = MPI_Wtime();
@@ -421,12 +333,10 @@ int SolveSysLS(AsynchSolver* asynch, AssimWorkspace* ws, double* q)
         printf("Total time for linear least squares fit: %.0f\n", stop - start);
 
     return 0;
-    //if(second_diff < first_diff)	return 1;
-    //else				return 0;
 }
 
-
-double ComputeDiff(const double * const d, const double * const q, unsigned int size)
+// COmput least square distance 
+double LSComputeDistance(const double * const d, const double * const q, unsigned int size)
 {
     unsigned int i;
     double result = 0.0;
@@ -439,7 +349,7 @@ double ComputeDiff(const double * const d, const double * const q, unsigned int 
 }
 
 
-void ResetSysLS(Link* sys, unsigned int N, GlobalVars* globals, double t_0, double* x_start, unsigned int problem_dim, unsigned int num_forcings, TransData* my_data)
+void LSResetSys(Link* sys, unsigned int N, GlobalVars* globals, double t_0, double* x_start, unsigned int problem_dim, unsigned int num_forcings, TransData* my_data)
 {
     unsigned i, j, k, l;
     Link* current;

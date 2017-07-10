@@ -313,6 +313,11 @@ Discontinuities (i.e. at reservoirs) are not supported.
 
 Strong nonlinearities could be problem. The extension of 4D-Var to non linear problems, called Incremental 4D-Var, may be more appropriate.
 
+Bibliography
+------------
+
 .. [da] Maelle Nodet, “Introduction to Data Assimilation”, Université Grenoble Alpes, Mars 2012
 
 .. [fs] S. Lakshmivarahan and J. M. Lewis, “Forward Sensitivity Approach to Dynamic Data Assimilation”, *Advances in Meteorology*, vol. 2010, Article ID 375615, 12 pages, 2010. doi:10.1155/2010/375615
+
+.. [grad] Sengupta, B., K.J. Friston, and W.D. Penny. “Efficient Gradient Computation for Dynamical Models.” *Neuroimage* 98.100 (2014): 521–527. PMC. Web. 10 July 2017.

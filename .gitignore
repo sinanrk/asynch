@@ -22,9 +22,6 @@ Makefile.in
 dist
 third_party
 examples
-work
-src.new_model
-gui
 
 *.dbc
 *.str

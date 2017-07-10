@@ -252,69 +252,29 @@ int main(int argc, char* argv[])
     model_254_assim_qst.initialize_eqs = ReadInitData_Assim_254_qst;
 
     if (strcmp(assim.model, "254") == 0)
-    {
         Asynch_Custom_Model(asynch, &model_254_assim);
-    }
     else if (strcmp(assim.model, "254_q") == 0)
-    {
         Asynch_Custom_Model(asynch, &model_254_assim_q);
-    }
     else if (strcmp(assim.model, "254_qsp") == 0)
-    {
         Asynch_Custom_Model(asynch, &model_254_assim_qsp);
-    }
     else if (strcmp(assim.model, "254_qst") == 0)
-    {
         Asynch_Custom_Model(asynch, &model_254_assim_qst);
-    }
     else /* default: */
     {
         print_err("Invalid model variant (expected 254, 254_q, 254_qsp or 254_qst an got %s", assim.model);
         MPI_Abort(MPI_COMM_WORLD, 0);
     }
 
-    //Model 15
-    //Asynch_Custom_Model(asynch,&SetParamSizes_Assim,&ConvertParams_Assim,&InitRoutines_Assim,&Precalculations_Assim,&ReadInitData_Assim);
-    //Model 254
-    //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254,&Precalculations_Assim_254,&ReadInitData_Assim_254);
-    //Model 254, q
-    //Asynch_Custom_Model(asynch, &SetParamSizes_Assim_254, &ConvertParams_Assim_254, &InitRoutines_Assim_254_q,&Precalculations_Assim_254, &ReadInitData_Assim_254_q);
-    //Model 254, q and s_p
-    //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qsp,&Precalculations_Assim_254,&ReadInitData_Assim_254_qsp);
-    //Model 254, q and s_t
-    //Asynch_Custom_Model(asynch,&SetParamSizes_Assim_254,&ConvertParams_Assim_254,&InitRoutines_Assim_254_qst,&Precalculations_Assim_254,&ReadInitData_Assim_254_qst);
-    //Asynch_Custom_Partitioning(asynch,&Partition_METIS_ByEqs);
-
-    //Data assimilation parameters
-/*
-    unsigned int num_obs,*ids,*numsteps,*obs_locs;
-    double forecast_window = 10.0*24*60;
-    double inc = 15.0;
-    unsigned int steps_to_use = 10;
-    unsigned int least_squares_iters = 1;
-*/
-//For model 254
-//unsigned int problem_dim = 7;	//!!!! Generalize this !!!!
-//unsigned int assim_dim = 4;	//!!!! Generalize this !!!!
-//For model 254 trim
-    unsigned int problem_dim = 4;	//!!!! Generalize this !!!!
-    unsigned int assim_dim = 4;	//!!!! Generalize this !!!!
+    //For model 254
+    //TODO Generalize this
+    unsigned int problem_dim = 4;
+    unsigned int assim_dim = 4;
 
     //Read global file
     if (my_rank == 0)	printf("Reading global file...\n");
     Asynch_Parse_GBL(asynch, global_filename);
     if (my_rank == 0)	printf("Loading network...\n");
     Asynch_Load_Network(asynch);
-
-    //unsigned int obs_locs[] = {2};	//Locations of links with data	!!!! Make sure these are locations and not IDs !!!!
-    //unsigned int obs_locs[] = {1,3,4};	//!!!! This should come from ReadSolution. Or should be calculated at least. !!!!
-    //obs_locs = (unsigned int*) malloc(3*sizeof(unsigned int));
-    //obs_locs[0] = 1; obs_locs[1] = 3; obs_locs[2] = 4;
-    //double*** truesolution = ReadSolution("TempData/assim/yobservations.dat",asynch->id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);
-    //double*** truesolution = ReadSolution("TempData/assim/testobservations.dat",asynch->id_to_loc,asynch->N,&num_obs,&ids,&obs_locs,&numsteps);
-    //double*** truesolution = ReadSolution("TempData/assim/254testobservations.dat",asynch->id_to_loc,asynch->N,&num_obs,&ids,&obs_locs,&numsteps);
-    //double*** truesolution = DownloadGaugeReadings(1402790400,1405382400,asynch->id_to_loc,N,&num_obs,&ids,&obs_locs,&numsteps);	//June 15 2014 to July 15 2014
-    //double*** truesolution = DownloadGaugeReadings(1403654400,1405382400,asynch->id_to_loc,asynch->N,&num_obs,&ids,&obs_locs,&numsteps);	//June 25 2014 to July 15 2014
 
     //Find the gauged locations
     if (GetObservationsIds(asynch, &assim))
@@ -347,38 +307,6 @@ int main(int argc, char* argv[])
     print_out("Calculating initial step sizes...\n");
     Asynch_Calculate_Step_Sizes(asynch);
 
-    // No output needed, since we are not forecasting
-
-    ////Setup output for link id, if needed
-    //int setup_id = Asynch_Check_Output(asynch, "LinkID");
-    //int setup_timestamp = Asynch_Check_Output(asynch, "Timestamp");
-    //if (setup_id || setup_timestamp)
-    //{
-    //    if (my_rank == 0)	printf("Error: forecaster needs LinkID (%i), Timestamp (%i).\n", setup_id, setup_timestamp);
-    //    MPI_Abort(MPI_COMM_WORLD, 1);
-    //}
-
-    ////Setup output for link id, if needed
-    //int setup = Asynch_Check_Output(asynch, "LinkID");
-    //if (setup != -1)
-    //{
-    //    Set_Output_User_LinkID(asynch);
-    //    Asynch_Set_Output(asynch, "LinkID", ASYNCH_INT, &Output_Linkid, NULL, 0);
-    //}
-
-    ////Setup output for timestamp, if needed
-    //setup = Asynch_Check_Output(asynch, "Timestamp");
-    //if (setup != -1)
-    //{
-    //    Asynch_Set_Output(asynch, "Timestamp", ASYNCH_INT, &Output_Timestamp, NULL, 0);
-    //}
-
-    ////Prepare output files
-    //Asynch_Prepare_Temp_Files(asynch);
-    //Asynch_Write_Current_Step(asynch);
-    //Asynch_Prepare_Peakflow_Output(asynch);
-    //Asynch_Prepare_Output(asynch);
-
     //Pull data from asynch
     Link **my_sys = asynch->my_sys;
     Lookup *id_to_loc = asynch->id_to_loc;
@@ -389,28 +317,13 @@ int main(int argc, char* argv[])
     GlobalVars *globals = asynch->globals;
     AsynchModel* custom_model = asynch->model;
 
-    //Set print_time to t_0
-    //Asynch_Reset_Temp_Files(asynch,sys[my_sys[0]]->last_t);
-
-    ////Reserve space for backups
-    //VEC* backup = (VEC*)malloc(N * sizeof(VEC));	//!!!! Same as background x_b? !!!!
-    //for (i = 0; i < N; i++)
-    //{
-    //    if (assignments[i] == my_rank || getting[i])
-    //        backup[i] = v_get(sys[i].dim);
-    //    else
-    //        backup[i] = v_get(0);
-    //}
-
     //Initialize choices
-    //unsigned int num_obs = assim.num_obs, *obs_locs = assim.obs_locs, num_steps = assim.num_steps;
     unsigned int num_total_obs = assim.num_steps * assim.num_obs;
     time_t begin_time = Asynch_Get_Begin_Timestamp(asynch);
     time_t end_time = Asynch_Get_End_Timestamp(asynch);
     double duration = Asynch_Get_Total_Simulation_Duration(asynch);
     double t_b = 0.0;
     unsigned int allstates = assim_dim * N;
-    //double x_b[allstates];
 
     // Allocate background
     double  *x_b = calloc(allstates, sizeof(double));
@@ -426,10 +339,6 @@ int main(int argc, char* argv[])
 
     int mpi_res = MPI_Allreduce(MPI_IN_PLACE, x_b, allstates, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    //Other initializations
-    //unsigned int numstepstotake;
-    //unsigned int iterations = (unsigned int)round((t_f - t_b) / inc);
-
     // Vector of observations (single step)
     double* d = calloc(assim.num_obs, sizeof(double));
 
@@ -440,23 +349,24 @@ int main(int argc, char* argv[])
     double* x_start = calloc(allstates, sizeof(double));	//Values used to start asynch solver in tao solvers
 
     //Call model specific data assimilation routines
-    //For Model 254
-    //unsigned int allstates_needed = Setup_Fitting_Data_Model254(asynch,obs_locs,num_obs);
-    //For Model 254 trim, q
-    Setup_Fitting_Data_Model254_q(asynch, assim.obs_locs, assim.num_obs);
-    //For Model 254 trim, q and s_p
-    //Setup_Fitting_Data_Model254_qsp(asynch,obs_locs,num_obs);
-    //For Model 254 trim, q and s_t
-    //Setup_Fitting_Data_Model254_qst(asynch,obs_locs,num_obs);
+    if (strcmp(assim.model, "254") == 0)
+        //For Model 254
+        Setup_Fitting_Data_Model254(asynch, assim.obs_locs, assim.num_obs);
+    else if (strcmp(assim.model, "254_q") == 0)
+        //For Model 254 trim, q
+        Setup_Fitting_Data_Model254_q(asynch, assim.obs_locs, assim.num_obs);
+    else if (strcmp(assim.model, "254_qsp") == 0)
+        //For Model 254 trim, q and s_p
+        Setup_Fitting_Data_Model254_qsp(asynch, assim.obs_locs, assim.num_obs);
+    else if (strcmp(assim.model, "254_qst") == 0)
+        //For Model 254 trim, q and s_t
+        Setup_Fitting_Data_Model254_qst(asynch, assim.obs_locs, assim.num_obs);
 
     //Find locations unaffected by gauges
     unsigned int *vareq_shift, *inv_vareq_shift;
     unsigned int allstates_needed = BuildStateShift(asynch, allstates, assim.obs_locs, assim.num_obs, &vareq_shift, &inv_vareq_shift);
 
-
     printf("allstates_needed: %u allstates: %u\n", allstates_needed, allstates);
-
-    //printf("!!!! Multiplied R by 10. Used 6 m/s (instead of 3). Only used 4 ls iterations. Using tolerance of 10 (instead of 30). Factor is 0.8.!!!!\n");
 
     /*
         //!!!! Assuming q and s_p are changing !!!!
@@ -620,49 +530,11 @@ int main(int argc, char* argv[])
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    //// Backup the solution
-    //k = 0;
-    //for (i = 0; i < N; i++)
-    //    if (backup[i].dim > 0)
-    //        v_copy(asynch->sys[i].list->tail->y_approx, backup[i]);
-
-    //double simulation_time_with_data = asynch->forcings[forecast_idx]->file_time * forecaster->num_rainsteps;
-    //double simulation_time_with_data = (assim.num_steps - 1) * assim.obs_time_step;
-    //unsigned int simulation_time_with_data_secs = (int)(simulation_time_with_data + 1e-3) * 60;
-
-    //Setup temp files
-    //Set_Output_User_forecastparams(asynch, forecast_time_unix, simulation_time_with_data_secs);	//!!!! Should this be done here at all? !!!!
-    //Set_Output_PeakflowUser_Offset(asynch,forecast_time_unix);
-    //Asynch_Set_Total_Simulation_Time(asynch, forecast_window + simulation_time_with_data);
-    //Asynch_Prepare_Temp_Files(asynch);
-
-    //if (my_rank == 0)
-    //{
-    //    time_t now = time(NULL);
-    //    struct tm* now_info = localtime(&now);
-    //    printf("\n\nPass %u\n", k);
-    //    printf("Current time is %s", asctime(now_info));
-    //}
-
-    //Clear buffers
-    //Flush_TransData(asynch->my_data);
-
-    //Make some initializations
-    //first_file = last_file;
-    //last_file = last_file + (unsigned int) asynch->forcings[forecast_idx]->file_time * 60 * num_rainsteps;
-    //forecast_time_unix += change_time;
-    //unsigned int forecast_idx = 0;
-    //unsigned int forecast_time_unix = (unsigned int) asynch->forcings[forecast_idx]->first_file;
-    //unsigned int background_time_unix = forecast_time_unix - (assim.num_steps - 1) * (unsigned int)(assim.obs_time_step * 60.0 + 1.0e-3);
-    //nextforcingtime = forecast_time_unix - 60 * (unsigned int)asynch->forcings[forecast_idx]->file_time;	//This is the actual timestamp of the last needed forcing data. This will be downloaded (unlike last_file)
-
-
     unsigned int forcing_idx_rain = 0;
     unsigned int forcing_idx_tep = 1;
 
     unsigned int begin_assim_window = asynch->forcings[forcing_idx_rain].first_file;
     unsigned int end_assim_window = asynch->forcings[forcing_idx_rain].first_file + (unsigned int)(assim.num_steps * assim.obs_time_step * 60.0);
-
 
     //Reset each link
     //Asynch_Set_System_State(asynch, 0.0, backup);
@@ -683,7 +555,7 @@ int main(int argc, char* argv[])
 
     //Start the analysis
     unsigned int max_least_squares_iters = assim.max_least_squares_iters;
-    double *analysis = calloc(allstates, sizeof(double));	//!!!! Should be removed !!!!
+    double *analysis = calloc(allstates, sizeof(double));   //!!!! Should be removed !!!!
     double *q = calloc(num_total_obs, sizeof(double));
 
     //Get the observations
@@ -730,15 +602,19 @@ int main(int argc, char* argv[])
     do
     {
         int iterations = 0;
-        double error, prev_error = -1.0;
-        for (j = 0; j < max_least_squares_iters; j++)
-            //while(diff > 1e-2)
+        double error = 1.0, prev_error = -1.0;
+        for (j = 0; (j < max_least_squares_iters) && (error > 1e-2); j++)
         {
             iterations++;
-            SolveSysLS(asynch, &ws, q);
-            error = ComputeDiff(d_full, q, num_total_obs);
+
+            //Solve the Linear sytems
+            LSSolveSys(asynch, &ws, q);
+
+            //Compute the distance between observations and model
+            error = LSComputeDistance(d_full, q, num_total_obs);
             if (prev_error >= 0.0)
             {
+                //Check if the distance is decreasing
                 double diff = prev_error - error;
                 if (error > prev_error)
                 {
@@ -754,7 +630,8 @@ int main(int argc, char* argv[])
 
                     break;
                 }
-                if (my_rank == 0)	printf("Difference is %f (%f vs %f)\n", diff, error, prev_error);
+                if (my_rank == 0)
+                    printf("Difference is %f (%f vs %f)\n", diff, error, prev_error);
             }
 
             prev_error = error;
@@ -770,20 +647,13 @@ int main(int argc, char* argv[])
         if (my_rank == 0)
             printf("Total iterations = %i\n", iterations);
 
-        //if(error > 30.0 && !try_again)	//Check if the numerical scheme is having convergence issues
-        //if(error > 10.0 && !try_again)
+        //Check if the numerical scheme is having convergence issues
         if (!try_again)
-        {
-            //try_again = 1;
+            //Where dicharge values are having problems converging, upstreams discharge are cut in half
             try_again = ReduceBadDischargeValues(sys, assignments, N, d_full, q, assim.num_steps, assim.obs_locs, assim.num_obs, x_start, assim_dim, 1.0);	//!!!! Not sure what to use for the limit... !!!!
-        }
         else
             try_again = false;
     } while (try_again);
-
-
-    //Copy x_start to analysis  !!!! This shouldn't happen. Try a pointer dance. Or maybe something better... !!!!
-    //for(i=0;i<allstates;i++)	analysis[i] = x_start[i];
 
     if (verbose && my_rank == 0)
     {
@@ -800,21 +670,6 @@ int main(int argc, char* argv[])
 
     free(analysis);
     free(q);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     double stop = MPI_Wtime();
     print_out("\nTime for calculations: %f. All done!\n", stop - start);
@@ -865,9 +720,6 @@ int main(int argc, char* argv[])
 
     free(inv_upareas);
     FreeAssimData(&assim);
-    //Free_ForecastData(&forecaster);
-    //Free_Output_PeakflowUser_Offset(asynch);
-    //Free_Output_User_forecastparams(asynch);
 
     //Petsc clean up
     PetscFinalize();
