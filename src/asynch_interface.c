@@ -844,7 +844,7 @@ int Asynch_Set_Output_Int(AsynchSolver* asynch, char* name, OutputIntCallback* c
                 if (used_states[i] == current->dense_indices[j])
                 {
                     states_to_add[num_to_add++] = used_states[i];
-        break;
+                    break;
                 }
             }
         }
@@ -859,7 +859,8 @@ int Asynch_Set_Output_Int(AsynchSolver* asynch, char* name, OutputIntCallback* c
         }
     }
 
-    if (states_to_add)	free(states_to_add);
+    if (states_to_add)
+        free(states_to_add);
 
     return 1;
 }
@@ -909,8 +910,8 @@ int Asynch_Set_Output_Double(AsynchSolver* asynch, char* name, OutputDoubleCallb
                 if (used_states[i] == current->dense_indices[j])
                 {
                     states_to_add[num_to_add++] = used_states[i];
-        break;
-    }
+                    break;
+                }
             }
         }
 
@@ -924,7 +925,8 @@ int Asynch_Set_Output_Double(AsynchSolver* asynch, char* name, OutputDoubleCallb
         }
     }
 
-    if (states_to_add)	free(states_to_add);
+    if (states_to_add)
+        free(states_to_add);
 
     return 1;
 }
@@ -989,7 +991,8 @@ int Asynch_Set_Output_Float(AsynchSolver* asynch, char* name, OutputFloatCallbac
         }
     }
 
-    if (states_to_add)	free(states_to_add);
+    if (states_to_add)
+        free(states_to_add);
 
     return 1;
 }
