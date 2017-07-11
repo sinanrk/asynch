@@ -33,6 +33,6 @@ AS_IF([test $found_petsc -eq 1], [AC_DEFINE([HAVE_PETSC], [1], [Defined if you h
 
 # Generate config header
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile forecasters/Makefile tests/Makefile tools/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile tools/Makefile])
 
 AC_OUTPUT
