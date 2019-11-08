@@ -74,6 +74,28 @@ void CheckConsistency_Nonzero_4States(
         y[3] = 0.0;
 }
 
+
+void CheckConsistency_Nonzero_5States(
+    double *y, unsigned int num_dof,
+    const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
+    void *user)
+{
+    assert(y != NULL);
+    assert(num_dof >= 4);
+
+    if (y[0] < 1e-14)
+        y[0] = 1e-14;
+    if (y[1] < 0.0)
+        y[1] = 0.0;
+    if (y[2] < 0.0)
+        y[2] = 0.0;
+    if (y[3] < 0.0)
+        y[3] = 0.0;
+    if (y[4] < 0.0)
+        y[4] = 0.0;
+}
+
 void CheckConsistency_Model5(
     double *y, unsigned int num_dof,
     const double * const global_params, unsigned int num_global_params,

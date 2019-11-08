@@ -68,9 +68,463 @@ double sq(double x) { return x * x; }
 
 
 
+//Type 601
+//This is the first model from a set of models with all parameters taken from the disk not from the globals, I will starrt with a modifiction of the 225 Tiling model of morgan. 
+//The variables are river flow, ponded, top layer, subsurface layer.
+//Order of parameters: A_i,L_i,A_h,slope,tileQ,invtau,aNo,actT,LinSl,aTile,LinIn,
+//The numbering is:	0   1   2    3     4     5     6   7     8   9     10
+//Order of global_params: v_r,lambda_1,lambda_2,tL,bL,kdry,ki,k2
+//The numbering is:        0      1        2     3 4   5   6   7 
+void VariableHillslope(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    unsigned short i; 
+    //Distributed variables
+    double A_i = params[0];
+    double L_i = params[1];
+    double A_h = params[2];
+    double slope = params[3];
+    double v_r = params[4];
+    double a_r = params[5];
+    double v_s = params[6];
+    double a_s = params[7];
+    double k1 = params[8];
+    double k2 = params[9];
+    double t_L = params[10];
+    double b_L = params[11];
+    double lambda_1 = params[12];
+    double invtau = params[13];
+    //Variables
+    double q = y_i[0];		                                        // [m^3/s]
+    double s_p = y_i[1];	                                        // [m]
+    double s_l = y_i[2];	                                        // [m]
+    double s_s = y_i[3];
+    //Fluxes
+    double q_in = forcing_values[0] * (0.001/60);	//[m/min]
+    double q_pl = k1*pow((1-s_l/t_L),3)*s_p;                       // (m/min)
+    double q_ls = k2*s_l;			      // (m/min)
+    double q_pLink = v_r*pow(s_p,a_r);                                   // (m/min)
+    double q_out = v_s*pow(s_s,a_s);
+    //Evaporation
+    double C_p = s_p;
+    double C_l = s_l/t_L;
+    double C_s = s_s/b_L;
+    double Corr_evap = 1/(C_p + C_l + C_s);
+    double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+    double e_p = Corr_evap * C_p * e_pot;
+    double e_l = Corr_evap * C_l * e_pot;
+    double e_s = Corr_evap * C_s * e_pot;
+    //Update variables
+	double q_parent;
+	int q_pidx;
+    //Discharge
+    ans[0] = -q + ((q_pLink + q_out) * A_h / 60.0);
+	for (i = 0; i < num_parents; i++) {
+		q_pidx = i * dim;
+		q_parent = y_p[q_pidx];
+		ans[0] += q_parent;
+	}
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];
+    //Ponded
+    ans[1] = q_in - q_pl - q_pLink - e_p;
+    //Top Soil Layer
+    ans[2] = q_pl - q_ls - e_l;	
+    //Subsurface (saturated) soil
+    ans[3] = q_ls - q_out - e_s;
+}
+
+
+//Type 602
+//model with interflow, in this case we consider that there is also an interflow
+//from the toplayer
+//This is the first model from a set of models with all parameters taken from the disk not from the globals, I will starrt with a modifiction of the 225 Tiling model of morgan. 
+//The variables are river flow, ponded, top layer, subsurface layer.
+//Order of parameters: A_i,L_i,A_h,slope,tileQ,invtau,aNo,actT,LinSl,aTile,LinIn,
+//The numbering is:	0   1   2    3     4     5     6   7     8   9     10
+//Order of global_params: v_r,lambda_1,lambda_2,tL,bL,kdry,ki,k2
+//The numbering is:        0      1        2     3 4   5   6   7 
+void VariableInterflow(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    unsigned short i; 
+    //Distributed variables
+    double A_i = params[0];
+    double L_i = params[1];
+    double A_h = params[2];
+    double slope = params[3];
+    double v_r = params[4];
+    double a_r = params[5]; 
+    double v_l = params[6];
+    double a_l = params[7];
+    double v_s = params[8];
+    double a_s = params[9];
+    double k1 = params[10];
+    double k2 = params[11];
+    double t_L = params[12];
+    double b_L = params[13];
+    double lambda_1 = params[14];
+    double invtau = params[15];
+    //Variables
+    double q = y_i[0];		                                        // [m^3/s]
+    double s_p = y_i[1];	                                        // [m]
+    double s_l = y_i[2];	                                        // [m]
+    double s_s = y_i[3];
+    //Fluxes
+    double q_in = forcing_values[0] * (0.001/60);	//[m/min]
+    double q_pl = k1*pow((1-s_l/t_L),3)*s_p;                       // (m/min)
+    double q_ls = k2*s_l;			      // (m/min)
+    double q_pLink = v_r*pow(s_p,a_r);                                   // (m/min)
+    double q_lLink = v_l*pow(s_l,a_l);                                   // (m/min) 
+    //double C1 = v_s*pow(s_s,a_s);
+    //double C2 = 2.04e-6*s_s; 
+    double q_sLink = v_s*pow(s_s,a_s);
+    //Evaporation
+    double C_p = s_p;
+    double C_l = s_l/t_L;
+    double C_s = s_s/b_L;
+    double Corr_evap = 1/(C_p + C_l + C_s);
+    double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+    double e_p = Corr_evap * C_p * e_pot;
+    double e_l = Corr_evap * C_l * e_pot;
+    double e_s = Corr_evap * C_s * e_pot;
+    //Update variables
+	double q_parent;
+	int q_pidx;
+    //Discharge
+    ans[0] = -q + ((q_pLink + q_lLink + q_sLink) * A_h / 60.0);
+	for (i = 0; i < num_parents; i++) {
+		q_pidx = i * dim;
+		q_parent = y_p[q_pidx];
+		ans[0] += q_parent;
+	}
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];
+    //Ponded
+    ans[1] = q_in - q_pl - q_pLink - e_p;
+    //Top Soil Layer
+    ans[2] = q_pl - q_ls - q_lLink  - e_l;	
+    //Subsurface (saturated) soil
+    ans[3] = q_ls - q_sLink - e_s;
+}
+
+//Type 603
+//VariableTriLayer: model with variable parameters and three layers of soil, the
+//model has a total of five states: 0: streamflow, 1: runoff, 2 to 4 soil layers
+//The variables in the param file (.prm) are:
+// Ai, Li, Ah, So, v1, a1, v2, a2, v3, a3, v4, a4, h1, h2, h3, k1, k2, k3, lam1, lam2, v0.
+void VariableTriLayer(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    unsigned short i; 
+    //Distributed variables
+    double Ai = params[0];
+    double Li = params[1];
+    double Ah = params[2];
+    double slope = params[3];
+    double v1 = params[4];
+    double a1 = params[5]; 
+    double v2 = params[6];
+    double a2 = params[7];
+    double v3 = params[8];
+    double a3 = params[9];
+    double v4 = params[10];
+    double a4 = params[11];
+    double h1 = params[12];
+    double h2 = params[13];
+    double h3 = params[14];
+    double k1 = params[15];
+    double k2 = params[16];
+    double k3 = params[17];
+    double lambda1 = params[18];
+    double invtau = params[19];
+    //Variables
+    double q = y_i[0];		                                        // [m^3/s]
+    double sp = y_i[1];	                                        // [m]
+    double s1 = y_i[2];	                                        // [m]
+    double s2 = y_i[3];
+    double s3 = y_i[4];
+    //Vertical fluxes
+    double qin = forcing_values[0] * (0.001/60);	//[m/min]
+    double qv1 = k1*pow((1-s1/h1),3)*sp;                       // (m/min)
+    double qv2 = k2*s2;			      // (m/min)
+    double qv3 = k3*s3;
+    //Horizontal fluxes
+    double qh1 = v1*pow(sp,a1);
+    double qh2 = v2*pow(s1,a2);
+    double qh3 = v3*pow(s2,a3);
+    double qh4 = v4*pow(s3,a4);
+    //Evaporation
+    double Cp = sp;
+    double C1 = s1/h1;
+    double C2 = s2/h2;
+    double C3 = s3/h3;
+    double Corr_evap = 1/(Cp + C1 + C2 + C3);
+    double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+    double ep = Corr_evap * Cp * e_pot;
+    double e1 = Corr_evap * C1 * e_pot;
+    double e2 = Corr_evap * C2 * e_pot;
+    double e3 = Corr_evap * C3 * e_pot;
+    //Update variables
+	double q_parent;
+	int q_pidx;
+    //Discharge
+    ans[0] = -q + ((qh1+qh2+qh3) * Ah / 60.0);
+	for (i = 0; i < num_parents; i++) {
+		q_pidx = i * dim;
+		q_parent = y_p[q_pidx];
+		ans[0] += q_parent;
+	}
+    ans[0] = invtau * pow(q, lambda1) * ans[0];
+    //Ponded
+    ans[1] = qin - qv1 - qh1 - ep;
+    //Soil layers are almost the same
+    ans[2] = qv1 - qv2 - qh2 - e1;
+    ans[3] = qv2 - qv3 - qh3 - e2;
+    ans[4] = qv3 - qh4 - e3;
+}
+
+
+//Type 604
+//VariableTreshold: model similar to 602 but with a change of subsurface runoff
+//in function of the soil water storage.
+//model has a total of five states: 0: streamflow 1: runoff 2: top layer 3:
+//subsurface
+//The variables in the param file (.prm) are:
+// Ai, Li, Ah, So, v1, a1, v2, a2, v3, a3,   h1, h2, h3, k1, k2, k3, lam1, lam2, v0.
+void VariableThreshold(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    unsigned short i; 
+    //Distributed variables
+    double A_i = params[0];
+    double L_i = params[1];
+    double A_h = params[2];
+    double v_r = params[3];
+    double a_r = params[4];
+    double v_s1 = params[5];
+    double v_s2 = params[6];
+    double k1 = params[7];
+    double k2 = params[8];
+    double t_L = params[9];
+    double Si = params[10];
+    double Sn = params[11];
+    double lambda_1 = params[12];
+    double invtau = params[13];
+    double Is = params[14];
+    //Variables
+    double q = y_i[0];		                                        // [m^3/s]
+    double s_p = y_i[1];	                                        // [m]
+    double s_l = y_i[2];	                                        // [m]
+    double s_s = y_i[3];
+    double q_s = y_i[4];
+    //Fluxes
+    double q_in = forcing_values[0] * (0.001/60);	//[m/min]
+    double q_pl = k1*pow((1-s_l/t_L),3)*s_p;                       // (m/min)
+    double q_ls = k2*s_l;			      // (m/min)
+    double q_pLink = v_r*pow(s_p,a_r);                                   // (m/min)
+    double q_sLink = 0.0;
+    if (s_s < Si){
+        q_sLink = v_s1*(s_s - Sn);
+        ans[4] = 0.0;
+    }
+    else{
+        q_sLink = v_s2*(s_s - Si) + Is;
+        ans[4] = q_sLink;
+    }
+    ans[5] = q_sLink;
+    //ans[4] = q_sLink;
+    //Evaporation
+    double C_p = s_p;
+    double C_l = s_l/t_L;
+    double C_s = s_s/Si;
+    double Corr_evap = 1/(C_p + C_l + C_s);
+    double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+    double e_p = Corr_evap * C_p * e_pot;
+    double e_l = Corr_evap * C_l * e_pot;
+    double e_s = Corr_evap * C_s * e_pot;
+    //Update variables
+	double q_parent;
+	int q_pidx;
+    //Discharge
+    ans[0] = -q + ((q_pLink + q_sLink) * A_h / 60.0);
+	for (i = 0; i < num_parents; i++) {
+		q_pidx = i * dim;
+		q_parent = y_p[q_pidx];
+		ans[0] += q_parent;
+	}
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];
+    //Ponded
+    ans[1] = q_in - q_pl - q_pLink - e_p;
+    //Top Soil Layer
+    ans[2] = q_pl - q_ls - e_l;	
+    //Subsurface (saturated) soil
+    ans[3] = q_ls - q_sLink - e_s;
+    //Record the total rainfall in the run
+    ans[6] = q_in;
+}
+
+
+//Type 654
+//Variable_TopLayer: This is a version of the TopLayer model 254 with the
+//difference that in this case all variables could be distributed 
+//model has a total of four states: 0: streamflow 1: runoff 2: top layer 3:
+//subsurface
+//The variables in the param file (.prm) are:
+// Ai, Li, Ah, So, v1, a1, v2, a2, v3, a3,   h1, h2, h3, k1, k2, k3, lam1, lam2, v0.
+void Variable_TopLayer(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    unsigned short i;
+    //double A_i = params[0];
+    double A_i = params[0];
+    double L_i = params[1];
+    double A_h = params[2];
+    double v_h = params[3];
+    double k_i_f = params[4];
+    double k_3 = params[5];	//[1/min]
+    double h_b = params[6];	//[m]
+    double S_L = params[7];	//[m]
+    double A = params[8];
+    double B = params[9];
+    double exponent = params[10];
+    double lambda_1 = params[11];
+    double lambda_2 = params[12];
+    double v_0 = params[13];    
+    //double invtau = params[12];
+
+    //Precalculus    
+    double invtau = 60.0*v_0*pow(A_i, lambda_2)/((1.0 - lambda_1)*L_i);
+    double k_2 = v_h * L_i / A_h * 60.0;
+    double k_i = k_2 * k_i_f;
+    double c_2 = A_h / 60.0;
+    double c_1 = 0.001/60.;
+
+    //Initial conditions
+    double q = y_i[0];		//[m^3/s]
+    double s_p = y_i[1];	//[m]
+    double s_t = y_i[2];	//[m]
+    double s_s = y_i[3];	//[m]
+
+    //Evaporation
+    double e_p, e_t, e_s; 
+    double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+    double Corr = s_p + s_t / S_L + s_s / (h_b - S_L);
+    if (e_pot > 0.0 && Corr > 1e-12)
+    {
+        e_p = s_p * e_pot / Corr;
+        e_t = s_t / S_L * e_pot / Corr;
+        e_s = s_s / (h_b - S_L) * e_pot / Corr;
+    }
+    else
+    {
+        e_p = 0.0;
+        e_t = 0.0;
+        e_s = 0.0;
+    }
+
+    //Fluxes
+    double pow_term = (1.0 - s_t / S_L > 0.0) ? pow(1.0 - s_t / S_L, exponent) : 0.0;
+    double k_t = (A + B * pow_term) * k_2;
+    double q_pl = k_2 * s_p;
+    double q_pt = k_t * s_p;
+    double q_ts = k_i * s_t;
+    double q_sl = k_3 * s_s;	//[m/min]
+
+                                //Discharge
+    ans[0] = -q + (q_pl + q_sl) * c_2;
+    for (i = 0; i<num_parents; i++)
+        ans[0] += y_p[i * dim];
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];
+
+    //Hillslope
+    ans[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;
+    ans[2] = q_pt - q_ts - e_t;
+    ans[3] = q_ts - q_sl - e_s;
+
+}
+
+
+
+
+//Type 225
+//This model is used for the tiling experiments. The rainfall will run through the hillslope and requires an if/then statement. The variables are river flow, ponded, top layer, subsurface layer
+//Order of parameters: A_i,L_i,A_h,slope,tileQ,invtau,aNo,actT,LinSl,aTile,LinIn,
+//The numbering is:	0   1   2    3     4     5     6   7     8   9     10
+//Order of global_params: v_r,lambda_1,lambda_2,tL,bL,kdry,ki,k2
+//The numbering is:        0      1        2     3 4   5   6   7 
+void TilingHillslope(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    unsigned short i;
+    double lambda_1 = global_params[1];
+    double tL = global_params[3];
+    double bL = global_params[4];
+    double kdry = global_params[5];
+    double ki = global_params[6];
+    double k2 = global_params[7];
+    double A_h = params[2];
+    double tileQ = params[4];
+    double invtau = params[5];
+    double aNo = params[6];
+    double actTile = params[7];
+    double linSl = params[8];
+    double aTile = params[9];
+    double linInt = params[10];
+    //Variables
+    double q = y_i[0];		                                        // [m^3/s]
+    double s_p = y_i[1];	                                        // [m]
+    double s_l = y_i[2];	                                        // [m]
+    double s_s = y_i[3];
+    //Fluxes
+    double q_in = forcing_values[0] * (0.001/60);	//[m/min]
+    double q_pl = kdry*pow((1-s_l/tL),3)*s_p;                       // (m/min)
+    double q_ls = ki*s_l;			      // (m/min)
+    double q_pLink = k2*pow(s_p,1.67);                                   // (m/min)
+    double q_out = 0.0;
+    if (s_s > actTile){
+		if (tileQ > 0.5){
+            q_out = aTile * exp(21 * s_s);
+		} 
+        else{
+			q_out = aNo * s_s * exp(10 * s_s);
+		}
+	} 
+    else{
+        q_out = linSl * s_s + linInt;
+        //if (q_out < 0){
+         //   q_out = abs(linInt;
+       //}
+	}
+   // q_out = k2*0.015*pow(s_s, 2);
+    
+    //Evaporation
+    double C_p = s_p;
+    double C_l = s_l/tL;
+    double C_s = s_s/bL;
+    double Corr_evap = 1/(C_p + C_l + C_s);
+    double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+
+    double e_p = Corr_evap * C_p * e_pot;
+    double e_l = Corr_evap * C_l * e_pot;
+    double e_s = Corr_evap * C_s * e_pot;
+//    double e_s = 0.0
+
+	double q_parent;
+	int q_pidx;
+
+    //Discharge
+    ans[0] = -q + ((q_pLink + q_out) * A_h / 60.0);
+	for (i = 0; i < num_parents; i++) {
+		q_pidx = i * dim;
+		q_parent = y_p[q_pidx];
+		ans[0] += q_parent;
+	}
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];
+    //Ponded
+    ans[1] = q_in - q_pl - q_pLink - e_p;
+    //Top Soil Layer
+    ans[2] = q_pl - q_ls - e_l;	
+    //Subsurface (saturated) soil
+    ans[3] = q_ls - q_out - e_s;
+}
+
 //Type 250
 //Order of parameters: A_i,L_i,A_h,h_r,invtau,k_2,k_I,c_1,c_2
 //The numbering is:	0   1   2   3    4     5   6   7   8
+//E
 //Order of global_params: v_0,lambda_1,lambda_2,v_h,k_3,k_I_factor,gamma,h_b,e_pot
 //The numbering is:        0      1        2     3   4     5         6    7	8
 void NonLinearHillslope(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
@@ -455,12 +909,19 @@ void TopLayerHillslope_even_more_extras(double t, const double * const y_i, unsi
                             //double V_r = y_i[5];	//[m^3]
     double q_b = y_i[7];    //[m^3/s]
 
+    //Machete
+    if (s_p < 1e-10)
+    {
+        s_p = 1e-10;
+    }
+
+
     //Evaporation
     double e_p, e_t, e_s;
     double Corr = s_p + s_t / S_L + s_s / (h_b - S_L);
     if (e_pot > 0.0 && Corr > 1e-12)
     {
-        e_p = s_p * 1e3 * e_pot / Corr;
+        e_p = s_p * e_pot / Corr;
         e_t = s_t / S_L * e_pot / Corr;
         e_s = s_s / (h_b - S_L) * e_pot / Corr;
     }
@@ -565,7 +1026,7 @@ void model263(double t, const double * const y_i, unsigned int dim, const double
     double Corr = s_p + s_t / S_L + s_s / (h_b - S_L);
     if (e_pot > 0.0 && Corr > 1e-12)
     {
-        e_p = s_p * 1e3 * e_pot / Corr;
+        e_p = s_p * e_pot / Corr;
         e_t = s_t / S_L * e_pot / Corr;
         e_s = s_s / (h_b - S_L) * e_pot / Corr;
     }
@@ -3785,16 +4246,8 @@ void river_rainfall_summary(double t, const double * const y_i, unsigned int dim
     for (i = 0; i<num_parents; i++)
         ans[0] += y_p[i * dim];
     ans[0] = invtau * pow(q, lambda_1) * ans[0];
-
-    //Ponded water equation (y_i[1])
-    ans[1] = c_2 * forcing_values[0] - c_3 * s53;
 }
-
-
-
-//Type 219
-//This model is used for the tiling experiments. The rainfall is treated as the input from the hillslope.
-//Order of parameters: A_i,L_i,A_h,invtau,c_1
+    //Ponded water equation (y_i[1])
 //The numbering is:	0   1   2    3     4
 //Order of global_params: v_0,lambda_1,lambda_2
 //The numbering is:        0      1        2
