@@ -6,5 +6,8 @@ module load hdf5/1.8.18_parallel_studio-2017.1
 module load openmpi/2.0.1_parallel_studio-2017.1   
 
 ../configure --prefix=/Users/nicolas/Tiles/dist CFLAGS="-O3 -march=core-avx2 -DNDEBUG"
+#../configure --prefix=/Users/nicolas/Tiles/dist CFLAGS="-g -Wall -Wextra"
+
+
 make
 make install
