@@ -407,13 +407,11 @@ void VariableThreshold3(double t, const double * const y_i, unsigned int dim, co
         q_sLink = v_s1*(s_s - S1);
         ans[4] = 0.0;
     }
-    else if (s_s >= S2 && s_s < S3 )
-    {
+    else if (s_s >= S2 && s_s < S3 ){
         q_sLink = v_s2*(s_s - S2) + I1;
         ans[4] = q_sLink;
     }
-    else if (s_s >= S3 && s_s < S4 )
-    {
+    else if (s_s >= S3 && s_s < S4 ){
         q_sLink = v_s3*(s_s - S3) + I2;
         ans[4] = q_sLink;
     }
@@ -426,7 +424,7 @@ void VariableThreshold3(double t, const double * const y_i, unsigned int dim, co
     //Evaporation
     double C_p = s_p;
     double C_l = s_l/t_L;
-    double C_s = s_s/Si;
+    double C_s = s_s/S2;
     double Corr_evap = 1/(C_p + C_l + C_s);
     double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
     double e_p = Corr_evap * C_p * e_pot;
