@@ -358,6 +358,101 @@ void VariableThreshold(double t, const double * const y_i, unsigned int dim, con
     ans[6] = q_in;
 }
 
+//Type 605
+//VariableTreshold3: similar to 604, in this case there are 3 different slopes
+//in function of the soil water storage.
+//model has a total of five states: 0: streamflow 1: runoff 2: top layer 3:
+//subsurface
+//The variables in the param file (.prm) are:
+// Ai, Li, Ah, So, v1, a1, v2, a2, v3, a3,   h1, h2, h3, k1, k2, k3, lam1, lam2, v0.
+void VariableThreshold3(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    unsigned short i; 
+    //Distributed variables
+    double A_i = params[0];
+    double L_i = params[1];
+    double A_h = params[2];
+    double v_r = params[3];
+    double a_r = params[4];
+    double v_s1 = params[5];
+    double v_s2 = params[6];
+    double v_s3 = params[7];
+    double v_s4 = params[8];
+    double k1 = params[9];
+    double k2 = params[10];
+    double t_L = params[11];
+    double S1 = params[12];
+    double S2 = params[13];
+    double S3 = params[14];
+    double S4 = params[15];
+    double lambda_1 = params[16];
+    double invtau = params[17];
+    double I1 = params[18];
+    double I2 = params[19];
+    double I3 = params[20];
+    //Variables
+    double q = y_i[0];		                                        // [m^3/s]
+    double s_p = y_i[1];	                                        // [m]
+    double s_l = y_i[2];	                                        // [m]
+    double s_s = y_i[3];
+    double q_s = y_i[4];
+    //Fluxes
+    double q_in = forcing_values[0] * (0.001/60);	//[m/min]
+    double q_pl = k1*pow((1-s_l/t_L),3)*s_p;                       // (m/min)
+    double q_ls = k2*s_l;			      // (m/min)
+    double q_pLink = v_r*pow(s_p,a_r);                                   // (m/min)
+    //subsurface runoff
+    double q_sLink = 0.0;
+    if (s_s < S2){
+        q_sLink = v_s1*(s_s - S1);
+        ans[4] = 0.0;
+    }
+    else if (s_s >= S2 && s_s < S3 )
+    {
+        q_sLink = v_s2*(s_s - S2) + I1;
+        ans[4] = q_sLink;
+    }
+    else if (s_s >= S3 && s_s < S4 )
+    {
+        q_sLink = v_s3*(s_s - S3) + I2;
+        ans[4] = q_sLink;
+    }
+    else{
+        q_sLink = v_s4*(s_s - S4) + I3;
+        ans[4] = q_sLink;
+    }
+    ans[5] = q_sLink;
+    
+    //Evaporation
+    double C_p = s_p;
+    double C_l = s_l/t_L;
+    double C_s = s_s/Si;
+    double Corr_evap = 1/(C_p + C_l + C_s);
+    double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+    double e_p = Corr_evap * C_p * e_pot;
+    double e_l = Corr_evap * C_l * e_pot;
+    double e_s = Corr_evap * C_s * e_pot;
+    //Update variables
+	double q_parent;
+	int q_pidx;
+    //Discharge
+    ans[0] = -q + ((q_pLink + q_sLink) * A_h / 60.0);
+	for (i = 0; i < num_parents; i++) {
+		q_pidx = i * dim;
+		q_parent = y_p[q_pidx];
+		ans[0] += q_parent;
+	}
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];
+    //Ponded
+    ans[1] = q_in - q_pl - q_pLink - e_p;
+    //Top Soil Layer
+    ans[2] = q_pl - q_ls - e_l;	
+    //Subsurface (saturated) soil
+    ans[3] = q_ls - q_sLink - e_s;
+    //Record the total rainfall in the run
+    ans[6] = q_in;
+}
+
 
 //Type 654
 //Variable_TopLayer: This is a version of the TopLayer model 254 with the

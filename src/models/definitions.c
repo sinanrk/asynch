@@ -398,6 +398,18 @@ case 20:	num_global_params = 9;
         globals->min_error_tolerances = 3;
         break;
 
+    case 605:	num_global_params = 1;
+        globals->uses_dam = 0;
+        globals->num_params = 21;
+        globals->dam_params_size = 0;
+        globals->area_idx = 0;
+        globals->areah_idx = 2;
+        globals->num_disk_params = 19;
+        globals->convertarea_flag = 0;
+        globals->num_forcings = 2;
+        globals->min_error_tolerances = 3;
+        break;
+
 
     case 654:	num_global_params = 1;
         globals->uses_dam = 0;
@@ -798,7 +810,7 @@ void ConvertParams(
         params[1] *= 1000;	//L: km -> m
         params[2] *= 1e6;	//A_h: km^2 -> m^2
     }
-    else if (model_uid == 601 || model_uid == 602 || model_uid == 603 || model_uid == 604)
+    else if (model_uid == 601 || model_uid == 602 || model_uid == 603 || model_uid == 604 || model_uid == 605)
     {
         params[1] *= 1000; //L: km -> m
         params[2] *= 1e6; // Ah: km^2 -> m^2
@@ -1317,7 +1329,7 @@ void InitRoutines(
     }
 
 
-    else if (model_uid == 604)
+    else if (model_uid == 604 || model_uid == 605)
     {
         link->dim = 7;
         link->no_ini_start = link->dim;
@@ -2320,6 +2332,36 @@ void Precalculations(
 
     }
 
+    else if (model_uid == 605)
+    {
+        double* vals = params;
+        double A_i = params[0];
+        double L_i = params[1];
+        double A_h = params[2];
+        double v_r = params[3];
+        double a_r = params[4];
+        double v_s1 = params[5];
+        double v_s2 = params[6];
+        double v_s3 = params[7];
+        double v_s4 = params[8];
+        double k1 = params[9];
+        double k2 = params[10];
+        double t_L = params[11];
+        double S1 = params[12];
+        double S2 = params[13];
+        double S3 = params[14];
+        double S4 = params[15];
+        double lambda_1 = params[16];
+        double lambda_2 = params[17];
+        double v0 = params[18];
+
+        vals[17] = 60.0*v0*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
+        
+        vals[18] = v_s1*(S2 - S1);// first intercept
+        vals[19] = v_s2*(S3 - S2) + vals[18];// second intercept
+        vals[20] = v_s3*(S4 - S3) + vals[19] + vals[18];// third intercept
+
+    }
 
     else if (model_uid == 654)
     {
