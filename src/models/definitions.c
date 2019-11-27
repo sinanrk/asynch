@@ -1329,7 +1329,7 @@ void InitRoutines(
     }
 
 
-    else if (model_uid == 604 || model_uid == 605)
+    else if (model_uid == 604)
     {
         link->dim = 7;
         link->no_ini_start = link->dim;
@@ -1346,6 +1346,23 @@ void InitRoutines(
         //link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
     }
 
+
+    else if (model_uid == 605)
+    {
+        link->dim = 7;
+        link->no_ini_start = link->dim;
+        link->diff_start = 0;
+
+        link->num_dense = 1;
+        link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+        link->dense_indices[0] = 0;
+        link->differential = &VariableThreshold3;
+        link->algebraic = NULL;
+        link->check_state = NULL;
+        link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+            //&CheckConsistency_Nonzero_5States;
+        //link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+    }
 
     else if (model_uid == 654)
     {

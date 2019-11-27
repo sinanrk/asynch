@@ -512,11 +512,12 @@ void Variable_TopLayer(double t, const double * const y_i, unsigned int dim, con
     //Fluxes
     double pow_term = (1.0 - s_t / S_L > 0.0) ? pow(1.0 - s_t / S_L, exponent) : 0.0;
     double k_t = (A + B * pow_term) * k_2;
-    double q_pl = k_2 * s_p;
+    //double q_pl = k_2 * s_p;
     double q_pt = k_t * s_p;
     double q_ts = k_i * s_t;
     double q_sl = k_3 * s_s;	//[m/min]
 
+    double q_pl = k_2*pow(s_p,1.67);
                                 //Discharge
     ans[0] = -q + (q_pl + q_sl) * c_2;
     for (i = 0; i<num_parents; i++)
