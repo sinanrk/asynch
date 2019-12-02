@@ -400,7 +400,7 @@ case 20:	num_global_params = 9;
 
     case 605:	num_global_params = 1;
         globals->uses_dam = 0;
-        globals->num_params = 21;
+        globals->num_params = 22;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
@@ -2373,10 +2373,12 @@ void Precalculations(
         double v0 = params[18];
 
         vals[17] = 60.0*v0*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
-        
-        vals[18] = v_s1*(S2 - S1);// first intercept
-        vals[19] = v_s2*(S3 - S2) + vals[18];// second intercept
-        vals[20] = v_s3*(S4 - S3) + vals[19] + vals[18];// third intercept
+        vals[18] = v_r * (L_i / A_h) * 60; // [1/min] runoff speed.
+
+
+        vals[19] = v_s1*(S2 - S1);// first intercept
+        vals[20] = v_s2*(S3 - S2) + vals[19];// second intercept
+        vals[21] = v_s3*(S4 - S3) + vals[20] + vals[19];// third intercept
 
     }
 

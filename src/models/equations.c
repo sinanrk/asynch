@@ -372,7 +372,7 @@ void VariableThreshold3(double t, const double * const y_i, unsigned int dim, co
     double A_i = params[0];
     double L_i = params[1];
     double A_h = params[2];
-    double v_r = params[3];
+    double v_r = params[18];
     double a_r = params[4];
     double v_s1 = params[5];
     double v_s2 = params[6];
@@ -387,9 +387,9 @@ void VariableThreshold3(double t, const double * const y_i, unsigned int dim, co
     double S4 = params[15];
     double lambda_1 = params[16];
     double invtau = params[17];
-    double I1 = params[18];
-    double I2 = params[19];
-    double I3 = params[20];
+    double I1 = params[19];
+    double I2 = params[20];
+    double I3 = params[21];
     //Variables
     double q = y_i[0];		                                        // [m^3/s]
     double s_p = y_i[1];	                                        // [m]
