@@ -409,7 +409,42 @@ case 20:	num_global_params = 9;
         globals->num_forcings = 2;
         globals->min_error_tolerances = 3;
         break;
+ 
+    case 606:	num_global_params = 1;
+        globals->uses_dam = 0;
+        globals->num_params = 18;
+        globals->dam_params_size = 0;
+        globals->area_idx = 0;
+        globals->areah_idx = 2;
+        globals->num_disk_params = 18;
+        globals->convertarea_flag = 0;
+        globals->num_forcings = 2;
+        globals->min_error_tolerances = 3;
+        break;
 
+    case 608:	num_global_params = 1;
+        globals->uses_dam = 0;
+        globals->num_params = 18;
+        globals->dam_params_size = 0;
+        globals->area_idx = 0;
+        globals->areah_idx = 2;
+        globals->num_disk_params = 18;
+        globals->convertarea_flag = 0;
+        globals->num_forcings = 2;
+        globals->min_error_tolerances = 3;
+        break;
+
+    case 607:	num_global_params = 1;
+        globals->uses_dam = 0;
+        globals->num_params = 15;
+        globals->dam_params_size = 0;
+        globals->area_idx = 0;
+        globals->areah_idx = 2;
+        globals->num_disk_params = 15;
+        globals->convertarea_flag = 0;
+        globals->num_forcings = 2;
+        globals->min_error_tolerances = 3;
+        break;
 
     case 654:	num_global_params = 1;
         globals->uses_dam = 0;
@@ -810,13 +845,13 @@ void ConvertParams(
         params[1] *= 1000;	//L: km -> m
         params[2] *= 1e6;	//A_h: km^2 -> m^2
     }
-    else if (model_uid == 601 || model_uid == 602 || model_uid == 603 || model_uid == 604 || model_uid == 605)
+    else if (model_uid == 601 || model_uid == 602 || model_uid == 603 || model_uid == 604 || model_uid == 605 || model_uid == 606 || model_uid == 607)
     {
         params[1] *= 1000; //L: km -> m
         params[2] *= 1e6; // Ah: km^2 -> m^2
     }
 
-    else if (model_uid == 654)
+    else if (model_uid == 654 || model_uid == 608)
     {
         params[1] *= 1000; //L: km -> m
         params[2] *= 1e6; // Ah: km^2 -> m^2
@@ -1357,6 +1392,57 @@ void InitRoutines(
         link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
         link->dense_indices[0] = 0;
         link->differential = &VariableThreshold3;
+        link->algebraic = NULL;
+        link->check_state = NULL;
+        link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+            //&CheckConsistency_Nonzero_5States;
+        //link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+    }
+
+    
+    else if (model_uid == 606)
+    {
+        link->dim = 7;
+        link->no_ini_start = link->dim;
+        link->diff_start = 0;
+
+        link->num_dense = 1;
+        link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+        link->dense_indices[0] = 0;
+        link->differential = &ExponentialExp;
+        link->algebraic = NULL;
+        link->check_state = NULL;
+        link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+            //&CheckConsistency_Nonzero_5States;
+        //link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+    }
+
+    else if (model_uid == 608)
+    {
+        link->dim = 7;
+        link->no_ini_start = link->dim;
+        link->diff_start = 0;
+
+        link->num_dense = 1;
+        link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+        link->dense_indices[0] = 0;
+        link->differential = &TilesModel;
+        link->algebraic = NULL;
+        link->check_state = NULL;
+        link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+            //&CheckConsistency_Nonzero_5States;
+        //link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+    }
+    else if (model_uid == 607)
+    {
+        link->dim = 7;
+        link->no_ini_start = link->dim;
+        link->diff_start = 0;
+
+        link->num_dense = 1;
+        link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+        link->dense_indices[0] = 0;
+        link->differential = &ExponentialExp2;
         link->algebraic = NULL;
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
@@ -2380,6 +2466,83 @@ void Precalculations(
         vals[20] = v_s2*(S3 - S2) + vals[19];// second intercept
         vals[21] = v_s3*(S4 - S3) + vals[20] + vals[19];// third intercept
 
+    }
+
+
+    else if (model_uid == 606)
+    { 
+        double* vals = params;
+        double A_i = params[0];
+        double L_i = params[1];
+        double A_h = params[2];
+        double v_r = params[3];
+        double a_r = params[4];
+        double a = params[5];
+        double b = params[6];
+        double m = params[7];
+        double mt = params[8];
+        double k1 = params[9];
+        double k2 = params[10];
+        double t_L = params[11];
+        double NoFlow = params[12];
+        double Td = params[13];
+        double Beta = params[14];
+        double lambda_1 = params[15];
+        double lambda_2 = params[16];
+        double v0 = params[17];
+
+        vals[16] = 60.0*v0*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
+        vals[17] = v_r * (L_i / A_h) * 60; // [1/min] runoff speed.
+    }
+
+    else if (model_uid == 608)
+    { 
+        double* vals = params;
+        double A_i = params[0];
+        double L_i = params[1];
+        double A_h = params[2];
+        double v_r = params[3];
+        double a_r = params[4];
+        double a = params[5];
+        double b = params[6]; 
+        double c = params[7];
+        double d = params[8];
+        double k3 = params[9];
+        double ki_fac = params[10];
+        //double k2 = params[11];
+        double t_L = params[11];
+        double NoFlow = params[12];
+        double Td = params[13];
+        double Beta = params[14];
+        double lambda_1 = params[15];
+        double lambda_2 = params[16];
+        double v0 = params[17];
+        
+        vals[16] = 60.0*v0*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
+        vals[17] = v_r * (L_i / A_h) * 60; // [1/min] runoff speed.
+    }
+
+    else if (model_uid == 607)
+    { 
+        double* vals = params;
+        double A_i = params[0];
+        double L_i = params[1];
+        double A_h = params[2];
+        double v_r = params[3];
+        double a_r = params[4];
+        double a = params[5];
+        double c = params[6];
+        double m = params[7];
+        double k1 = params[8];
+        double k2 = params[9];
+        double t_L = params[10];
+        double Beta = params[11];
+        double lambda_1 = params[12];
+        double lambda_2 = params[13];
+        double v0 = params[14];
+
+        vals[13] = 60.0*v0*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
+        vals[14] = v_r * (L_i / A_h) * 60; // [1/min] runoff speed.
     }
 
     else if (model_uid == 654)
