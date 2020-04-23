@@ -1090,7 +1090,7 @@ void TopLayerHillslope_extras(double t, const double * const y_i, unsigned int d
     double Corr = s_p + s_t / S_L + s_s / (h_b - S_L);
     if (e_pot > 0.0 && Corr > 1e-12)
     {
-        e_p = s_p * 1e3 * e_pot / Corr;
+        e_p = s_p * e_pot / Corr;
         e_t = s_t / S_L * e_pot / Corr;
         e_s = s_s / (h_b - S_L) * e_pot / Corr;
     }
