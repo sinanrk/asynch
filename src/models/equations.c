@@ -1055,7 +1055,7 @@ void TopLayerHillslope_Reservoirs(double t, const double * const y_i, unsigned i
 //The numbering is:	0   1   2     3    4   5   6   7
 //Order of global_params: v_0,lambda_1,lambda_2,v_h,k_3,k_I_factor,h_b,S_L,A,B,exponent,v_B
 //The numbering is:        0      1        2     3   4     5        6   7  8 9  10       11
-void TopLayerHillslope_extras(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+void model254(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
 {
     unsigned short i;
 

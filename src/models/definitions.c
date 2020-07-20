@@ -1532,7 +1532,7 @@ void InitRoutines(
             link->differential = &TopLayerHillslope_Reservoirs;
             link->solver = &ForcedSolutionSolver;
         }
-        else			link->differential = &TopLayerHillslope_extras;
+        else			link->differential = &model254;
         link->algebraic = NULL;
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
