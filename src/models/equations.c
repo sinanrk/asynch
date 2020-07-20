@@ -612,10 +612,11 @@ void TilesModel(double t, const double * const y_i, unsigned int dim, const doub
         //q_inT = 0.001 * (s_s - Td);
         q_sLink += q_inT;         // Tile flow in function of the tile act depth and tile slopei 
         //q_sLink += 0.005 * (s_s - Td);
-        ans[4] = q_inT;                                        //updates the outflow with the subsurface to tile
+        //ans[4] = q_inT;                                        //updates the outflow with the subsurface to tile
     }    
     //q_outT = d * pow(s_t, a_r);                               // Tile bring water regardless of the level of the subsurface level
     //q_outT = d * s_t;
+    ans[4] = q_in;              // Temporal (records the rain
     ans[5] = q_sLink;                                            // Total tile outflow
     //Evaporation
     double C_p = s_p;
