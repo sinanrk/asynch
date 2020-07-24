@@ -69,7 +69,8 @@ double sq(double x) { return x * x; }
 
 
 //Type 601
-//This is the first model from a set of models with all parameters taken from the disk not from the globals, I will starrt with a modifiction of the 225 Tiling model of morgan. 
+//This is the first model from a set of models with all parameters taken from the disk not from the globals,
+// I will start with a modifiction of the 225 Tiling model of morgan.
 //The variables are river flow, ponded, top layer, subsurface layer.
 //Order of parameters: A_i,L_i,A_h,slope,tileQ,invtau,aNo,actT,LinSl,aTile,LinIn,
 //The numbering is:	0   1   2    3     4     5     6   7     8   9     10
@@ -961,12 +962,13 @@ void NonLinearHillslope(double t, const double * const y_i, unsigned int dim, co
 
 
 //Type 252
+//TopLayer Hillslope
 //Contains 3 layers on hillslope: ponded, top layer, soil
 //Order of parameters: A_i,L_i,A_h,invtau,k_2,k_i,c_1,c_2
 //The numbering is:	0   1   2     3    4   5   6   7
 //Order of global_params: v_0,lambda_1,lambda_2,v_h,k_3,k_I_factor,h_b,S_L,A,B,exponent
 //The numbering is:        0      1        2     3   4     5        6   7  8 9  10
-void TopLayerHillslope(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+void model252(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
 {
     unsigned short i;
 
@@ -1246,12 +1248,14 @@ void dam_TopLayerHillslope_variable(const double * const y_i, unsigned int num_d
 }
 
 //Type 256
-//Contains 3 layers on hillslope: ponded, top layer, soil. Also has 3 extra states: total precip, total ET, total runoff, base flow
+//TopLayerHillslope_even_more_extras.
+//Contains 3 layers on hillslope: ponded, top layer, soil.
+// Also has 3 extra states: total precip, total ET, total runoff, base flow
 //Order of parameters: A_i,L_i,A_h,invtau,k_2,k_i,c_1,c_2
 //The numbering is:	0   1   2     3    4   5   6   7
 //Order of global_params: v_0,lambda_1,lambda_2,v_h,k_3,k_I_factor,h_b,S_L,A,B,exponent,v_B,k_tl
 //The numbering is:        0      1        2     3   4     5        6   7  8 9  10       11   12
-void TopLayerHillslope_even_more_extras(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+void model256(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
 {
     unsigned short i;
 
