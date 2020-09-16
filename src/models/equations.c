@@ -1003,7 +1003,7 @@ void model252(double t, const double * const y_i, unsigned int dim, const double
     double Corr = s_p + s_t / S_L + s_s / (h_b - S_L);
     if (e_pot > 0.0 && Corr > 1e-12)
     {
-        e_p = s_p * 1e3 * e_pot / Corr;
+        e_p = s_p  * e_pot / Corr;
         e_t = s_t / S_L * e_pot / Corr;
         e_s = s_s / (h_b - S_L) * e_pot / Corr;
     }
@@ -1036,15 +1036,68 @@ void model252(double t, const double * const y_i, unsigned int dim, const double
 }
 
 
-//Type 253 / 255
+//Type 253 , 255
 //Contains 3 layers on hillslope: ponded, top layer, soil
 //Order of parameters: A_i,L_i,A_h,invtau,k_2,k_i,c_1,c_2
 //The numbering is:	0   1   2     3    4   5   6   7
 //Order of global_params: v_0,lambda_1,lambda_2,v_h,k_3,k_I_factor,h_b,S_L,A,B,exponent
 //The numbering is:        0      1        2     3   4     5        6   7  8 9  10
 void TopLayerHillslope_Reservoirs(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
-{
-    ans[0] = forcing_values[2];
+{	
+	if(forcing_values[2] >0){
+		ans[0] = forcing_values[2];
+	}
+    if(forcing_values[2] <=0){
+		
+		// double lambda_1 = global_params[1];
+		// double k_3 = global_params[4];	//[1/min]
+		// double h_b = global_params[6];	//[m]
+		// double S_L = global_params[7];	//[m]
+		// double A = global_params[8];
+		// double B = global_params[9];
+		// double exponent = global_params[10];
+		// double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+		// double L = params[1];	//[m]
+		// double A_h = params[2];	//[m^2]
+		// double invtau = params[3];	//[1/min]
+		// double k_2 = params[4];	//[1/min]
+		// double k_i = params[5];	//[1/min]
+		// double c_1 = params[6];
+		// double c_2 = params[7];
+		// double q = y_i[0];	//[m^3/s]
+		// double s_p = y_i[1];	//[m]
+		// double s_t = y_i[2];	//[m]
+		// double s_s = y_i[3];	//[m]
+		// //Evaporation
+		// double e_p, e_t, e_s;
+		// double Corr = s_p + s_t / S_L + s_s / (h_b - S_L);
+		// if (e_pot > 0.0 && Corr > 1e-12)
+		// {
+			// e_p = s_p  * e_pot / Corr;
+			// e_t = s_t / S_L * e_pot / Corr;
+			// e_s = s_s / (h_b - S_L) * e_pot / Corr;
+		// }
+		// else
+		// {
+			// e_p = 0.0;
+			// e_t = 0.0;
+			// e_s = 0.0;
+		// }
+		// double pow_term = (1.0 - s_t / S_L > 0.0) ? pow(1.0 - s_t / S_L, exponent) : 0.0;
+		// double k_t = (A + B * pow_term) * k_2;
+		// //Fluxes
+		// double q_pl = k_2 * s_p;
+		// double q_sl = k_3 * s_s;
+		// //Discharge
+		// ans[0] = -q + (q_pl + q_sl) * c_2;
+		// for (i = 0; i<num_parents; i++)
+			// ans[0] += y_p[i * dim];
+		// ans[0] = invtau * pow(q, lambda_1) * ans[0];
+		//ans[0] = 1.0;
+		unsigned short i;
+		for (i = 0; i<num_parents; i++)
+			ans[0] += y_p[i * dim];
+	}
     ans[1] = 0.0;
     ans[2] = 0.0;
     ans[3] = 0.0;

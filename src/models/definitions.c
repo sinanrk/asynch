@@ -1491,7 +1491,7 @@ void InitRoutines(
         link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
         link->dense_indices[0] = 0;
 
-        link->differential = &TopLayerHillslope;
+        link->differential = &model252;
         link->algebraic = NULL;
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
@@ -1511,7 +1511,7 @@ void InitRoutines(
             link->differential = &TopLayerHillslope_Reservoirs;
             link->solver = &ForcedSolutionSolver;
         }
-        else			link->differential = &TopLayerHillslope;
+        else			link->differential = &model254;
         link->algebraic = NULL;
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
@@ -1529,7 +1529,7 @@ void InitRoutines(
 
         if (link->has_res)
         {
-            link->differential = &TopLayerHillslope_Reservoirs;
+            link->differential = &model254;
             link->solver = &ForcedSolutionSolver;
         }
         else			link->differential = &model254;
@@ -1579,7 +1579,7 @@ void InitRoutines(
             link->solver = &ForcedSolutionSolver;
         }
         else		
-            link->differential = &TopLayerHillslope_even_more_extras;
+            link->differential = &model256;
         link->algebraic = NULL;
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
