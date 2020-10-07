@@ -558,6 +558,23 @@ void ExponentialExp(double t, const double * const y_i, unsigned int dim, const 
 //subsurface
 //The variables in the param file (.prm) are:
 // Ai, Li, Ah, So, v1, a1, v2, a2, v3, a3,   h1, h2, h3, k1, k2, k3, lam1, lam2, v0.
+void Tiles_Reservoirs(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    if(forcing_values[2] > 0){
+        ans[0] = forcing_values[2];
+    }
+    if(forcing_values[2] <=0){
+        unsigned short i;
+        for (i =0; i<num_parents; i++)
+            ans[0] += y_p[i*dim];
+    }
+    ans[1] = 0.0;
+    ans[2] = 0.0;
+    ans[3] = 0.0;
+    ans[4] = 0.0;
+    ans[5] = 0.0;
+}
+
 void TilesModel(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
 {
     unsigned short i; 
@@ -591,9 +608,10 @@ void TilesModel(double t, const double * const y_i, unsigned int dim, const doub
     double q_in = forcing_values[0] * (0.001/60);	//[m/min]
     
     double pow_t = (1.0 - s_l/t_L > 0.0)? pow(1.0 - s_l/t_L,3): 0.0;
-    
+    double pow_t2 = (4.7 - 3.4*(s_s/1.67) > 0.0)? pow(4.7 - 3.4*(s_s/1.67),0.405): 0.0; // Exp kind of Green y Ampt 
     double q_pl = k2*99.0*pow_t*s_p;
-    double q_ls = k2*ki_fac*s_l;
+    //double q_ls = k2*ki_fac*s_l;
+    double q_ls = k2*ki_fac*pow_t2*s_l; //Exp Green y Ampt approach
     double q_pLink = k2*s_p;
     //subsurface runoff
     double q_sLink = 0.0;
@@ -622,7 +640,7 @@ void TilesModel(double t, const double * const y_i, unsigned int dim, const doub
     //Evaporation
     double C_p = s_p;
     double C_l = s_l/t_L;
-    double C_s = s_s/Beta;
+    double C_s = s_s/(Beta-NoFlow);
     double Corr_evap = 1/(C_p + C_l + C_s);
     double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
     double e_p = Corr_evap * C_p * e_pot;
@@ -646,11 +664,118 @@ void TilesModel(double t, const double * const y_i, unsigned int dim, const doub
     //Subsurface (saturated) soil
     ans[3] = q_ls - q_sLink - e_s;
     //Tile storage
-    //ans[4] = q_inT - q_outT;
+    //ans[6] = q_in;
+    //ans[7] = q_pLink;
     
     //Record the total rainfall in the run
     //ans[7] = q_in;
 }
+
+
+//Type 609
+//VariableTreshold3: similar to 604, in this case there are 3 different slopes
+//in function of the soil water storage.
+//model has a total of five states: 0: streamflow 1: runoff 2: top layer 3:
+//subsurface
+//The variables in the param file (.prm) are:
+// Ai, Li, Ah, So, v1, a1, v2, a2, v3, a3,   h1, h2, h3, k1, k2, k3, lam1, lam2, v0.
+void TilesModel_inter(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    unsigned short i; 
+    //Distributed variables
+    double A_i = params[0];
+    double L_i = params[1];
+    double A_h = params[2];
+    double v_r = params[3];
+    double a_r = params[4];
+    double a = params[5];
+    double b = params[6];
+    double c = params[7];
+    double d = params[8];
+    double k3 = params[9];
+    double ki_fac = params[10];
+    double t_L = params[11];
+    double ktl = params[12];
+    double NoFlow = params[13];
+    double Td = params[14];
+    double Beta = params[15];
+    double lambda_1 = params[16];
+    // Processed parameters
+    double invtau = params[17];
+    double k2 = params[18];
+    //Variables or sttates
+    double q = y_i[0];		                                        // [m^3/s]
+    double s_p = y_i[1];	                                        // [m]
+    double s_l = y_i[2];	                                        // [m]
+    double s_s = y_i[3];
+    //double s_t = y_i[4];
+    //Fluxes
+    double q_in = forcing_values[0] * (0.001/60);	//[m/min]
+    
+    double pow_t = (1.0 - s_l/t_L > 0.0)? pow(1.0 - s_l/t_L,3): 0.0;
+    
+    double q_pl = k2*99.0*pow_t*s_p;
+    double q_ls = k2*ki_fac*s_l;
+    double q_pLink = k2*s_p;
+    double q_tLink = ktl*s_l;
+    //subsurface runoff
+    double q_sLink = 0.0;
+    double q_inT = 0.0;
+    //double q_outT = 0.0;
+    //Base flow
+    if (s_s > NoFlow){
+        q_sLink += k3 * (s_s - NoFlow);                          // Base flow or linear portion
+    } 
+    //Active flow
+    if (s_s>Beta){
+        q_sLink += (s_s - Beta) * a * exp(b * (s_s - Beta));    // Active runoff explained by an exponential func
+    }  
+    //Tile flow
+    if (s_s > Td){
+        q_inT =  (s_s - Td) * c * exp(d *  (s_s - Td));
+        //q_inT = 0.001 * (s_s - Td);
+        q_sLink += q_inT;         // Tile flow in function of the tile act depth and tile slopei 
+        //q_sLink += 0.005 * (s_s - Td);
+        //ans[4] = q_inT;                                        //updates the outflow with the subsurface to tile
+    }    
+    //q_outT = d * pow(s_t, a_r);                               // Tile bring water regardless of the level of the subsurface level
+    //q_outT = d * s_t;
+    ans[4] = q_in;              // Temporal (records the rain
+    ans[5] = q_sLink;                                            // Total tile outflow
+    //Evaporation
+    double C_p = s_p;
+    double C_l = s_l/t_L;
+    double C_s = s_s/(Beta-NoFlow);
+    double Corr_evap = 1/(C_p + C_l + C_s);
+    double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+    double e_p = Corr_evap * C_p * e_pot * 1e3;
+    double e_l = Corr_evap * C_l * e_pot;
+    double e_s = Corr_evap * C_s * e_pot;
+    //Update variables
+	double q_parent;
+	int q_pidx;
+    //Discharge
+    ans[0] = -q + ((q_pLink + q_sLink + q_tLink) * A_h / 60.0);
+	for (i = 0; i < num_parents; i++) {
+		q_pidx = i * dim;
+		q_parent = y_p[q_pidx];
+		ans[0] += q_parent;
+	}
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];
+    //Ponded
+    ans[1] = q_in - q_pl - q_pLink - e_p;
+    //Top Soil Layer
+    ans[2] = q_pl - q_ls - q_tLink - e_l;	
+    //Subsurface (saturated) soil
+    ans[3] = q_ls - q_sLink - e_s;
+    //Tile storage
+    //ans[6] = q_in;
+    //ans[7] = q_pLink;
+    
+    //Record the total rainfall in the run
+    //ans[7] = q_in;
+}
+
 //Type 607
 //ExponentialExp2: This follows the Morgan formulation completly
 //in function of the soil water storage.
@@ -1180,6 +1305,7 @@ void model254(double t, const double * const y_i, unsigned int dim, const double
     //Additional states
     ans[4] = forcing_values[0] * c_1;
     ans[5] = q_pl;
+    //ans[6] = q_in
     ans[6] = q_sl * A_h - q_b*60.0;
     for (i = 0; i<num_parents; i++)
         ans[6] += y_p[i * dim + 6] * 60.0;
