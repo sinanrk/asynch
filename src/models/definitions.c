@@ -430,10 +430,21 @@ case 20:	num_global_params = 9;
         globals->areah_idx = 2;
         globals->num_disk_params = 18;
         globals->convertarea_flag = 0;
-        globals->num_forcings = 2;
+        globals->num_forcings = 3;
         globals->min_error_tolerances = 3;
         break;
 
+    case 609:	num_global_params = 1;
+        globals->uses_dam = 0;
+        globals->num_params = 19;
+        globals->dam_params_size = 0;
+        globals->area_idx = 0;
+        globals->areah_idx = 2;
+        globals->num_disk_params = 19;
+        globals->convertarea_flag = 0;
+        globals->num_forcings = 2;
+        globals->min_error_tolerances = 3;
+        break;
     case 607:	num_global_params = 1;
         globals->uses_dam = 0;
         globals->num_params = 15;
@@ -851,7 +862,7 @@ void ConvertParams(
         params[2] *= 1e6; // Ah: km^2 -> m^2
     }
 
-    else if (model_uid == 654 || model_uid == 608)
+    else if (model_uid == 654 || model_uid == 608 || model_uid == 609)
     {
         params[1] *= 1000; //L: km -> m
         params[2] *= 1e6; // Ah: km^2 -> m^2
@@ -1426,7 +1437,30 @@ void InitRoutines(
         link->num_dense = 1;
         link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
         link->dense_indices[0] = 0;
-        link->differential = &TilesModel;
+
+        if (link->has_res)
+        { 
+            link->differential = &Tiles_Reservoirs;
+            link->solver = &ForcedSolutionSolver;
+        }
+        else    link->differential = &TilesModel;
+        link->algebraic = NULL;
+        link->check_state = NULL;
+        link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+            //&CheckConsistency_Nonzero_5States;
+        //link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
+    }
+    
+    else if (model_uid == 609)
+    {
+        link->dim = 7;
+        link->no_ini_start = link->dim;
+        link->diff_start = 0;
+
+        link->num_dense = 1;
+        link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+        link->dense_indices[0] = 0;
+        link->differential = &TilesModel_inter;
         link->algebraic = NULL;
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
@@ -2520,6 +2554,34 @@ void Precalculations(
         
         vals[16] = 60.0*v0*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
         vals[17] = v_r * (L_i / A_h) * 60; // [1/min] runoff speed.
+    }
+
+    else if (model_uid == 609)
+    { 
+        double* vals = params;
+        double A_i = params[0];
+        double L_i = params[1];
+        double A_h = params[2];
+        double v_r = params[3];
+        double a_r = params[4];
+        double a = params[5];
+        double b = params[6]; 
+        double c = params[7];
+        double d = params[8];
+        double k3 = params[9];
+        double ki_fac = params[10];
+        //double k2 = params[11];
+        double t_L = params[11];
+        double ktl = params[12];
+        double NoFlow = params[13];
+        double Td = params[14];
+        double Beta = params[15];
+        double lambda_1 = params[16];
+        double lambda_2 = params[17];
+        double v0 = params[18];
+        
+        vals[17] = 60.0*v0*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
+        vals[18] = v_r * (L_i / A_h) * 60; // [1/min] runoff speed.
     }
 
     else if (model_uid == 607)
