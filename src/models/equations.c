@@ -1348,14 +1348,11 @@ void model254(double t, const double * const y_i, unsigned int dim, const double
     ans[3] = q_ts - q_sl - e_s;
 
     //Additional states
-<<<<<<< HEAD
-    //ans[4] = forcing_values[0] * c_1;
-    //ans[5] = q_pl;
-=======
+
     ans[4] = forcing_values[0] * c_1;
     ans[5] = q_pl;
-    //ans[6] = q_in
->>>>>>> 8f1c9a299edd54e240cefddf2eb83d282720d8fe
+
+
     ans[6] = q_sl * A_h - q_b*60.0;
     for (i = 0; i<num_parents; i++)
         ans[6] += y_p[i * dim + 6] * 60.0;
