@@ -66,7 +66,98 @@ for(i=0;i<dim;i++)	ans[i] = tempresult[i];
 
 double sq(double x) { return x * x; }
 
+//Type 1 (UID 1)
+void model1(double t, \
+		const double * const y_i, \
+		unsigned int dim, \
+		const double * const y_p, \
+		unsigned short num_parents, \
+		unsigned int max_dim, \
+		const double * const global_params, \
+		const double * const params, \
+		const double * const forcing_values, \
+		const QVSData * const qvs, \
+		int state, \
+		void* user, \
+		double *ans)
+{
+    unsigned short i;
 
+    double lambda_1 = global_params[1];
+    double k_3 = global_params[4];  //[1/min]
+    double h_b = global_params[6];  //[m]
+    double S_L = global_params[7];  //[m]
+    double A = global_params[8];
+    double B = global_params[9];
+    double exponent = global_params[10];
+    double v_B = global_params[11];
+    double k_tl = global_params[12];
+    double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));   //[mm/month] -> [m/min]
+
+    double L = params[1];   //[m]
+    double A_h = params[2]; //[m^2]
+    double invtau = params[3];  //[1/min]
+    double k_2 = params[4];     //[1/min]
+    double k_i = params[5];     //[1/min]
+    double c_1 = params[6];
+    double c_2 = params[7];
+
+    double q = y_i[0];		//[m^3/s]
+    double S = y_i[1];		//[m^3]
+    double s_p = y_i[2];	//[m]
+    double s_t = y_i[3];	//[m]
+    double s_s = y_i[4];	//[m]
+//    double q_b = y_i[7];    //[m^3/s]
+
+
+    //Evaporation
+    double e_p, e_t, e_s;
+    double Corr = s_p + s_t / S_L + s_s / (h_b - S_L);
+    if (e_pot > 0.0 && Corr > 1e-12)
+    {
+        e_p = s_p * e_pot / Corr;
+        e_t = s_t / S_L * e_pot / Corr;
+        e_s = s_s / (h_b - S_L) * e_pot / Corr;
+    }
+    else
+    {
+        e_p = 0.0;
+        e_t = 0.0;
+        e_s = 0.0;
+    }
+
+    double pow_term = (1.0 - s_t / S_L > 0.0) ? pow(1.0 - s_t / S_L, exponent) : 0.0;
+    double k_t = (A + B * pow_term) * k_2;
+
+    //Fluxes
+    double q_pl = k_2 * s_p;
+    double q_pt = k_t * s_p;
+    double q_ts = k_i * s_t;
+    double q_tl = k_tl * s_t;
+    double q_sl = k_3 * s_s;    //[m/min]
+
+    //Discharge
+    ans[0] = -q + (q_pl + q_tl + q_sl) * c_2;
+    for (i = 0; i < num_parents; i++)
+        ans[0] += y_p[i * dim];
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];    // discharge[0]
+
+
+    //Discharge
+    dam_TopLayerHillslope_variable(y_i, dim, global_params, params, qvs, state, user, ans);	//ans is used for convenience !!!!
+    // Is q available in y_i? !!!!
+    double qm = ans[0] * 60.0;
+
+    //Storage
+    ans[1] = (q_pl + q_sl) * A_h - qm;
+    for (i = 0; i<num_parents; i++)
+        ans[1] += y_p[i * dim] * 60.0;
+
+    //Hillslope
+    ans[2] = forcing_values[0] * c_1 - q_pl - q_pt - e_p; // pond[1]
+    ans[3] = q_pt - q_ts - q_tl - e_t;  // toplayer[2]
+    ans[4] = q_ts - q_sl - e_s;  // subsurface[3]
+}
 
 //Type 601
 //This is the first model from a set of models with all parameters taken from the disk not from the globals,
@@ -1161,7 +1252,7 @@ void model252(double t, const double * const y_i, unsigned int dim, const double
 }
 
 
-//Type 253 , 255
+//Type 253 , 255,256
 //Contains 3 layers on hillslope: ponded, top layer, soil
 //Order of parameters: A_i,L_i,A_h,invtau,k_2,k_i,c_1,c_2
 //The numbering is:	0   1   2     3    4   5   6   7
@@ -1173,52 +1264,6 @@ void TopLayerHillslope_Reservoirs(double t, const double * const y_i, unsigned i
 		ans[0] = forcing_values[2];
 	}
     if(forcing_values[2] <=0){
-		
-		// double lambda_1 = global_params[1];
-		// double k_3 = global_params[4];	//[1/min]
-		// double h_b = global_params[6];	//[m]
-		// double S_L = global_params[7];	//[m]
-		// double A = global_params[8];
-		// double B = global_params[9];
-		// double exponent = global_params[10];
-		// double e_pot = forcing_values[1] * (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
-		// double L = params[1];	//[m]
-		// double A_h = params[2];	//[m^2]
-		// double invtau = params[3];	//[1/min]
-		// double k_2 = params[4];	//[1/min]
-		// double k_i = params[5];	//[1/min]
-		// double c_1 = params[6];
-		// double c_2 = params[7];
-		// double q = y_i[0];	//[m^3/s]
-		// double s_p = y_i[1];	//[m]
-		// double s_t = y_i[2];	//[m]
-		// double s_s = y_i[3];	//[m]
-		// //Evaporation
-		// double e_p, e_t, e_s;
-		// double Corr = s_p + s_t / S_L + s_s / (h_b - S_L);
-		// if (e_pot > 0.0 && Corr > 1e-12)
-		// {
-			// e_p = s_p  * e_pot / Corr;
-			// e_t = s_t / S_L * e_pot / Corr;
-			// e_s = s_s / (h_b - S_L) * e_pot / Corr;
-		// }
-		// else
-		// {
-			// e_p = 0.0;
-			// e_t = 0.0;
-			// e_s = 0.0;
-		// }
-		// double pow_term = (1.0 - s_t / S_L > 0.0) ? pow(1.0 - s_t / S_L, exponent) : 0.0;
-		// double k_t = (A + B * pow_term) * k_2;
-		// //Fluxes
-		// double q_pl = k_2 * s_p;
-		// double q_sl = k_3 * s_s;
-		// //Discharge
-		// ans[0] = -q + (q_pl + q_sl) * c_2;
-		// for (i = 0; i<num_parents; i++)
-			// ans[0] += y_p[i * dim];
-		// ans[0] = invtau * pow(q, lambda_1) * ans[0];
-		//ans[0] = 1.0;
 		unsigned short i;
 		for (i = 0; i<num_parents; i++)
 			ans[0] += y_p[i * dim];
@@ -1258,13 +1303,13 @@ void model254(double t, const double * const y_i, unsigned int dim, const double
     double c_1 = params[6];
     double c_2 = params[7];
 
-    double q = y_i[0];		//[m^3/s]
+    double q =   y_i[0];		//[m^3/s]
     double s_p = y_i[1];	//[m]
     double s_t = y_i[2];	//[m]
     double s_s = y_i[3];	//[m]
                             //double s_precip = y_i[4];	//[m]
                             //double V_r = y_i[5];	//[m^3]
-    double q_b = y_i[6];	//[m^3/s]
+    double q_b = max(0.001,y_i[6]);	//[m^3/s]
 
                             //Evaporation
     double e_p, e_t, e_s;
@@ -1303,9 +1348,11 @@ void model254(double t, const double * const y_i, unsigned int dim, const double
     ans[3] = q_ts - q_sl - e_s;
 
     //Additional states
+
     ans[4] = forcing_values[0] * c_1;
     ans[5] = q_pl;
-    //ans[6] = q_in
+
+
     ans[6] = q_sl * A_h - q_b*60.0;
     for (i = 0; i<num_parents; i++)
         ans[6] += y_p[i * dim + 6] * 60.0;
@@ -2345,6 +2392,24 @@ void TopLayerNonlinearExp(double t, const double * const y_i, unsigned int dim, 
     ans[3] = q_ts - q_sl - e_s;
 }
 
+//Type 405
+void sacsma01(double t, \
+		const double * const y_i, \
+		unsigned int dim, \
+		const double * const y_p, \
+		unsigned short num_parents, \
+		unsigned int max_dim, \
+		const double * const global_params, \
+		const double * const params, \
+		const double * const forcing_values, \
+		const QVSData * const qvs, \
+		int state, \
+		void* user, \
+		double *ans)
+{
+
+                     
+}
 
 //Type 261
 //Contains 2 states in the channel: dischage, storage
@@ -2970,6 +3035,45 @@ void LinearHillslope_MonthlyEvap_kI_extras(double t, const double * const y_i, u
         ans[5] += y_p[i * dim + 5] * 60.0;
     //ans[5] += k3*y_p[i].ve[2]*A_h;
     ans[5] *= v_B / L;
+}
+
+//Type 194
+//Order of parameters: A_i,L_i,A_h,k2,k3,invtau,c_1,c_2
+//The numbering is:	0   1   2   3  4    5    6   7
+//Order of global_params: v_r,lambda_1,lambda_2,RC,v_h,v_g
+//The numbering is:        0      1        2     3  4   5
+void routing_runoff1(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, unsigned int max_dim, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    unsigned short i;
+
+    double lambda_1 = global_params[1];
+
+	double A_i = params[0];
+	double L_i = params[1];
+	double A_h = params[2];
+	double invtau = params[3];
+	//printf("invtau: %f\n", invtau);
+    double q = y_i[0];		                                        // [m^3/s]
+
+    double runoff = forcing_values[0]*(0.001 / 60.0);               //(mm/hr ->m/min)
+
+
+
+    ans[0] = -q + (runoff * A_h / 60.0); //m3/min to m3/s
+    for (i = 0; i<num_parents; i++)
+        ans[0] += y_p[i * dim];
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];
+	
+    //Hillslope
+    //ans[1] = q_rp - q_pl;
+
+    //Sub-surface
+   // ans[2] = q_ra - q_al - e_a;
+
+    //Accumulated precip
+    //ans[3] = q_rp + q_ra;
+
+
 }
 
 //Type 195
