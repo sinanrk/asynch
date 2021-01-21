@@ -1509,15 +1509,12 @@ void model256(double t, const double * const y_i, unsigned int dim, const double
     double s_p = y_i[1];    //[m]
     double s_t = y_i[2];    //[m]
     double s_s = y_i[3];    //[m]
+	double q_pl0=y_i[4];	//m3s-1 bad idea. makes everything 0
+	double q_tl0=y_i[5];	//m3s-1
+	double q_sl0=y_i[6];	//m3s-1
                             //double s_precip = y_i[4];	//[m]
                             //double V_r = y_i[5];	//[m^3]
     double q_b = y_i[7];    //[m^3/s]
-
-    //Machete
-    if (s_p < 1e-10)
-    {
-        s_p = 1e-10;
-    }
 
 
     //Evaporation
@@ -1553,14 +1550,21 @@ void model256(double t, const double * const y_i, unsigned int dim, const double
     ans[0] = invtau * pow(q, lambda_1) * ans[0];    // discharge[0]
 
     //Hillslope
-    ans[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;   // pond[1]
-    ans[2] = q_pt - q_ts - q_tl - e_t;                      // toplayer[2]
-    ans[3] = q_ts - q_sl - e_s;                             // subsurface[3]
+    ans[1] = forcing_values[0] * c_1 - q_pl - q_pt - e_p;   // hillslope pond[1] depth m or m/min
+    ans[2] = q_pt - q_ts - q_tl - e_t;                      // toplayer[2] depth m or m/min
+    ans[3] = q_ts - q_sl - e_s;                             // subsurface[3] depth m or m/min
 
     //Additional states
-    ans[4] = forcing_values[0] * c_1;   // precip[4]
-    ans[5] = forcing_values[1] * c_1;   // et[5]
-    ans[6] = q_pl;                      // runoff[]6
+    //ans[4] = forcing_values[0] * c_1;   // precip[4]
+    //ans[5] = forcing_values[1] * c_1;   // et[5]
+	//ans[6] = q_pl; //runoff
+	
+	ans[4] = q_pl *c_2 - q_pl0; //doesnt work substracting initial
+	ans[5] = q_tl*c_2 - q_tl0; //
+	ans[6] = q_sl*c_2 - q_sl0; //
+	//ans[4] = q_pl *c_2 ; //hillslope surface flow m3s-1
+	//ans[5] = q_tl*c_2 ; //hillslope interflow m3s-1
+	//ans[6] = q_sl*c_2 ; //hillslope subsurface flow m3s-1
     ans[7] = q_sl * A_h - q_b*60.0;     // baseflow[7]
     for (i = 0; i < num_parents; i++)
         ans[7] += y_p[i * dim + 7] * 60.0;
