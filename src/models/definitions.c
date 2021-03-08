@@ -1604,7 +1604,7 @@ void InitRoutines(
             link->differential = &TopLayerHillslope_Reservoirs;
             link->solver = &ForcedSolutionSolver;
         }
-        else			link->differential = &model254;
+        else			link->differential = &model253;
         link->algebraic = NULL;
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
@@ -1677,6 +1677,7 @@ void InitRoutines(
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
     }
+	    
     else if (model_uid == 257)
     {
         link->dim = 8;
